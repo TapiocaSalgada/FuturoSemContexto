@@ -16,9 +16,13 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid credentials");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        });
+        // Support login by username (no @ in input) or email
+        let user;
+        if (credentials.email.includes("@")) {
+          user = await prisma.user.findUnique({ where: { email: credentials.email } });
+        } else {
+          user = await prisma.user.findFirst({ where: { name: { equals: credentials.email, mode: "insensitive" } } });
+        }
 
         if (!user) {
           throw new Error("Usuário não encontrado.");

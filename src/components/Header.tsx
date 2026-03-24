@@ -121,10 +121,6 @@ export default function Header() {
                 className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 transition">
                 <UserCircle size={16} className="text-pink-500" /> Ver Perfil
               </Link>
-              <Link href="/settings" onClick={() => setShowProfile(false)}
-                className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 transition">
-                <Settings size={16} className="text-pink-500" /> Configurações
-              </Link>
             </div>
             <div className="border-t border-zinc-800 py-1">
               <button onClick={() => signOut()} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-red-400 hover:bg-red-500/10 transition">

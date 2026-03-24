@@ -26,7 +26,27 @@ export async function PATCH(req: NextRequest) {
   // @ts-expect-error role typing
   if (!session || session.user?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const requestorId = (session.user as any)?.id;
   const { id, name, email, role, timeoutUntil } = await req.json();
+
+  // Prevent non-owner from promoting/demoting admins (only the first admin can manage roles)
+  if (role !== undefined && id !== requestorId) {
+    // Find the original first admin (oldest by creation time)
+    const firstAdmin = await prisma.user.findFirst({
+      where: { role: "admin" },
+      orderBy: { id: "asc" }, // UUID is random, but this at least prevents self-demotion loops
+    });
+    const targetUser = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+    // If target is admin and requestor is NOT the first admin, block role change
+    if (targetUser?.role === "admin" && firstAdmin?.id !== requestorId) {
+      return NextResponse.json({ error: "Apenas o owner pode alterar admins." }, { status: 403 });
+    }
+    // Never allow self-demotion via admin panel
+    if (id === requestorId && role !== "admin") {
+      return NextResponse.json({ error: "Você não pode rebaixar a si mesmo." }, { status: 403 });
+    }
+  }
+
   const data: Record<string, unknown> = {};
   if (name !== undefined) data.name = name;
   if (email !== undefined) data.email = email;
@@ -43,7 +63,11 @@ export async function DELETE(req: NextRequest) {
   // @ts-expect-error role typing
   if (!session || session.user?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+  const requestorId = (session.user as any)?.id;
   const { id } = await req.json();
+
+  if (id === requestorId) return NextResponse.json({ error: "Você não pode deletar a si mesmo." }, { status: 400 });
+
   await prisma.user.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

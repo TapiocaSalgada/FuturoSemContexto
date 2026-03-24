@@ -45,3 +45,14 @@ export async function PATCH(req: NextRequest) {
   const suggestion = await prisma.suggestion.update({ where: { id }, data: { status } });
   return NextResponse.json(suggestion);
 }
+
+// DELETE a suggestion (admin only)
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  // @ts-expect-error role typing
+  if (!session || session.user?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await req.json();
+  await prisma.suggestion.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}

@@ -12,13 +12,19 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
     if (!isAdmin(session)) return new NextResponse("Unauthorized", { status: 401 });
     const { title, description, coverImage, bannerImage, status } = await req.json();
-    const anime = await prisma.anime.create({ data: { title, description, coverImage, bannerImage, status: status || "ongoing" } });
+
+    // Prevent duplicates
+    const existing = await prisma.anime.findFirst({ where: { title: { equals: title, mode: "insensitive" } } });
+    if (existing) return new NextResponse("Anime já existe no catálogo.", { status: 409 });
+
+    const anime = await prisma.anime.create({ data: { title, description, coverImage, bannerImage, status: status || "ongoing", visibility: "public" } });
     return NextResponse.json(anime);
   } catch (error) {
     console.error("Anime Creation Error", error);
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
+
 
 export async function PUT(req: NextRequest) {
   try {
