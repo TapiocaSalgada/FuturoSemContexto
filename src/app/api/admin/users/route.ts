@@ -3,7 +3,8 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-// GET all users (admin only)
+const OWNER_EMAIL = process.env.OWNER_EMAIL || "relugocruz@gmail.com";
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   // @ts-expect-error role typing
@@ -20,30 +21,32 @@ export async function GET() {
   return NextResponse.json(users);
 }
 
-// PATCH update a user (admin only) - edit name, email, role, timeout
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   // @ts-expect-error role typing
   if (!session || session.user?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const requestorId = (session.user as any)?.id;
+  const requestorEmail = session.user?.email;
   const { id, name, email, role, timeoutUntil } = await req.json();
 
-  // Prevent non-owner from promoting/demoting admins (only the first admin can manage roles)
-  if (role !== undefined && id !== requestorId) {
-    // Find the original first admin (oldest by creation time)
-    const firstAdmin = await prisma.user.findFirst({
-      where: { role: "admin" },
-      orderBy: { id: "asc" }, // UUID is random, but this at least prevents self-demotion loops
-    });
-    const targetUser = await prisma.user.findUnique({ where: { id }, select: { role: true } });
-    // If target is admin and requestor is NOT the first admin, block role change
-    if (targetUser?.role === "admin" && firstAdmin?.id !== requestorId) {
-      return NextResponse.json({ error: "Apenas o owner pode alterar admins." }, { status: 403 });
+  // Only the owner can demote other admins OR edit the owner account
+  if (role !== undefined) {
+    const targetUser = await prisma.user.findUnique({ where: { id }, select: { email: true, role: true } });
+    // Block demoting the owner
+    if (targetUser?.email === OWNER_EMAIL && role !== "admin") {
+      return NextResponse.json({ error: "O dono do site não pode ser rebaixado." }, { status: 403 });
     }
-    // Never allow self-demotion via admin panel
-    if (id === requestorId && role !== "admin") {
-      return NextResponse.json({ error: "Você não pode rebaixar a si mesmo." }, { status: 403 });
+    // Block non-owners from demoting other admins
+    if (targetUser?.role === "admin" && requestorEmail !== OWNER_EMAIL && role !== "admin") {
+      return NextResponse.json({ error: "Apenas o dono pode remover outros admins." }, { status: 403 });
+    }
+  }
+
+  // Block editing the owner account unless you ARE the owner
+  if (email !== undefined) {
+    const targetUser = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+    if (targetUser?.email === OWNER_EMAIL && requestorEmail !== OWNER_EMAIL) {
+      return NextResponse.json({ error: "Não é permitido editar a conta do dono." }, { status: 403 });
     }
   }
 
@@ -57,16 +60,21 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json(user);
 }
 
-// DELETE user (admin only)
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
   // @ts-expect-error role typing
   if (!session || session.user?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const requestorId = (session.user as any)?.id;
+  const requestorEmail = session.user?.email;
   const { id } = await req.json();
 
-  if (id === requestorId) return NextResponse.json({ error: "Você não pode deletar a si mesmo." }, { status: 400 });
+  const targetUser = await prisma.user.findUnique({ where: { id }, select: { email: true } });
+  if (targetUser?.email === OWNER_EMAIL) {
+    return NextResponse.json({ error: "Não é permitido deletar a conta do dono." }, { status: 403 });
+  }
+  if (targetUser?.email === requestorEmail) {
+    return NextResponse.json({ error: "Você não pode deletar sua própria conta." }, { status: 400 });
+  }
 
   await prisma.user.delete({ where: { id } });
   return NextResponse.json({ ok: true });

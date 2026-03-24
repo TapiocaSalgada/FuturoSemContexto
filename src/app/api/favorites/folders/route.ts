@@ -3,12 +3,23 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-// GET user's folders
-export async function GET() {
+async function getUserFromSession() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (!session) return null;
+  // Try by ID first (from token), then by email
+  const userId = (session.user as any)?.id;
+  if (userId) {
+    return prisma.user.findUnique({ where: { id: userId } });
+  }
+  if (session.user?.email) {
+    return prisma.user.findUnique({ where: { email: session.user.email } });
+  }
+  return null;
+}
+
+export async function GET() {
+  const user = await getUserFromSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const folders = await prisma.favoriteFolder.findMany({
     where: { userId: user.id },
@@ -21,41 +32,37 @@ export async function GET() {
   return NextResponse.json(folders);
 }
 
-// POST create a new folder
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const user = await getUserFromSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { name, isPrivate } = await req.json();
+  if (!name?.trim()) return NextResponse.json({ error: "Nome da pasta é obrigatório." }, { status: 400 });
+
   const folder = await prisma.favoriteFolder.create({
-    data: { userId: user.id, name, isPrivate: isPrivate ?? false },
+    data: { userId: user.id, name: name.trim(), isPrivate: isPrivate ?? false },
   });
   return NextResponse.json(folder);
 }
 
-// PATCH update a folder
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const user = await getUserFromSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id, name, isPrivate } = await req.json();
   const folder = await prisma.favoriteFolder.findUnique({ where: { id } });
   if (!folder || folder.userId !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const updated = await prisma.favoriteFolder.update({ where: { id }, data: { name, isPrivate } });
+  const updated = await prisma.favoriteFolder.update({
+    where: { id },
+    data: { ...(name !== undefined && { name }), ...(isPrivate !== undefined && { isPrivate }) },
+  });
   return NextResponse.json(updated);
 }
 
-// DELETE a folder
 export async function DELETE(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const user = await getUserFromSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await req.json();
   const folder = await prisma.favoriteFolder.findUnique({ where: { id } });

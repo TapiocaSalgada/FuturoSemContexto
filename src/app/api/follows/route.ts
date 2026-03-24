@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-// POST to follow a user
+// Toggle follow/unfollow
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,27 +27,28 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET follow status and counts for a user
+// GET follow status + counts
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions);
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get("userId");
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-  const session = await getServerSession(authOptions);
-  let isFollowing = false;
+  const [followersCount, followingCount] = await Promise.all([
+    prisma.follows.count({ where: { followingId: userId } }),
+    prisma.follows.count({ where: { followerId: userId } }),
+  ]);
 
+  let isFollowing = false;
   if (session?.user?.email) {
-    const currentUser = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (currentUser) {
-      const follow = await prisma.follows.findUnique({
-        where: { followerId_followingId: { followerId: currentUser.id, followingId: userId } },
+    const me = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (me) {
+      const f = await prisma.follows.findUnique({
+        where: { followerId_followingId: { followerId: me.id, followingId: userId } },
       });
-      isFollowing = !!follow;
+      isFollowing = !!f;
     }
   }
-
-  const followersCount = await prisma.follows.count({ where: { followingId: userId } });
-  const followingCount = await prisma.follows.count({ where: { followerId: userId } });
 
   return NextResponse.json({ followersCount, followingCount, isFollowing });
 }

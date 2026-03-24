@@ -167,6 +167,9 @@ export default function AnimePageClient() {
     loadComments();
   };
 
+  const addEmoji = (emoji: string) => setNewComment(prev => prev + emoji);
+
+
   const currentUserId = (session?.user as any)?.id;
 
   if (!anime) return (
@@ -296,15 +299,26 @@ export default function AnimePageClient() {
             </h2>
 
             {session ? (
-              <form onSubmit={handleComment} className="flex gap-3 mb-8">
-                <img src={(session.user as any)?.avatarUrl || session.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user?.name || "U")}&background=ff007f&color=fff`}
-                  className="w-9 h-9 rounded-full shrink-0" alt="avatar" />
-                <div className="flex-1 flex items-center gap-2 bg-zinc-900/70 border border-zinc-700 hover:border-zinc-500 rounded-xl px-4 py-2.5 transition focus-within:border-pink-500">
-                  <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Deixe um comentário..."
-                    className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder:text-zinc-600" />
-                  <button type="submit" disabled={!newComment.trim()} className="text-pink-500 hover:text-pink-400 disabled:opacity-30 transition">
-                    <Send size={16} />
-                  </button>
+              <form onSubmit={handleComment} className="mb-8 space-y-2">
+                {/* Emoji Bar */}
+                <div className="flex items-center gap-1 flex-wrap">
+                  {["😂","❤️","🔥","👍","😭","💀","🫡","✨","😮","🎉"].map(e => (
+                    <button key={e} type="button" onClick={() => addEmoji(e)}
+                      className="text-xl hover:scale-125 transition-transform duration-150 p-1 rounded-lg hover:bg-zinc-800 min-w-[36px]">
+                      {e}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-3">
+                  <img src={(session.user as any)?.avatarUrl || session.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user?.name || "U")}&background=ff007f&color=fff`}
+                    className="w-9 h-9 rounded-full shrink-0 object-cover" alt="avatar" />
+                  <div className="flex-1 flex items-center gap-2 bg-zinc-900/70 border border-zinc-700 hover:border-zinc-500 rounded-xl px-4 py-2.5 transition focus-within:border-pink-500">
+                    <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Deixe um comentário..."
+                      className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder:text-zinc-600 min-w-0" />
+                    <button type="submit" disabled={!newComment.trim()} className="text-pink-500 hover:text-pink-400 disabled:opacity-30 transition">
+                      <Send size={16} />
+                    </button>
+                  </div>
                 </div>
               </form>
             ) : (
