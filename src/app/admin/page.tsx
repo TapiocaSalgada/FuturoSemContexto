@@ -172,6 +172,9 @@ export default function AdminDashboard() {
 
   const handleEpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!epForm.animeId) { showMsg("Selecione um anime.", "err"); return; }
+    if (!epForm.number) { showMsg("Informe o número do episódio.", "err"); return; }
+    if (!epForm.videoUrl.trim()) { showMsg("Informe a URL do vídeo ou selecione um arquivo local.", "err"); return; }
     const res = await fetch("/api/admin/episode", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(epForm) });
     if (res.ok) { showMsg("Episódio salvo!"); setEpForm({ ...epForm, number: "", videoUrl: "", title: "" }); }
     else showMsg("Erro ao salvar episódio.", "err");
@@ -343,67 +346,75 @@ export default function AdminDashboard() {
                     <div><label className={labelClass}>Número *</label><input required type="number" className={inputClass} value={epForm.number} onChange={e => setEpForm({ ...epForm, number: e.target.value })} /></div>
                     <div><label className={labelClass}>Temporada *</label><input required type="number" className={inputClass} value={epForm.season} onChange={e => setEpForm({ ...epForm, season: e.target.value })} /></div>
                   </div>
-                  <div>
-                    <label className={labelClass}>Vídeo (URL ou arquivo local)</label>
-                    <input className={inputClass} value={epForm.videoUrl} onChange={e => setEpForm({ ...epForm, videoUrl: e.target.value })} placeholder="https://drive.google.com/... ou /videos/pasta/ep.mp4" />
+                  {/* ── VIDEO SECTION ── */}
+                  <div className="space-y-2">
+                    <label className={labelClass}>Vídeo</label>
 
-                    {/* Local file picker — grouped by subfolder */}
-                    {localFiles.length > 0 && (
-                      <div className="mt-3 bg-zinc-900/60 border border-zinc-700 rounded-xl p-3 space-y-3">
-                        <p className="text-xs font-bold text-pink-400 flex items-center gap-1.5">
-                          📁 Arquivos em <code className="text-zinc-300">public/videos/</code> — clique para usar:
-                        </p>
+                    {/* Selected file indicator */}
+                    {epForm.videoUrl && (
+                      <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/40 rounded-xl px-3 py-2">
+                        <span className="text-green-400 text-xs font-black">✅ Selecionado:</span>
+                        <span className="text-green-300 text-xs font-mono truncate">{epForm.videoUrl}</span>
+                        <button type="button" onClick={() => setEpForm({ ...epForm, videoUrl: "" })} className="ml-auto text-zinc-500 hover:text-red-400 transition text-xs">✕</button>
+                      </div>
+                    )}
 
-                        {/* Root files (no folder) */}
+                    {/* URL input */}
+                    <input
+                      className={inputClass}
+                      value={epForm.videoUrl}
+                      onChange={e => setEpForm({ ...epForm, videoUrl: e.target.value })}
+                      placeholder="Cole aqui URL do Google Drive, YouTube, etc."
+                    />
+
+                    {/* Local file picker */}
+                    {localFiles.length > 0 ? (
+                      <div className="bg-zinc-900/60 border border-zinc-700 rounded-xl p-3 space-y-2">
+                        <p className="text-xs font-bold text-pink-400">📁 Arquivos em <code className="text-zinc-300">public/videos/</code> — clique para selecionar:</p>
+
+                        {/* Root files */}
                         {localFiles.filter(f => !f.folder).length > 0 && (
-                          <div>
-                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Raiz</p>
-                            <div className="flex flex-wrap gap-1">
-                              {localFiles.filter(f => !f.folder).map(f => (
-                                <button key={f.path} type="button"
-                                  onClick={() => setEpForm({ ...epForm, videoUrl: `/videos/${f.path}` })}
-                                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition font-mono ${
-                                    epForm.videoUrl === `/videos/${f.path}`
-                                      ? "bg-pink-600 border-pink-500 text-white"
-                                      : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-pink-600/20 hover:border-pink-500 hover:text-white"
-                                  }`}>
-                                  {f.name}
-                                </button>
-                              ))}
-                            </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {localFiles.filter(f => !f.folder).map(f => (
+                              <button key={f.path} type="button"
+                                onClick={() => setEpForm(prev => ({ ...prev, videoUrl: `/videos/${f.path}` }))}
+                                className={`text-xs px-3 py-1.5 rounded-lg border transition font-mono truncate max-w-[180px] ${
+                                  epForm.videoUrl === `/videos/${f.path}`
+                                    ? "bg-green-600 border-green-500 text-white"
+                                    : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:border-pink-500"
+                                }`}>
+                                🎬 {f.name}
+                              </button>
+                            ))}
                           </div>
                         )}
 
-                        {/* Files grouped by subfolder */}
+                        {/* Subfolder groups */}
                         {localFolders.map(folder => (
                           <div key={folder}>
-                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1 flex items-center gap-1">
-                              📂 {folder}
-                            </p>
-                            <div className="flex flex-wrap gap-1">
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">📂 {folder}</p>
+                            <div className="flex flex-wrap gap-1.5">
                               {localFiles.filter(f => f.folder === folder).map(f => (
                                 <button key={f.path} type="button"
-                                  onClick={() => setEpForm({ ...epForm, videoUrl: `/videos/${f.path}`, title: epForm.title || f.name.replace(/\.[^.]+$/, "") })}
-                                  className={`text-xs px-2.5 py-1.5 rounded-lg border transition font-mono ${
+                                  onClick={() => setEpForm(prev => ({
+                                    ...prev,
+                                    videoUrl: `/videos/${f.path}`,
+                                    title: prev.title || f.name.replace(/\.[^.]+$/, ""),
+                                  }))}
+                                  className={`text-xs px-3 py-1.5 rounded-lg border transition font-mono truncate max-w-[180px] ${
                                     epForm.videoUrl === `/videos/${f.path}`
-                                      ? "bg-pink-600 border-pink-500 text-white"
-                                      : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-pink-600/20 hover:border-pink-500 hover:text-white"
+                                      ? "bg-green-600 border-green-500 text-white"
+                                      : "bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:border-pink-500"
                                   }`}>
-                                  {f.name}
+                                  🎬 {f.name}
                                 </button>
                               ))}
                             </div>
                           </div>
                         ))}
-
-                        <p className="text-[10px] text-zinc-600">
-                          💡 Dica: crie subpastas em <code>public/videos/NomeAnime/</code> e os eps aparecem agrupados aqui.
-                        </p>
                       </div>
-                    )}
-
-                    {localFiles.length === 0 && (
-                      <p className="text-xs text-zinc-600 mt-2">📂 Nenhum arquivo em <code>public/videos/</code> — adicione mp4s lá para aparecerem aqui.</p>
+                    ) : (
+                      <p className="text-xs text-zinc-600">📂 Nenhum arquivo local detectado. Coloque mp4s em <code>public/videos/</code> ou use URL acima.</p>
                     )}
                   </div>
                   <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm transition flex items-center justify-center gap-2">
