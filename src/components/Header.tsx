@@ -75,7 +75,7 @@ export default function Header() {
       <div className="md:hidden w-12 shrink-0" />
 
       {/* Search Bar */}
-      <div className="flex-1 max-w-md relative" ref={searchRef}>
+      <div className="flex-1 max-w-sm relative" ref={searchRef}>
         <div className="flex items-center gap-2 bg-zinc-900/80 border border-zinc-800 hover:border-zinc-600 focus-within:border-pink-500 rounded-xl px-3 py-2 transition">
           <Search size={15} className="text-zinc-500 shrink-0" />
           <input
@@ -128,8 +128,11 @@ export default function Header() {
         )}
       </div>
 
+      {/* Right corner: Bell + Profile */}
+      <div className="ml-auto flex items-center gap-2 shrink-0">
+
       {/* Announcements Bell */}
-      <div className="relative shrink-0" ref={announcementRef}>
+      <div className="relative" ref={announcementRef}>
         <button onClick={handleOpenAnnouncements}
           className="relative w-10 h-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-pink-500 hover:bg-zinc-800 transition"
           title="Anúncios">
@@ -193,6 +196,7 @@ export default function Header() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </header>
   );
