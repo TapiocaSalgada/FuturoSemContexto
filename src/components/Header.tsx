@@ -70,7 +70,7 @@ export default function Header() {
   const unreadCount = announcements.length;
 
   return (
-    <header className="flex items-center gap-3 px-4 lg:px-6 py-3 bg-[#0d0d0d]/80 backdrop-blur-sm border-b border-white/5 fixed top-0 right-0 z-30" style={{ left: "var(--sidebar-width, 0)", paddingLeft: "env(safe-area-inset-left)" }}>
+    <header className="flex items-center gap-3 px-4 py-3 bg-[#0d0d0d]/90 backdrop-blur-md border-b border-white/5 fixed top-0 right-0 z-30 left-0 md:left-16 lg:left-60 h-14">
       {/* Spacer for mobile hamburger */}
       <div className="md:hidden w-12 shrink-0" />
 
