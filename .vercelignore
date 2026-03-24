@@ -1,0 +1,8 @@
+node_modules
+.next
+public/videos
+prisma/dev.db
+prisma/dev.db-journal
+prisma-push-result.txt
+.env
+*.log
