@@ -1,9 +1,11 @@
 import AppLayout from "@/components/AppLayout";
 import prisma from "@/lib/prisma";
 import Link from "next/link";
-import { Play, TrendingUp, Clock, Heart, Sparkles } from "lucide-react";
+import { Play, TrendingUp, Clock, Heart } from "lucide-react";
 import SuggestionButton from "@/components/SuggestionButton";
 import HomeCTA from "@/components/HomeCTA";
+
+export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const recentAnimes = await prisma.anime.findMany({

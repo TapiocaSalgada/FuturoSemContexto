@@ -6,6 +6,9 @@ import Link from "next/link";
 import { Clock, Play } from "lucide-react";
 import { redirect } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
+
 export default async function HistoryPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect("/login");
