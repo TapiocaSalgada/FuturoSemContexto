@@ -1,0 +1,213 @@
+"use client";
+
+import AppLayout from "@/components/AppLayout";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useParams } from "next/navigation";
+import { UserCircle, Users, Heart, Edit3, Check, UploadCloud, Lock, Film } from "lucide-react";
+import Link from "next/link";
+
+interface ProfileUser {
+  id: string; name: string; avatarUrl?: string; bannerUrl?: string; bio?: string;
+  _count: { followers: number; following: number };
+  favorites: { animeId: string; anime: { id: string; title: string; coverImage?: string }; folder?: { id: string; name: string; isPrivate: boolean } }[];
+  favoriteFolders: { id: string; name: string; isPrivate: boolean }[];
+  histories: { episode: { anime: { id: string; title: string; coverImage?: string } } }[];
+}
+
+function UploadBtn({ onUpload }: { onUpload: (url: string) => void }) {
+  const [loading, setLoading] = useState(false);
+  const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    setLoading(true);
+    const fd = new FormData(); fd.append("file", f); fd.append("folder", "uploads");
+    const r = await fetch("/api/upload", { method: "POST", body: fd });
+    const d = await r.json(); if (d.url) onUpload(d.url);
+    setLoading(false);
+  };
+  return (
+    <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition cursor-pointer rounded-full">
+      <UploadCloud size={18} className="text-white" />
+      <input type="file" accept="image/*" className="hidden" onChange={handle} disabled={loading} />
+    </label>
+  );
+}
+
+export default function ProfilePage() {
+  const { data: session } = useSession();
+  const params = useParams();
+  const userId = (params?.id as string) || "";
+
+  const [profile, setProfile] = useState<ProfileUser | null>(null);
+  const [followData, setFollowData] = useState({ isFollowing: false, followersCount: 0, followingCount: 0 });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", bio: "", avatarUrl: "", bannerUrl: "" });
+  const [saving, setSaving] = useState(false);
+
+  const isOwnProfile = !userId || (session?.user as any)?.id === userId;
+  const targetId = isOwnProfile ? (session?.user as any)?.id : userId;
+
+  useEffect(() => {
+    if (!targetId) return;
+    fetch(`/api/profile?id=${targetId}`).then(r => r.json()).then(setProfile);
+    fetch(`/api/follows?userId=${targetId}`).then(r => r.json()).then(setFollowData);
+  }, [targetId]);
+
+  useEffect(() => {
+    if (profile) setEditForm({ name: profile.name, bio: profile.bio || "", avatarUrl: profile.avatarUrl || "", bannerUrl: profile.bannerUrl || "" });
+  }, [profile]);
+
+  const handleFollow = async () => {
+    await fetch("/api/follows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ followingId: targetId }) });
+    fetch(`/api/follows?userId=${targetId}`).then(r => r.json()).then(setFollowData);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) });
+    fetch(`/api/profile?id=${targetId}`).then(r => r.json()).then(setProfile);
+    setSaving(false); setIsEditing(false);
+  };
+
+  if (!profile) return (
+    <AppLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    </AppLayout>
+  );
+
+  const publicFolders = profile.favoriteFolders.filter(f => !f.isPrivate || isOwnProfile);
+  const lastWatched = profile.histories?.[0]?.episode?.anime;
+
+  return (
+    <AppLayout>
+      <div className="pb-24">
+        {/* Banner */}
+        <div className="relative w-full h-48 lg:h-64">
+          <div className={`absolute inset-0 ${profile.bannerUrl ? "" : "bg-gradient-to-br from-pink-900/50 via-zinc-900 to-purple-900/30"}`}>
+            {profile.bannerUrl && <img src={profile.bannerUrl} className="w-full h-full object-cover" alt="Banner" />}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#060606] to-transparent" />
+          </div>
+          {isOwnProfile && isEditing && (
+            <label className="absolute top-4 right-4 flex items-center gap-2 bg-black/60 hover:bg-black/80 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition">
+              <UploadCloud size={14} /> Mudar Banner
+              <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                const f = e.target.files?.[0]; if (!f) return;
+                const fd = new FormData(); fd.append("file", f); fd.append("folder", "uploads");
+                const r = await fetch("/api/upload", { method: "POST", body: fd });
+                const d = await r.json(); if (d.url) setEditForm(ef => ({ ...ef, bannerUrl: d.url }));
+              }} />
+            </label>
+          )}
+        </div>
+
+        <div className="max-w-4xl mx-auto px-6 lg:px-10 -mt-16 relative z-10">
+          <div className="flex flex-col sm:flex-row items-start gap-6">
+            {/* Avatar */}
+            <div className="relative group shrink-0">
+              <div className="w-28 h-28 rounded-full border-4 border-[#060606] overflow-hidden bg-zinc-800 shadow-2xl">
+                <img src={isEditing && editForm.avatarUrl ? editForm.avatarUrl : (profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=ff007f&color=fff`)} className="w-full h-full object-cover" alt={profile.name} />
+              </div>
+              {isOwnProfile && isEditing && <UploadBtn onUpload={url => setEditForm(ef => ({ ...ef, avatarUrl: url }))} />}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 pt-4">
+              {isEditing ? (
+                <div className="space-y-3">
+                  <input value={editForm.name} onChange={e => setEditForm(ef => ({ ...ef, name: e.target.value }))} className="text-2xl font-black bg-transparent border-b border-pink-500 text-white focus:outline-none w-full pb-1" />
+                  <textarea value={editForm.bio} onChange={e => setEditForm(ef => ({ ...ef, bio: e.target.value }))} placeholder="Sua bio..." className="w-full bg-zinc-900/50 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-pink-500 transition min-h-[80px] resize-none" />
+                  <div className="flex gap-2">
+                    <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white font-bold px-4 py-2 rounded-lg text-sm transition">
+                      <Check size={14} /> {saving ? "Salvando..." : "Salvar"}
+                    </button>
+                    <button onClick={() => setIsEditing(false)} className="px-4 py-2 bg-zinc-800 text-zinc-400 hover:text-white rounded-lg text-sm transition">Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h1 className="text-2xl font-black text-white">{profile.name}</h1>
+                    {isOwnProfile && (
+                      <button onClick={() => setIsEditing(true)} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition">
+                        <Edit3 size={16} />
+                      </button>
+                    )}
+                    {!isOwnProfile && session && (
+                      <button onClick={handleFollow}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold transition ${followData.isFollowing ? "bg-zinc-800 text-zinc-300 hover:bg-red-500/20 hover:text-red-400" : "bg-pink-600 text-white hover:bg-pink-500"}`}>
+                        {followData.isFollowing ? "Seguindo" : "+ Seguir"}
+                      </button>
+                    )}
+                  </div>
+                  {profile.bio && <p className="text-zinc-400 text-sm mt-2 max-w-lg">{profile.bio}</p>}
+
+                  {/* Counts */}
+                  <div className="flex gap-5 mt-3">
+                    <div className="text-center">
+                      <p className="font-black text-white text-lg">{followData.followersCount}</p>
+                      <p className="text-xs text-zinc-500">Seguidores</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-black text-white text-lg">{followData.followingCount}</p>
+                      <p className="text-xs text-zinc-500">Seguindo</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="font-black text-white text-lg">{profile.favorites.length}</p>
+                      <p className="text-xs text-zinc-500">Favoritos</p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Last Watched */}
+          {lastWatched && (
+            <div className="mt-8">
+              <h2 className="font-bold text-sm text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Film size={14} /> Último Assistido</h2>
+              <Link href={`/anime/${lastWatched.id}`} className="inline-flex items-center gap-3 bg-zinc-900/50 border border-zinc-800 hover:border-pink-500 rounded-xl p-3 transition group">
+                {lastWatched.coverImage && <img src={lastWatched.coverImage} className="w-10 h-14 object-cover rounded-lg" alt={lastWatched.title} />}
+                <span className="font-bold text-white group-hover:text-pink-500 transition">{lastWatched.title}</span>
+              </Link>
+            </div>
+          )}
+
+          {/* Favorite Folders */}
+          {publicFolders.length > 0 && (
+            <div className="mt-8">
+              <h2 className="font-bold text-sm text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Heart size={14} className="text-pink-500" /> Favoritos</h2>
+              <div className="space-y-5">
+                {publicFolders.map(folder => {
+                  const folderFavs = profile.favorites.filter(f => f.folder?.id === folder.id);
+                  return (
+                    <div key={folder.id}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="font-bold text-white text-sm">{folder.name}</span>
+                        {folder.isPrivate && <Lock size={11} className="text-zinc-500" />}
+                        <span className="text-xs text-zinc-500">({folderFavs.length})</span>
+                      </div>
+                      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+                        {folderFavs.length === 0 ? (
+                          <p className="text-zinc-600 text-xs">Pasta vazia.</p>
+                        ) : folderFavs.map(fav => (
+                          <Link key={fav.animeId} href={`/anime/${fav.anime.id}`} className="w-20 shrink-0 group">
+                            <div className="aspect-[2/3] rounded-lg overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
+                              <img src={fav.anime.coverImage || ""} alt={fav.anime.title} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                            </div>
+                            <p className="text-xs text-zinc-500 group-hover:text-white transition mt-1 truncate text-center">{fav.anime.title}</p>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </AppLayout>
+  );
+}

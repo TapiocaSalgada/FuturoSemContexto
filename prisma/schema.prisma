@@ -1,0 +1,140 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                    String             @id @default(uuid())
+  name                  String
+  email                 String             @unique
+  password              String
+  avatarUrl             String?
+  bannerUrl             String?
+  bio                   String?
+  role                  String             @default("user") // admin, user
+  isTimedOut            DateTime?
+  lastReadAnnouncements DateTime?
+  
+  histories             WatchHistory[]
+  favorites             Favorite[]
+  favoriteFolders       FavoriteFolder[]
+  comments              Comment[]
+  suggestions           Suggestion[]
+  
+  // Follows relations
+  followers             Follows[]          @relation("following")
+  following             Follows[]          @relation("follower")
+}
+
+model Follows {
+  followerId  String
+  followingId String
+  follower    User   @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User   @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+}
+
+model Category {
+  id    String @id @default(uuid())
+  name  String 
+  slug  String @unique
+  animes Anime[]
+}
+
+model Anime {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  coverImage  String?
+  bannerImage String?
+  status      String   @default("ongoing") // ongoing, completed
+  visibility  String   @default("public")  // public, admin_only
+  
+  categories  Category[]
+  episodes    Episode[]
+  favorites   Favorite[]
+  comments    Comment[]
+}
+
+model Episode {
+  id        String   @id @default(uuid())
+  animeId   String
+  anime     Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  title     String
+  number    Int
+  season    Int      @default(1)
+  videoUrl  String
+  duration  String?
+  histories WatchHistory[]
+}
+
+model WatchHistory {
+  id          String  @id @default(uuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episodeId   String
+  episode     Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  progressSec Int     @default(0)
+  watched     Boolean @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, episodeId])
+}
+
+model FavoriteFolder {
+  id        String     @id @default(uuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  isPrivate Boolean    @default(false)
+  favorites Favorite[]
+}
+
+model Favorite {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  animeId          String
+  anime            Anime           @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  favoriteFolderId String?
+  folder           FavoriteFolder? @relation(fields: [favoriteFolderId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, animeId])
+}
+
+model Comment {
+  id        String    @id @default(uuid())
+  content   String
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  animeId   String
+  anime     Anime     @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment?  @relation("ParentChild", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("ParentChild")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Suggestion {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      String   @default("pending") // pending, reviewed, accepted, rejected
+  createdAt   DateTime @default(now())
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+}
