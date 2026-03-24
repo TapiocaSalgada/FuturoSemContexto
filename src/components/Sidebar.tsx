@@ -17,7 +17,6 @@ export default function Sidebar() {
     // @ts-expect-error nextauth role typing
     ...(session?.user?.role === "admin" ? [{ name: "Painel Admin", href: "/admin", icon: Settings }] : []),
     { name: "Discord", href: "/discord", icon: DiscIcon },
-    { name: "Sobre", href: "/about", icon: Info },
   ];
 
   return (
