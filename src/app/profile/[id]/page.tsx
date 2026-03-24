@@ -4,7 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
-import { UserCircle, Users, Heart, Edit3, Check, UploadCloud, Lock, Film, Key, X, Eye, EyeOff } from "lucide-react";
+import { Heart, Edit3, Check, UploadCloud, Lock, Film } from "lucide-react";
 import Link from "next/link";
 
 interface ProfileUser {
@@ -44,13 +44,6 @@ export default function ProfilePage() {
   const [editForm, setEditForm] = useState({ name: "", bio: "", avatarUrl: "", bannerUrl: "" });
   const [saving, setSaving] = useState(false);
 
-  // Password change state
-  const [showPwForm, setShowPwForm] = useState(false);
-  const [pwForm, setPwForm] = useState({ current: "", newPw: "", confirm: "" });
-  const [pwError, setPwError] = useState("");
-  const [pwSuccess, setPwSuccess] = useState(false);
-  const [showPw, setShowPw] = useState(false);
-
   const isOwnProfile = !userId || (session?.user as any)?.id === userId;
   const targetId = isOwnProfile ? (session?.user as any)?.id : userId;
 
@@ -65,7 +58,14 @@ export default function ProfilePage() {
   }, [profile]);
 
   const handleFollow = async () => {
+    // Optimistic update
+    setFollowData(prev => ({
+      ...prev,
+      isFollowing: !prev.isFollowing,
+      followersCount: prev.isFollowing ? prev.followersCount - 1 : prev.followersCount + 1,
+    }));
     await fetch("/api/follows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ followingId: targetId }) });
+    // Sync real state after
     fetch(`/api/follows?userId=${targetId}`).then(r => r.json()).then(setFollowData);
   };
 
@@ -76,21 +76,7 @@ export default function ProfilePage() {
     setSaving(false); setIsEditing(false);
   };
 
-  const handlePasswordChange = async () => {
-    setPwError("");
-    if (pwForm.newPw !== pwForm.confirm) { setPwError("As senhas não coincidem."); return; }
-    if (pwForm.newPw.length < 6) { setPwError("Nova senha deve ter mínimo 6 caracteres."); return; }
-    const res = await fetch("/api/profile/change-password", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ currentPassword: pwForm.current, newPassword: pwForm.newPw }),
-    });
-    if (res.ok) {
-      setPwSuccess(true); setPwForm({ current: "", newPw: "", confirm: "" }); setShowPwForm(false);
-      setTimeout(() => setPwSuccess(false), 3000);
-    } else {
-      const d = await res.json(); setPwError(d.error || "Erro ao alterar senha.");
-    }
-  };
+
 
   if (!profile) return (
     <AppLayout>
@@ -106,7 +92,7 @@ export default function ProfilePage() {
     <AppLayout>
       <div className="pb-24">
         {/* Banner */}
-        <div className="relative w-full h-48 lg:h-64">
+        <div className="relative w-full h-56 lg:h-80">
           <div className={`absolute inset-0 ${profile.bannerUrl ? "" : "bg-gradient-to-br from-pink-900/50 via-zinc-900 to-purple-900/30"}`}>
             {profile.bannerUrl && <img src={profile.bannerUrl} className="w-full h-full object-cover" alt="Banner" />}
             <div className="absolute inset-0 bg-gradient-to-t from-[#060606] to-transparent" />
@@ -144,32 +130,14 @@ export default function ProfilePage() {
                     <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white font-bold px-4 py-2 rounded-lg text-sm transition">
                       <Check size={14} /> {saving ? "Salvando..." : "Salvar"}
                     </button>
-                    <button onClick={() => setShowPwForm(!showPwForm)} className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-2 rounded-lg text-sm transition">
-                      <Key size={14} /> Mudar Senha
-                    </button>
-                    <button onClick={() => { setIsEditing(false); setShowPwForm(false); }} className="px-4 py-2 bg-zinc-800 text-zinc-400 hover:text-white rounded-lg text-sm transition">Cancelar</button>
+                    <Link href="/settings" className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-4 py-2 rounded-lg text-sm transition">
+                      Configurações
+                    </Link>
+                    <button onClick={() => setIsEditing(false)} className="px-4 py-2 bg-zinc-800 text-zinc-400 hover:text-white rounded-lg text-sm transition">Cancelar</button>
                   </div>
-
-                  {/* Password change form */}
-                  {showPwForm && (
-                    <div className="bg-zinc-900/80 border border-zinc-700 rounded-xl p-4 space-y-3 mt-2">
-                      <p className="font-bold text-sm text-white">Alterar Senha</p>
-                      {pwError && <p className="text-red-400 text-xs font-bold">{pwError}</p>}
-                      <input type="password" placeholder="Senha atual" value={pwForm.current} onChange={e => setPwForm(p => ({ ...p, current: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-pink-500 transition" />
-                      <div className="relative">
-                        <input type={showPw ? "text" : "password"} placeholder="Nova senha" value={pwForm.newPw} onChange={e => setPwForm(p => ({ ...p, newPw: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-pink-500 transition pr-10" />
-                        <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white">{showPw ? <EyeOff size={15} /> : <Eye size={15} />}</button>
-                      </div>
-                      <input type="password" placeholder="Confirmar nova senha" value={pwForm.confirm} onChange={e => setPwForm(p => ({ ...p, confirm: e.target.value }))} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-pink-500 transition" />
-                      <button onClick={handlePasswordChange} className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-2.5 rounded-lg text-sm transition">
-                        Confirmar Alteração
-                      </button>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <>
-                  {pwSuccess && <p className="text-green-400 text-xs font-bold mb-2 animate-fadeIn">✅ Senha alterada com sucesso!</p>}
                   <div className="flex items-center gap-3 flex-wrap">
                     <h1 className="text-2xl font-black text-white">{profile.name}</h1>
                     {isOwnProfile && (
