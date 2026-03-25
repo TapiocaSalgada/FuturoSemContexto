@@ -30,8 +30,9 @@ function scanDir(dir: string, base: string = ""): FileEntry[] {
     try { stat = fs.statSync(full); } catch { continue; }
 
     if (stat.isDirectory()) {
-      // recurse one level deep
-      const subEntries = scanDir(full, item);
+      // recurse deeply
+      const newBase = base ? `${base}/${item}` : item;
+      const subEntries = scanDir(full, newBase);
       entries.push(...subEntries);
     } else if (/\.(mp4|mkv|webm|avi|mov|m4v)$/i.test(item)) {
       const filePath = base ? `${base}/${item}` : item;
@@ -51,7 +52,7 @@ export async function GET(req: Request) {
     }
 
     const entries = scanDir(videosDir);
-    const folders = [...new Set(entries.map(e => e.folder).filter(Boolean))];
+    const folders = Array.from(new Set(entries.map(e => e.folder).filter(Boolean)));
 
     const { searchParams } = new URL(req.url);
     if (searchParams.get("debug") === "1") {
