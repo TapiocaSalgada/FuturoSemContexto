@@ -78,6 +78,155 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
   );
 }
 
+interface EpItem { id: string; title: string; number: number; season: number; videoUrl?: string; }
+
+function EpisodeManager({ animeId, animeName, showMsg, localFiles, localFolders, inputClass, labelClass }: {
+  animeId: string; animeName: string;
+  showMsg: (t: string, type?: "ok" | "err") => void;
+  localFiles: { name: string; path: string; folder: string }[];
+  localFolders: string[];
+  inputClass: string; labelClass: string;
+}) {
+  const [episodes, setEpisodes] = useState<EpItem[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<EpItem>>({});
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    fetch(`/api/admin/episode?animeId=${animeId}`).then(r => r.json()).then(setEpisodes);
+  }, [animeId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const startEdit = (ep: EpItem) => {
+    setEditingId(ep.id);
+    setEditForm({ title: ep.title, number: ep.number, season: ep.season, videoUrl: ep.videoUrl || "" });
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    setSaving(true);
+    const res = await fetch("/api/admin/episode", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editingId, ...editForm }),
+    });
+    setSaving(false);
+    if (res.ok) { showMsg("Episódio atualizado!"); setEditingId(null); load(); }
+    else showMsg("Erro ao atualizar.", "err");
+  };
+
+  const deleteEp = async (id: string) => {
+    setDeleting(id);
+    const res = await fetch("/api/admin/episode", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setDeleting(null);
+    if (res.ok) { showMsg("Episódio apagado."); load(); }
+    else showMsg("Erro ao apagar.", "err");
+  };
+
+  if (episodes.length === 0) return (
+    <section className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5">
+      <p className="text-sm text-zinc-500">📋 Nenhum episódio em <span className="font-bold text-white">{animeName}</span> ainda.</p>
+    </section>
+  );
+
+  return (
+    <section className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-base flex items-center gap-2">
+          📋 Episódios de <span className="text-pink-400">{animeName}</span>
+          <span className="text-xs bg-zinc-800 px-2 py-0.5 rounded-full text-zinc-400">{episodes.length}</span>
+        </h3>
+        <button onClick={load} className="text-zinc-500 hover:text-white transition p-1.5 rounded-lg hover:bg-zinc-800">
+          <RefreshCw size={14} />
+        </button>
+      </div>
+
+      <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+        {episodes.map(ep => (
+          <div key={ep.id} className="bg-zinc-800/60 border border-zinc-700/50 rounded-xl overflow-hidden">
+            {editingId === ep.id ? (
+              /* ── EDIT MODE ── */
+              <div className="p-3 space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelClass}>Nº</label>
+                    <input type="number" className={inputClass} value={editForm.number ?? ""} onChange={e => setEditForm(f => ({ ...f, number: +e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Temporada</label>
+                    <input type="number" className={inputClass} value={editForm.season ?? ""} onChange={e => setEditForm(f => ({ ...f, season: +e.target.value }))} />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>Título</label>
+                  <input className={inputClass} value={editForm.title ?? ""} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} />
+                </div>
+                <div>
+                  <label className={labelClass}>URL do Vídeo</label>
+                  <input className={inputClass} value={editForm.videoUrl ?? ""} onChange={e => setEditForm(f => ({ ...f, videoUrl: e.target.value }))} placeholder="https://... ou /videos/..." />
+                  {editForm.videoUrl && (
+                    <p className="text-xs text-green-400 mt-1 font-mono truncate">✅ {editForm.videoUrl}</p>
+                  )}
+                  {/* Local file picker */}
+                  {localFiles.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {localFiles.map(f => (
+                        <button key={f.path} type="button"
+                          onClick={() => setEditForm(form => ({ ...form, videoUrl: `/videos/${f.path}` }))}
+                          className={`text-xs px-2 py-1 rounded border font-mono transition ${editForm.videoUrl === `/videos/${f.path}` ? "bg-green-600 border-green-500 text-white" : "bg-zinc-700 border-zinc-600 text-zinc-300 hover:border-pink-500"}`}>
+                          🎬 {f.folder ? `${f.folder}/` : ""}{f.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={saveEdit} disabled={saving}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs transition">
+                    <Check size={12} /> {saving ? "Salvando..." : "Salvar"}
+                  </button>
+                  <button onClick={() => setEditingId(null)}
+                    className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 font-bold rounded-lg text-xs transition">
+                    <X size={12} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ── VIEW MODE ── */
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                <div className="w-9 h-9 bg-pink-600/20 border border-pink-500/20 rounded-lg flex items-center justify-center shrink-0">
+                  <span className="text-pink-400 font-black text-sm">{ep.number}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-white text-sm truncate">{ep.title || `Episódio ${ep.number}`}</p>
+                  <p className="text-xs text-zinc-500">T{ep.season} · {ep.videoUrl ? <span className="text-green-400 font-mono truncate inline-block max-w-[180px] align-bottom">{ep.videoUrl}</span> : <span className="text-red-400">Sem vídeo</span>}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => startEdit(ep)}
+                    className="p-2 rounded-lg hover:bg-zinc-700 text-zinc-400 hover:text-blue-400 transition" title="Editar">
+                    <Edit3 size={14} />
+                  </button>
+                  <button onClick={() => { if (confirm(`Apagar "${ep.title || `Ep. ${ep.number}`}"?`)) deleteEp(ep.id); }}
+                    disabled={deleting === ep.id}
+                    className="p-2 rounded-lg hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition disabled:opacity-50" title="Apagar">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export default function AdminDashboard() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -422,6 +571,19 @@ export default function AdminDashboard() {
                   </button>
                 </form>
               </section>
+
+              {/* Episode Manager */}
+              {epForm.animeId && (
+                <EpisodeManager
+                  animeId={epForm.animeId}
+                  animeName={animes.find(a => a.id === epForm.animeId)?.title || ""}
+                  showMsg={showMsg}
+                  localFiles={localFiles}
+                  localFolders={localFolders}
+                  inputClass={inputClass}
+                  labelClass={labelClass}
+                />
+              )}
             </div>
 
             {/* Anime List */}

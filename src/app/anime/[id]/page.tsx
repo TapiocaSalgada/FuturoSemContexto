@@ -17,7 +17,7 @@ interface Anime {
   id: string; title: string; description?: string; coverImage?: string; bannerImage?: string;
   status: string; visibility: string;
   categories: { id: string; name: string }[];
-  episodes: { id: string; title: string; number: number; season: number; duration?: string }[];
+  episodes: { id: string; title: string; number: number; season: number; duration?: string; videoUrl?: string }[];
 }
 
 function CommentItem({ comment, animeId, currentUserId, onRefresh }: {
@@ -267,30 +267,48 @@ export default function AnimePageClient() {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {(groupedEps[season] as Anime["episodes"] || []).map(ep => (
-                      <Link key={ep.id} href={`/watch/${ep.id}`}
-                        className="bg-zinc-900/50 border border-zinc-800 hover:border-pink-500 rounded-xl overflow-hidden group transition">
-                        <div className="aspect-video bg-zinc-800 relative">
-                          <img src={anime.bannerImage || anime.coverImage || ""} className="w-full h-full object-cover opacity-40 group-hover:opacity-70 transition" alt="" />
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-pink-500/80 transition">
-                              <Play size={18} className="text-white fill-white" />
+                      <div key={ep.id} className="bg-zinc-900/50 border border-zinc-800 hover:border-pink-500 rounded-xl overflow-hidden group transition flex flex-col">
+                        <Link href={`/watch/${ep.id}`} className="block">
+                          <div className="aspect-video bg-zinc-800 relative">
+                            <img src={anime.bannerImage || anime.coverImage || ""} className="w-full h-full object-cover opacity-40 group-hover:opacity-70 transition" alt="" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-pink-500/80 transition">
+                                <Play size={18} className="text-white fill-white" />
+                              </div>
+                            </div>
+                            <div className="absolute top-2 left-2 bg-black/60 text-pink-400 text-xs font-bold px-2 py-0.5 rounded-full">
+                              T{ep.season} E{ep.number}
                             </div>
                           </div>
-                          <div className="absolute top-2 left-2 bg-black/60 text-pink-400 text-xs font-bold px-2 py-0.5 rounded-full">
-                            T{ep.season} E{ep.number}
+                        </Link>
+                        <div className="p-3 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-bold text-white text-sm truncate">{ep.title || `Episódio ${ep.number}`}</p>
+                            <p className="text-xs text-zinc-500 mt-0.5">{ep.duration || "—"}</p>
                           </div>
+                          {/* Download button */}
+                          <a
+                            href={ep.videoUrl}
+                            download={`${anime.title} - T${ep.season}E${ep.number}.mp4`}
+                            title="Baixar episódio (MP4)"
+                            onClick={e => e.stopPropagation()}
+                            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-800 hover:bg-green-600 text-zinc-400 hover:text-white transition"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                              <polyline points="7 10 12 15 17 10"/>
+                              <line x1="12" y1="15" x2="12" y2="3"/>
+                            </svg>
+                          </a>
                         </div>
-                        <div className="p-3">
-                          <p className="font-bold text-white text-sm truncate">{ep.title || `Episódio ${ep.number}`}</p>
-                          <p className="text-xs text-zinc-500 mt-0.5">{ep.duration || "—"}</p>
-                        </div>
-                      </Link>
+                      </div>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
           )}
+
 
           {/* Comments */}
           <div>
