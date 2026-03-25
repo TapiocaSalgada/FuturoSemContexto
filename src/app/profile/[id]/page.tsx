@@ -33,6 +33,32 @@ function UploadBtn({ onUpload }: { onUpload: (url: string) => void }) {
   );
 }
 
+function BannerUpload({ onUpload }: { onUpload: (url: string) => void }) {
+  const [loading, setLoading] = useState(false);
+  const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    setLoading(true);
+    const fd = new FormData(); fd.append("file", f); fd.append("folder", "uploads");
+    const r = await fetch("/api/upload", { method: "POST", body: fd });
+    const d = await r.json(); if (d.url) onUpload(d.url);
+    setLoading(false);
+  };
+  return (
+    <label className="absolute inset-0 flex items-center justify-center cursor-pointer z-10">
+      <div className="flex flex-col items-center gap-2 bg-black/70 hover:bg-black/85 active:bg-black/95 transition rounded-2xl px-6 py-4 border border-white/20 backdrop-blur-sm select-none">
+        {loading
+          ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          : <UploadCloud size={28} className="text-white" />
+        }
+        <span className="text-white font-bold text-sm">{loading ? "Enviando..." : "Mudar Banner"}</span>
+        <span className="text-zinc-400 text-xs">Toque aqui para trocar</span>
+      </div>
+      <input type="file" accept="image/*" className="hidden" onChange={handle} disabled={loading} />
+    </label>
+  );
+}
+
+
 export default function ProfilePage() {
   const { data: session } = useSession();
   const params = useParams();
@@ -98,15 +124,7 @@ export default function ProfilePage() {
             <div className="absolute inset-0 bg-gradient-to-t from-[#060606] to-transparent" />
           </div>
           {isOwnProfile && isEditing && (
-            <label className="absolute top-4 right-4 flex items-center gap-2 bg-black/60 hover:bg-black/80 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer transition">
-              <UploadCloud size={14} /> Mudar Banner
-              <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                const f = e.target.files?.[0]; if (!f) return;
-                const fd = new FormData(); fd.append("file", f); fd.append("folder", "uploads");
-                const r = await fetch("/api/upload", { method: "POST", body: fd });
-                const d = await r.json(); if (d.url) setEditForm(ef => ({ ...ef, bannerUrl: d.url }));
-              }} />
-            </label>
+            <BannerUpload onUpload={url => setEditForm(ef => ({ ...ef, bannerUrl: url }))} />
           )}
         </div>
 
