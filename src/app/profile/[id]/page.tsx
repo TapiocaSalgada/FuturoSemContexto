@@ -8,11 +8,11 @@ import { Heart, Edit3, Check, UploadCloud, Lock, Film } from "lucide-react";
 import Link from "next/link";
 
 interface ProfileUser {
-  id: string; name: string; avatarUrl?: string; bannerUrl?: string; bio?: string;
+  id: string; name: string; avatarUrl?: string; bannerUrl?: string; bio?: string; isPrivate: boolean;
   _count: { followers: number; following: number };
-  favorites: { animeId: string; anime: { id: string; title: string; coverImage?: string }; folder?: { id: string; name: string; isPrivate: boolean } }[];
-  favoriteFolders: { id: string; name: string; isPrivate: boolean }[];
-  histories: { episode: { title?: string; number?: number; season?: number; anime: { id: string; title: string; coverImage?: string } } }[];
+  favorites?: { animeId: string; anime: { id: string; title: string; coverImage?: string }; folder?: { id: string; name: string; isPrivate: boolean } }[];
+  favoriteFolders?: { id: string; name: string; isPrivate: boolean }[];
+  histories?: { episode: { title?: string; number?: number; season?: number; anime: { id: string; title: string; coverImage?: string } } }[];
 }
 
 function UploadBtn({ onUpload }: { onUpload: (url: string) => void }) {
@@ -67,8 +67,12 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileUser | null>(null);
   const [followData, setFollowData] = useState({ isFollowing: false, followersCount: 0, followingCount: 0 });
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ name: "", bio: "", avatarUrl: "", bannerUrl: "" });
+  const [editForm, setEditForm] = useState({ name: "", bio: "", avatarUrl: "", bannerUrl: "", isPrivate: false });
   const [saving, setSaving] = useState(false);
+
+  // Modal followers setup
+  const [showFollowUsers, setShowFollowUsers] = useState<"followers" | "following" | null>(null);
+  const [followList, setFollowList] = useState<{id: string, name: string, avatarUrl: string}[]>([]);
 
   const isOwnProfile = !userId || (session?.user as any)?.id === userId;
   const targetId = isOwnProfile ? (session?.user as any)?.id : userId;
@@ -80,7 +84,7 @@ export default function ProfilePage() {
   }, [targetId]);
 
   useEffect(() => {
-    if (profile) setEditForm({ name: profile.name, bio: profile.bio || "", avatarUrl: profile.avatarUrl || "", bannerUrl: profile.bannerUrl || "" });
+    if (profile) setEditForm({ name: profile.name, bio: profile.bio || "", avatarUrl: profile.avatarUrl || "", bannerUrl: profile.bannerUrl || "", isPrivate: profile.isPrivate });
   }, [profile]);
 
   const handleFollow = async () => {
@@ -102,6 +106,12 @@ export default function ProfilePage() {
     setSaving(false); setIsEditing(false);
   };
 
+  const loadFollowers = async (type: "followers" | "following") => {
+    setShowFollowUsers(type);
+    const res = await fetch(`/api/follows?userId=${targetId}&type=${type}`);
+    setFollowList(await res.json());
+  };
+
 
 
   if (!profile) return (
@@ -112,7 +122,7 @@ export default function ProfilePage() {
     </AppLayout>
   );
 
-  const publicFolders = profile.favoriteFolders.filter(f => !f.isPrivate || isOwnProfile);
+  const publicFolders = profile.favoriteFolders?.filter(f => !f.isPrivate || isOwnProfile) || [];
 
   return (
     <AppLayout>
@@ -144,6 +154,12 @@ export default function ProfilePage() {
                 <div className="space-y-3">
                   <input value={editForm.name} onChange={e => setEditForm(ef => ({ ...ef, name: e.target.value }))} className="text-2xl font-black bg-transparent border-b border-pink-500 text-white focus:outline-none w-full pb-1" />
                   <textarea value={editForm.bio} onChange={e => setEditForm(ef => ({ ...ef, bio: e.target.value }))} placeholder="Sua bio..." className="w-full bg-zinc-900/50 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-pink-500 transition min-h-[80px] resize-none" />
+                  
+                  <label className="flex items-center gap-2 mt-2 cursor-pointer pb-2">
+                    <input type="checkbox" checked={editForm.isPrivate} onChange={e => setEditForm(ef => ({ ...ef, isPrivate: e.target.checked }))} className="w-4 h-4 text-pink-500 bg-zinc-900 border-zinc-700 rounded focus:ring-pink-500 accent-pink-500" />
+                    <span className="text-sm font-bold text-zinc-300 select-none">Perfil Privado (Ocultar histórico e favoritos)</span>
+                  </label>
+
                   <div className="flex gap-2 flex-wrap">
                     <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white font-bold px-4 py-2 rounded-lg text-sm transition">
                       <Check size={14} /> {saving ? "Salvando..." : "Salvar"}
@@ -172,17 +188,25 @@ export default function ProfilePage() {
                   </div>
                   {profile.bio && <p className="text-zinc-400 text-sm mt-2 max-w-lg">{profile.bio}</p>}
                   <div className="flex gap-5 mt-3">
-                    <div className="text-center"><p className="font-black text-white text-lg">{followData.followersCount}</p><p className="text-xs text-zinc-500">Seguidores</p></div>
-                    <div className="text-center"><p className="font-black text-white text-lg">{followData.followingCount}</p><p className="text-xs text-zinc-500">Seguindo</p></div>
-                    <div className="text-center"><p className="font-black text-white text-lg">{profile.favorites.length}</p><p className="text-xs text-zinc-500">Favoritos</p></div>
+                    <div onClick={() => loadFollowers("followers")} className="text-center cursor-pointer hover:bg-white/5 rounded-lg p-1 transition"><p className="font-black text-white text-lg">{followData.followersCount}</p><p className="text-xs text-zinc-500 hover:text-pink-400">Seguidores</p></div>
+                    <div onClick={() => loadFollowers("following")} className="text-center cursor-pointer hover:bg-white/5 rounded-lg p-1 transition"><p className="font-black text-white text-lg">{followData.followingCount}</p><p className="text-xs text-zinc-500 hover:text-pink-400">Seguindo</p></div>
+                    <div className="text-center p-1"><p className="font-black text-white text-lg">{profile.favorites?.length || 0}</p><p className="text-xs text-zinc-500">Favoritos</p></div>
                   </div>
                 </>
               )}
             </div>
           </div>
 
-          {/* Watch History */}
-          {profile.histories && profile.histories.length > 0 && (
+          {!isOwnProfile && profile.isPrivate ? (
+            <div className="mt-12 text-center p-10 bg-zinc-900/50 rounded-2xl border border-zinc-800">
+              <Lock className="mx-auto mb-3 text-zinc-500" size={32} />
+              <h3 className="text-white font-bold mb-1 text-lg">Perfil Privado</h3>
+              <p className="text-sm text-zinc-400">Este usuário optou por manter seu histórico e favoritos privados.</p>
+            </div>
+          ) : (
+            <>
+              {/* Watch History */}
+              {profile.histories && profile.histories.length > 0 && (
             <div className="mt-8">
               <h2 className="font-bold text-sm text-zinc-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Film size={14} /> Histórico Recente</h2>
               <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
@@ -208,7 +232,7 @@ export default function ProfilePage() {
               <h2 className="font-bold text-sm text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Heart size={14} className="text-pink-500" /> Favoritos</h2>
               <div className="space-y-5">
                 {publicFolders.map(folder => {
-                  const folderFavs = profile.favorites.filter(f => f.folder?.id === folder.id);
+                  const folderFavs = profile.favorites?.filter(f => f.folder?.id === folder.id) || [];
                   return (
                     <div key={folder.id}>
                       <div className="flex items-center gap-2 mb-3">
@@ -235,8 +259,36 @@ export default function ProfilePage() {
               </div>
             </div>
           )}
+          </>)}
         </div>
       </div>
+
+      {/* Followers Modal */}
+      {showFollowUsers && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowFollowUsers(null)} />
+          <div className="relative bg-[#1a1a1a] border border-zinc-700 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="font-bold text-lg mb-4 text-white">
+              {showFollowUsers === "followers" ? "Seguidores" : "Seguindo"}
+            </h3>
+            <div className="max-h-64 overflow-y-auto space-y-3">
+              {followList.length === 0 ? (
+                <p className="text-zinc-500 text-sm text-center py-4">Nenhum usuário encontrado.</p>
+              ) : (
+                followList.map(u => (
+                  <Link key={u.id} href={`/profile/${u.id}`} onClick={() => setShowFollowUsers(null)} className="flex items-center gap-3 p-2 hover:bg-zinc-800 rounded-lg transition group">
+                    <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=ff007f&color=fff`} className="w-10 h-10 rounded-full object-cover" alt="" />
+                    <p className="text-sm font-bold text-zinc-300 group-hover:text-white transition">{u.name}</p>
+                  </Link>
+                ))
+              )}
+            </div>
+            <button onClick={() => setShowFollowUsers(null)} className="mt-4 w-full bg-zinc-800 text-zinc-300 hover:text-white font-bold py-2.5 rounded-lg text-sm transition">
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 }

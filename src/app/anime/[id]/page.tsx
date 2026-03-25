@@ -90,7 +90,7 @@ function CommentItem({ comment, animeId, currentUserId, onRefresh }: {
         </div>
       </div>
       {/* Replies */}
-      {comment.replies.length > 0 && (
+      {comment.replies && comment.replies.length > 0 && (
         <div className="ml-11 space-y-3 border-l-2 border-zinc-800 pl-4">
           {comment.replies.map(r => (
             <CommentItem key={r.id} comment={r} animeId={animeId} currentUserId={currentUserId} onRefresh={onRefresh} />

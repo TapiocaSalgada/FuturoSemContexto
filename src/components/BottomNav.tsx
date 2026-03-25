@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, Heart, User } from "lucide-react";
+import { Home, Heart, Settings, User } from "lucide-react";
 import { useSession } from "next-auth/react";
 
 const navItems = [
   { href: "/", icon: Home, label: "Início" },
-  { href: "/search", icon: Search, label: "Busca" },
   { href: "/favorites", icon: Heart, label: "Lista" },
+  { href: "/settings", icon: Settings, label: "Configs" },
   { href: "/profile", icon: User, label: "Perfil" },
 ];
 

@@ -11,6 +11,11 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
+        pink: {
+          400: "rgb(var(--theme-400) / <alpha-value>)",
+          500: "rgb(var(--theme-500) / <alpha-value>)",
+          600: "rgb(var(--theme-600) / <alpha-value>)",
+        }
       },
     },
   },

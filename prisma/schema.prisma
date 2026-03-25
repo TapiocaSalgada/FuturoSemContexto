@@ -12,11 +12,12 @@ model User {
   id                    String             @id @default(uuid())
   name                  String
   email                 String             @unique
-  password              String
+  password              String?
   avatarUrl             String?
   bannerUrl             String?
   bio                   String?
   role                  String             @default("user") // admin, user
+  isPrivate             Boolean            @default(false)
   isTimedOut            DateTime?
   lastReadAnnouncements DateTime?
   

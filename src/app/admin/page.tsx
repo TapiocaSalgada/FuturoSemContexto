@@ -13,7 +13,7 @@ import {
 type TabKey = "animes" | "users" | "suggestions" | "announcements";
 
 interface User { id: string; name: string; email: string; role: string; avatarUrl?: string; isTimedOut?: string; _count: { favorites: number; histories: number } }
-interface Anime { id: string; title: string; coverImage?: string; visibility: string; status: string; episodes?: { season: number }[] }
+interface Anime { id: string; title: string; description?: string; coverImage?: string; bannerImage?: string; visibility: string; status: string; episodes?: { season: number }[] }
 interface Suggestion { id: string; title: string; description?: string; status: string; user: { name: string; avatarUrl?: string }; createdAt: string }
 interface Announcement { id: string; title: string; content: string; createdAt: string }
 
@@ -621,8 +621,9 @@ export default function AdminDashboard() {
                       </button>
                       <button onClick={() => {
                         setEditingAnime(a.id);
-                        setAnimeForm({ title: a.title, description: "", coverImage: a.coverImage || "", bannerImage: "", status: a.status });
+                        setAnimeForm({ title: a.title, description: a.description || "", coverImage: a.coverImage || "", bannerImage: a.bannerImage || "", status: a.status });
                         setCoverPreview(a.coverImage || "");
+                        setBannerPreview(a.bannerImage || "");
                         setTab("animes");
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }} className="p-2 rounded-lg hover:bg-zinc-700 text-zinc-400 hover:text-blue-400 transition">
