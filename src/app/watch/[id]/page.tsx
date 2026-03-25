@@ -61,12 +61,16 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
       <div className="w-full max-w-7xl aspect-video bg-zinc-900 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.8)] border border-zinc-800 relative z-10 group">
         {isGoogleDrive ? (
-          <iframe
-            src={driveEmbedUrl}
-            className="w-full h-full outline-none"
-            allow="autoplay; fullscreen"
-            allowFullScreen
-          ></iframe>
+          <div className="w-full h-full relative">
+            {/* Div invisível para bloquear o clique no ícone de Pop-out do drive */}
+            <div className="absolute top-0 right-0 w-20 h-16 z-50 bg-transparent" title="Assistir na plataforma"></div>
+            <iframe
+              src={driveEmbedUrl}
+              className="w-full h-full outline-none"
+              allow="autoplay; fullscreen"
+              allowFullScreen
+            ></iframe>
+          </div>
         ) : (
           <video 
             ref={videoRef}
