@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
+// Never cache — always read from disk fresh
+export const dynamic = "force-dynamic";
+
 interface FileEntry {
   name: string;   // display name
-  path: string;   // relative to /videos/, used as URL: /videos/path
+  path: string;   // relative to /videos/
   folder: string; // subfolder name or "" for root
 }
 
@@ -12,15 +15,25 @@ function scanDir(dir: string, base: string = ""): FileEntry[] {
   const entries: FileEntry[] = [];
   if (!fs.existsSync(dir)) return entries;
 
-  const items = fs.readdirSync(dir);
+  let items: string[];
+  try {
+    items = fs.readdirSync(dir);
+  } catch {
+    return entries;
+  }
+
   for (const item of items) {
+    // skip hidden files/system files
+    if (item.startsWith(".")) continue;
     const full = path.join(dir, item);
-    const stat = fs.statSync(full);
+    let stat: fs.Stats;
+    try { stat = fs.statSync(full); } catch { continue; }
+
     if (stat.isDirectory()) {
       // recurse one level deep
       const subEntries = scanDir(full, item);
       entries.push(...subEntries);
-    } else if (/\.(mp4|mkv|webm|avi|mov)$/i.test(item)) {
+    } else if (/\.(mp4|mkv|webm|avi|mov|m4v)$/i.test(item)) {
       const filePath = base ? `${base}/${item}` : item;
       entries.push({ name: item, path: filePath, folder: base });
     }
@@ -28,19 +41,32 @@ function scanDir(dir: string, base: string = ""): FileEntry[] {
   return entries;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const videosDir = path.join(process.cwd(), "public", "videos");
-    if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
+
+    // Create folder if it doesn't exist
+    if (!fs.existsSync(videosDir)) {
+      fs.mkdirSync(videosDir, { recursive: true });
+    }
 
     const entries = scanDir(videosDir);
-
-    // unique folder names
     const folders = [...new Set(entries.map(e => e.folder).filter(Boolean))];
 
+    const { searchParams } = new URL(req.url);
+    if (searchParams.get("debug") === "1") {
+      return NextResponse.json({
+        videosDir,
+        exists: fs.existsSync(videosDir),
+        rawContents: fs.readdirSync(videosDir),
+        files: entries,
+        folders,
+      });
+    }
+
     return NextResponse.json({ files: entries, folders });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Local files error:", error);
-    return new NextResponse("Error reading local directory", { status: 500 });
+    return NextResponse.json({ files: [], folders: [], error: error?.message }, { status: 200 });
   }
 }

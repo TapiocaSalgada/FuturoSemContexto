@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import {
-  Home, Search, Star, Settings, Heart, Clock, Disc3, ShieldCheck, X, Menu
+  Home, Search, Star, Settings, Heart, Clock, ShieldCheck, X, Menu
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -21,7 +21,6 @@ export default function Sidebar() {
     { name: "Explorar", href: "/explore", icon: Search },
     { name: "Minha Lista", href: "/favorites", icon: Star },
     { name: "Histórico", href: "/history", icon: Clock },
-    { name: "Discord", href: "/discord", icon: Disc3 },
     // @ts-expect-error nextauth role typing
     ...(session?.user?.role === "admin" ? [{ name: "Painel Admin", href: "/admin", icon: ShieldCheck }] : []),
   ];
