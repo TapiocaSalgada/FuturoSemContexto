@@ -30,7 +30,11 @@ export default function Sidebar() {
     <>
       {/* Logo */}
       <Link href="/" className="flex items-center gap-3 mb-8 overflow-hidden group px-2" onClick={() => setMobileOpen(false)}>
-        <Heart className="text-pink-500 w-9 h-9 fill-pink-500 drop-shadow-[0_0_12px_rgba(255,0,127,0.8)] shrink-0 group-hover:scale-110 transition duration-300" />
+        <img
+          src="/logo.png"
+          alt="Futuro sem Contexto"
+          className="w-9 h-9 rounded-xl object-cover shrink-0 group-hover:scale-110 transition duration-300 shadow-[0_0_12px_rgba(255,0,127,0.5)]"
+        />
         <div className={`leading-none ${mobile ? "block" : "hidden lg:block"}`}>
           <span className="text-pink-500 font-black text-base tracking-widest uppercase drop-shadow-[0_0_8px_rgba(255,0,127,0.5)]">Futuro</span><br />
           <span className="text-white font-black text-xs tracking-widest uppercase opacity-80">Sem Contexto</span>
