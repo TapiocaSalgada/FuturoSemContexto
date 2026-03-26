@@ -5,18 +5,20 @@ import { usePathname } from "next/navigation";
 import { Home, Heart, Settings, User } from "lucide-react";
 import { useSession } from "next-auth/react";
 
-const navItems = [
-  { href: "/", icon: Home, label: "Início" },
-  { href: "/favorites", icon: Heart, label: "Lista" },
-  { href: "/settings", icon: Settings, label: "Configs" },
-  { href: "/profile", icon: User, label: "Perfil" },
-];
-
 export default function BottomNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const userId = (session?.user as any)?.id;
 
   if (!session) return null;
+
+  const navItems = [
+    { href: "/", icon: Home, label: "Início" },
+    { href: "/favorites", icon: Heart, label: "Lista" },
+    { href: "/settings", icon: Settings, label: "Configs" },
+    { href: userId ? `/profile/${userId}` : "/profile", icon: User, label: "Perfil" },
+  ];
+
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-[#0d0d0d]/95 backdrop-blur-xl border-t border-white/5"
@@ -25,10 +27,10 @@ export default function BottomNav() {
         {navItems.map(({ href, icon: Icon, label }) => {
           const active = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
-            <Link
+          <Link
               key={href}
               href={href}
-              className={`flex flex-col items-center gap-1 py-3 px-4 min-w-[60px] transition-all duration-200 ${
+              className={`relative flex flex-col items-center gap-1 py-3 px-4 min-w-[60px] transition-all duration-200 ${
                 active ? "text-pink-500" : "text-zinc-500 hover:text-zinc-300"
               }`}
             >

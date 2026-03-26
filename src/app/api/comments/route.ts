@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
 
 // GET comments for an anime
 export async function GET(req: NextRequest) {
@@ -37,10 +38,37 @@ export async function POST(req: NextRequest) {
   }
 
   const { animeId, content, parentId } = await req.json();
+  const parentComment = parentId
+    ? await prisma.comment.findUnique({
+        where: { id: parentId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              settings: { select: { notifyReplies: true } },
+            },
+          },
+        },
+      })
+    : null;
   const comment = await prisma.comment.create({
     data: { content, animeId, userId: user.id, parentId: parentId || null },
     include: { user: { select: { id: true, name: true, avatarUrl: true } }, replies: { include: { user: { select: { id: true, name: true, avatarUrl: true } } } } },
   });
+  if (
+    parentComment &&
+    parentComment.userId !== user.id &&
+    parentComment.user.settings?.notifyReplies !== false
+  ) {
+    await createNotification({
+      userId: parentComment.userId,
+      actorId: user.id,
+      type: "comment_reply",
+      title: `${user.name} respondeu seu comentario`,
+      body: content,
+      link: `/anime/${animeId}`,
+    });
+  }
   return NextResponse.json(comment);
 }
 

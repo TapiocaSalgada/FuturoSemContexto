@@ -4,11 +4,12 @@ import AppLayout from "@/components/AppLayout";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
-import { Heart, Edit3, Check, UploadCloud, Lock, Film } from "lucide-react";
+import { Heart, Edit3, Check, UploadCloud, Lock, Film, Trophy } from "lucide-react";
 import Link from "next/link";
 
 interface ProfileUser {
   id: string; name: string; avatarUrl?: string; bannerUrl?: string; bio?: string; isPrivate: boolean;
+  canFollow?: boolean;
   _count: { followers: number; following: number };
   favorites?: { animeId: string; anime: { id: string; title: string; coverImage?: string }; folder?: { id: string; name: string; isPrivate: boolean } }[];
   favoriteFolders?: { id: string; name: string; isPrivate: boolean }[];
@@ -74,6 +75,9 @@ export default function ProfilePage() {
   const [showFollowUsers, setShowFollowUsers] = useState<"followers" | "following" | null>(null);
   const [followList, setFollowList] = useState<{id: string, name: string, avatarUrl: string}[]>([]);
 
+  // Achievements
+  const [achievements, setAchievements] = useState<{achievementId: string; showOnProfile: boolean; earnedAt: string; def: {label: string; emoji: string; description: string; category: string}}[]>([]);
+
   const isOwnProfile = !userId || (session?.user as any)?.id === userId;
   const targetId = isOwnProfile ? (session?.user as any)?.id : userId;
 
@@ -81,6 +85,7 @@ export default function ProfilePage() {
     if (!targetId) return;
     fetch(`/api/profile?id=${targetId}`).then(r => r.json()).then(setProfile);
     fetch(`/api/follows?userId=${targetId}`).then(r => r.json()).then(setFollowData);
+    fetch(`/api/achievements?userId=${targetId}`).then(r => r.json()).then(setAchievements);
   }, [targetId]);
 
   useEffect(() => {
@@ -94,7 +99,7 @@ export default function ProfilePage() {
       isFollowing: !prev.isFollowing,
       followersCount: prev.isFollowing ? prev.followersCount - 1 : prev.followersCount + 1,
     }));
-    await fetch("/api/follows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ followingId: targetId }) });
+    await fetch("/api/follows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ targetId }) });
     // Sync real state after
     fetch(`/api/follows?userId=${targetId}`).then(r => r.json()).then(setFollowData);
   };
@@ -102,27 +107,58 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     await fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) });
-    fetch(`/api/profile?id=${targetId}`).then(r => r.json()).then(setProfile);
-    setSaving(false); setIsEditing(false);
+    setProfile(p => p ? { ...p, ...editForm } : null);
+    setIsEditing(false);
+    setSaving(false);
   };
 
   const loadFollowers = async (type: "followers" | "following") => {
+    const r = await fetch(`/api/follows/list?userId=${targetId}&type=${type}`);
+    const d = await r.json();
+    setFollowList(d);
     setShowFollowUsers(type);
-    const res = await fetch(`/api/follows?userId=${targetId}&type=${type}`);
-    setFollowList(await res.json());
   };
 
-
-
-  if (!profile) return (
-    <AppLayout>
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    </AppLayout>
-  );
+  if (!profile) {
+    if (isOwnProfile && session?.user) {
+      return (
+        <AppLayout>
+          <div className="pb-24">
+            <div className="relative w-full h-56 lg:h-80 bg-zinc-900 animate-pulse">
+              <div className="absolute inset-0 bg-gradient-to-t from-[#060606] to-transparent" />
+            </div>
+            <div className="max-w-4xl mx-auto px-6 lg:px-10 -mt-16 relative z-10">
+              <div className="flex flex-col sm:flex-row items-start gap-6">
+                <div className="relative group shrink-0">
+                  <div className="w-28 h-28 rounded-full border-4 border-[#060606] overflow-hidden bg-zinc-800 shadow-2xl">
+                    <img src={session.user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.name || "U")}&background=ff007f&color=fff`} className="w-full h-full object-cover" alt="" />
+                  </div>
+                </div>
+                <div className="flex-1 pt-4">
+                  <h1 className="text-2xl font-black text-white">{session.user.name}</h1>
+                  <div className="w-48 h-4 bg-zinc-800 rounded animate-pulse mt-4" />
+                  <div className="w-32 h-4 bg-zinc-800 rounded animate-pulse mt-2" />
+                </div>
+              </div>
+              <div className="mt-8 flex items-center justify-center h-40">
+                <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            </div>
+          </div>
+        </AppLayout>
+      );
+    }
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   const publicFolders = profile.favoriteFolders?.filter(f => !f.isPrivate || isOwnProfile) || [];
+  const looseFavorites = profile.favorites?.filter(f => !f.folder) || [];
 
   return (
     <AppLayout>
@@ -179,11 +215,16 @@ export default function ProfilePage() {
                         <Edit3 size={16} />
                       </button>
                     )}
-                    {!isOwnProfile && session && (
+                    {!isOwnProfile && session && profile.canFollow !== false && (
                       <button onClick={handleFollow}
                         className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-bold transition ${followData.isFollowing ? "bg-zinc-800 text-zinc-300 hover:bg-red-500/20 hover:text-red-400" : "bg-pink-600 text-white hover:bg-pink-500"}`}>
                         {followData.isFollowing ? "Seguindo" : "+ Seguir"}
                       </button>
+                    )}
+                    {!isOwnProfile && profile.canFollow === false && (
+                      <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-400 text-xs font-bold">
+                        Seguidores desativados
+                      </span>
                     )}
                   </div>
                   {profile.bio && <p className="text-zinc-400 text-sm mt-2 max-w-lg">{profile.bio}</p>}
@@ -227,10 +268,28 @@ export default function ProfilePage() {
           )}
 
           {/* Favorite Folders */}
-          {publicFolders.length > 0 && (
+          {(looseFavorites.length > 0 || publicFolders.length > 0) && (
             <div className="mt-8">
               <h2 className="font-bold text-sm text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Heart size={14} className="text-pink-500" /> Favoritos</h2>
               <div className="space-y-5">
+                {looseFavorites.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="font-bold text-white text-sm">Sem pasta</span>
+                      <span className="text-xs text-zinc-500">({looseFavorites.length})</span>
+                    </div>
+                    <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+                      {looseFavorites.map(fav => (
+                        <Link key={fav.animeId} href={`/anime/${fav.anime.id}`} className="w-20 shrink-0 group">
+                          <div className="aspect-[2/3] rounded-lg overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
+                            <img src={fav.anime.coverImage || ""} alt={fav.anime.title} className="w-full h-full object-cover group-hover:scale-105 transition" />
+                          </div>
+                          <p className="text-xs text-zinc-500 group-hover:text-white transition mt-1 truncate text-center">{fav.anime.title}</p>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {publicFolders.map(folder => {
                   const folderFavs = profile.favorites?.filter(f => f.folder?.id === folder.id) || [];
                   return (

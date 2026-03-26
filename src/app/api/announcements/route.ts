@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { createNotificationsForUsers } from "@/lib/notifications";
 
 export async function GET() {
   const announcements = await prisma.announcement.findMany({
@@ -19,6 +20,24 @@ export async function POST(req: NextRequest) {
   }
   const { title, content } = await req.json();
   const announcement = await prisma.announcement.create({ data: { title, content } });
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      settings: { select: { notifyAnnouncements: true } },
+    },
+  });
+  await createNotificationsForUsers(
+    users
+      .filter((user) => user.settings?.notifyAnnouncements !== false)
+      .map((user) => user.id),
+    {
+      actorId: null,
+      type: "announcement",
+      title,
+      body: content,
+      link: "/",
+    },
+  );
   return NextResponse.json(announcement);
 }
 

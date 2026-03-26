@@ -55,7 +55,7 @@ export const authOptions: NextAuthOptions = {
   ],
   session: { strategy: "jwt" },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       if (account?.provider === "discord") {
         if (!user.email) return false;
         let dbUser = await prisma.user.findUnique({ where: { email: user.email } });
@@ -67,9 +67,13 @@ export const authOptions: NextAuthOptions = {
               avatarUrl: user.image,
             }
           });
+        } else if (user.image && dbUser.avatarUrl !== user.image) {
+          // Keep Discord avatar fresh on each login
+          dbUser = await prisma.user.update({ where: { id: dbUser.id }, data: { avatarUrl: user.image }, select: { id: true, role: true, avatarUrl: true } }) as any;
         }
-        user.id = dbUser.id;
-        (user as any).role = dbUser.role;
+        user.id = dbUser!.id;
+        (user as any).role = dbUser!.role;
+        (user as any).avatarUrl = (dbUser as any).avatarUrl || user.image;
         return true;
       }
       return true;
@@ -78,13 +82,20 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
+        token.picture = (user as any).avatarUrl || user.image || token.picture;
       }
-      // Always sync the latest role from DB to avoid requiring logout
+      // Sync role + avatar from DB (lightweight select)
       if (token.id) {
         try {
-          const dbUser = await prisma.user.findUnique({ where: { id: token.id as string }, select: { role: true } });
-          if (dbUser) token.role = dbUser.role;
-        } catch (e) {}
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true, avatarUrl: true },
+          });
+          if (dbUser) {
+            token.role = dbUser.role;
+            if (dbUser.avatarUrl) token.picture = dbUser.avatarUrl;
+          }
+        } catch {}
       }
       return token;
     },
@@ -92,6 +103,8 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id || token.sub;
         (session.user as any).role = token.role;
+        // Make avatar available immediately without extra fetch
+        session.user.image = (token.picture as string) || session.user.image;
       }
       return session;
     }

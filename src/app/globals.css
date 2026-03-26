@@ -25,6 +25,15 @@ body {
   background: var(--background);
   font-family: "Inter", "Segoe UI", Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Fix mobile 100vh including browser chrome */
+  min-height: 100dvh;
+}
+
+/* ── Touch optimization: eliminates 300ms click delay on iOS/Android ── */
+a, button, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Scrollbar ── */

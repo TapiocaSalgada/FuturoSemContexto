@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { checkAchievements } from "@/lib/checkAchievements";
 
 export async function POST(req: Request) {
   try {
@@ -10,7 +11,7 @@ export async function POST(req: Request) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { episodeId, progressSec } = await req.json();
+    const { episodeId, progressSec, watched } = await req.json();
 
     const userEmail = session.user.email as string;
     const user = await prisma.user.findUnique({ where: { email: userEmail } });
@@ -23,16 +24,26 @@ export async function POST(req: Request) {
           episodeId,
         }
       },
-      update: { progressSec },
+      update: {
+        progressSec,
+        ...(watched !== undefined && { watched: Boolean(watched) }),
+      },
       create: {
         userId: user.id,
         episodeId,
-        progressSec
+        progressSec,
+        watched: Boolean(watched),
       }
     });
+
+    // Only run achievement check when episode is marked as watched (not every 10s tick)
+    if (watched) {
+      checkAchievements(user.id).catch(() => {}); // fire-and-forget
+    }
 
     return NextResponse.json(history);
   } catch (error) {
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
+

@@ -26,6 +26,11 @@ model User {
   favoriteFolders       FavoriteFolder[]
   comments              Comment[]
   suggestions           Suggestion[]
+  settings              UserSettings?
+  ratings               AnimeRating[]
+  achievements          UserAchievement[]
+  notifications         Notification[]     @relation("notificationRecipient")
+  notificationActor     Notification[]     @relation("notificationActor")
   
   // Follows relations
   followers             Follows[]          @relation("following")
@@ -61,18 +66,38 @@ model Anime {
   episodes    Episode[]
   favorites   Favorite[]
   comments    Comment[]
+  ratings     AnimeRating[]
+}
+
+model AnimeRating {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  animeId   String
+  anime     Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  rating    Int      // 1-5
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, animeId])
 }
 
 model Episode {
-  id        String   @id @default(uuid())
-  animeId   String
-  anime     Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
-  title     String
-  number    Int
-  season    Int      @default(1)
-  videoUrl  String
-  duration  String?
-  histories WatchHistory[]
+  id            String   @id @default(uuid())
+  animeId       String
+  anime         Anime    @relation(fields: [animeId], references: [id], onDelete: Cascade)
+  title         String
+  number        Int
+  season        Int      @default(1)
+  videoUrl      String
+  duration      String?
+  sourceType    String   @default("external")
+  sourceLabel   String?
+  introStartSec Int?
+  introEndSec   Int?
+  outroStartSec Int?
+  outroEndSec   Int?
+  histories     WatchHistory[]
 }
 
 model WatchHistory {
@@ -138,4 +163,52 @@ model Announcement {
   title     String
   content   String
   createdAt DateTime @default(now())
+}
+
+model UserSettings {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme               String   @default("pink")
+  reducedMotion       Boolean  @default(false)
+  neonEffects         Boolean  @default(true)
+  showHistory         Boolean  @default(true)
+  autoplay            Boolean  @default(true)
+  resumePlayback      Boolean  @default(true)
+  playbackSpeed       String   @default("Normal")
+  allowFollow         Boolean  @default(true)
+  notifyAnnouncements Boolean  @default(true)
+  notifyEpisodes      Boolean  @default(true)
+  notifyFollowers     Boolean  @default(true)
+  notifyReplies       Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation("notificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actorId   String?
+  actor     User?    @relation("notificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  type      String
+  title     String
+  body      String?
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead, createdAt])
+}
+
+// Achievements system
+model UserAchievement {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String   // references ACHIEVEMENTS constant in code
+  earnedAt      DateTime @default(now())
+  showOnProfile Boolean  @default(true)
+
+  @@unique([userId, achievementId])
 }

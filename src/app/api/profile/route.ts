@@ -31,37 +31,47 @@ export async function GET(req: NextRequest) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const session = await getServerSession(authOptions);
-  const isOwner = session?.user?.email && (await prisma.user.findUnique({ where: { email: session.user.email } }))?.id === id;
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true, name: true, avatarUrl: true, bannerUrl: true, bio: true, ...({ isPrivate: true } as any),
-      _count: { select: { followers: true, following: true } },
-      favorites: {
-        include: {
-          anime: { select: { id: true, title: true, coverImage: true } },
-          folder: { select: { id: true, name: true, isPrivate: true } },
+  // Run owner-check and profile fetch in parallel
+  const [sessionDbUser, user] = await Promise.all([
+    session?.user?.email
+      ? prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } })
+      : Promise.resolve(null),
+    prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true, name: true, avatarUrl: true, bannerUrl: true, bio: true, isPrivate: true,
+        settings: { select: { showHistory: true, allowFollow: true } },
+        _count: { select: { followers: true, following: true } },
+        favorites: {
+          include: {
+            anime: { select: { id: true, title: true, coverImage: true } },
+            folder: { select: { id: true, name: true, isPrivate: true } },
+          },
         },
+        favoriteFolders: { select: { id: true, name: true, isPrivate: true } },
       },
-      favoriteFolders: { select: { id: true, name: true, isPrivate: true } },
-    },
-  });
+    }),
+  ]);
 
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  // If private and not owner, hide favorites
-  if ((user as any).isPrivate && !isOwner) {
+  const isOwner = sessionDbUser?.id === id;
+
+  // If private and not owner, hide favorites/history
+  if (user.isPrivate && !isOwner) {
     (user as any).favorites = [];
     (user as any).favoriteFolders = [];
   }
 
-  // Fetch histories manually to deduplicate by anime
+  // Fetch histories (deduplicated by anime, limited scan for speed)
   let historiesList: any[] = [];
-  if (!(user as any).isPrivate || isOwner) {
+  const canShowHistory = isOwner || (!user.isPrivate && user.settings?.showHistory !== false);
+  if (canShowHistory) {
     const rawHistories = await prisma.watchHistory.findMany({
       where: { userId: id },
       orderBy: { updatedAt: "desc" },
+      take: 50, // Limit scan to avoid full-table reads
       include: {
         episode: { include: { anime: { select: { id: true, title: true, coverImage: true } } } },
       },
@@ -78,5 +88,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ...user, histories: historiesList });
+  return NextResponse.json({
+    ...user,
+    canFollow: user.settings?.allowFollow !== false,
+    histories: historiesList,
+  });
 }

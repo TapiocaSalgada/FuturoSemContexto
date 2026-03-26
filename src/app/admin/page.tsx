@@ -78,49 +78,21 @@ function ConfirmModal({ message, onConfirm, onCancel }: { message: string; onCon
   );
 }
 
-interface EpItem { id: string; title: string; number: number; season: number; videoUrl?: string; }
+interface EpItem {
+  id: string;
+  title: string;
+  number: number;
+  season: number;
+  videoUrl?: string;
+  sourceLabel?: string | null;
+  introStartSec?: number | null;
+  introEndSec?: number | null;
+}
 
 function EpisodeManager({ animeId, animeName, showMsg, localFiles, localFolders, inputClass, labelClass }: {
   animeId: string; animeName: string;
   showMsg: (t: string, type?: "ok" | "err") => void;
   localFiles: { name: string; path: string; folder: string }[];
-  localFolders: string[];
-  inputClass: string; labelClass: string;
-}) {
-  const [episodes, setEpisodes] = useState<EpItem[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<Partial<EpItem>>({});
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    fetch(`/api/admin/episode?animeId=${animeId}`).then(r => r.json()).then(setEpisodes);
-  }, [animeId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const startEdit = (ep: EpItem) => {
-    setEditingId(ep.id);
-    setEditForm({ title: ep.title, number: ep.number, season: ep.season, videoUrl: ep.videoUrl || "" });
-  };
-
-  const saveEdit = async () => {
-    if (!editingId) return;
-    setSaving(true);
-    const res = await fetch("/api/admin/episode", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: editingId, ...editForm }),
-    });
-    setSaving(false);
-    if (res.ok) { showMsg("Episódio atualizado!"); setEditingId(null); load(); }
-    else showMsg("Erro ao atualizar.", "err");
-  };
-
-  const deleteEp = async (id: string) => {
-    setDeleting(id);
-    const res = await fetch("/api/admin/episode", {
-      method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
@@ -186,6 +158,25 @@ function EpisodeManager({ animeId, animeName, showMsg, localFiles, localFolders,
                     </div>
                   )}
                 </div>
+                {/* Intro/Outro timing */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelClass}>Início abertura (s)</label>
+                    <input type="number" className={inputClass} value={(editForm as any).introStartSec ?? ""} onChange={e => setEditForm(f => ({ ...f, introStartSec: e.target.value ? +e.target.value : undefined }))} placeholder="ex: 90" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Fim abertura (s)</label>
+                    <input type="number" className={inputClass} value={(editForm as any).introEndSec ?? ""} onChange={e => setEditForm(f => ({ ...f, introEndSec: e.target.value ? +e.target.value : undefined }))} placeholder="ex: 210" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Início encerramento (s)</label>
+                    <input type="number" className={inputClass} value={(editForm as any).outroStartSec ?? ""} onChange={e => setEditForm(f => ({ ...f, outroStartSec: e.target.value ? +e.target.value : undefined }))} placeholder="ex: 1320" />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Fim encerramento (s)</label>
+                    <input type="number" className={inputClass} value={(editForm as any).outroEndSec ?? ""} onChange={e => setEditForm(f => ({ ...f, outroEndSec: e.target.value ? +e.target.value : undefined }))} placeholder="ex: 1410" />
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <button onClick={saveEdit} disabled={saving}
                     className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs transition">
@@ -249,7 +240,16 @@ export default function AdminDashboard() {
   interface LocalFile { name: string; path: string; folder: string; }
   const [localFiles, setLocalFiles] = useState<LocalFile[]>([]);
   const [localFolders, setLocalFolders] = useState<string[]>([]);
-  const [epForm, setEpForm] = useState({ animeId: "", number: "", season: "1", title: "", videoUrl: "" });
+  const [epForm, setEpForm] = useState({
+    animeId: "",
+    number: "",
+    season: "1",
+    title: "",
+    videoUrl: "",
+    sourceLabel: "",
+    introStartSec: "",
+    introEndSec: "",
+  });
   // User forms
   const [timeoutForm, setTimeoutForm] = useState<{ [id: string]: string }>({});
   const [editUserForm, setEditUserForm] = useState<{ [id: string]: { name: string; email: string; role: string } }>({});

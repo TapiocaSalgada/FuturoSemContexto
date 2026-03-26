@@ -1,39 +1,79 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
-const DEFAULT_SETTINGS = {
-  theme: "pink",
-  reducedMotion: false,
-  neonEffects: true,
-  showHistory: true,
-  autoplay: true,
-  resumePlayback: true,
-  publicProfile: true,
-  allowFollow: true,
-  playbackSpeed: "Normal",
-};
+import { getCurrentUser } from "@/lib/current-user";
+import prisma from "@/lib/prisma";
+import { normalizeSettings } from "@/lib/settings";
+
+function toSettingsResponse(user: Awaited<ReturnType<typeof getCurrentUser>>) {
+  return normalizeSettings({
+    theme: user?.settings?.theme,
+    reducedMotion: user?.settings?.reducedMotion,
+    neonEffects: user?.settings?.neonEffects,
+    showHistory: user?.settings?.showHistory,
+    autoplay: user?.settings?.autoplay,
+    resumePlayback: user?.settings?.resumePlayback,
+    publicProfile: user ? !user.isPrivate : true,
+    allowFollow: user?.settings?.allowFollow,
+    playbackSpeed: user?.settings?.playbackSpeed,
+    notifyAnnouncements: user?.settings?.notifyAnnouncements,
+    notifyEpisodes: user?.settings?.notifyEpisodes,
+    notifyFollowers: user?.settings?.notifyFollowers,
+    notifyReplies: user?.settings?.notifyReplies,
+  });
+}
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json(DEFAULT_SETTINGS);
-
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json(DEFAULT_SETTINGS);
-
-  // Settings stored as JSON in user bio field as temporary storage
-  // We'll use a separate approach: store in a simple key-value in the db
-  // For now return defaults merged with any stored settings
-  return NextResponse.json(DEFAULT_SETTINGS);
+  const user = await getCurrentUser();
+  return NextResponse.json(toSettingsResponse(user));
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
-  // Settings are stored in localStorage on the client for now
-  // This endpoint is a no-op that confirms receipt
-  return NextResponse.json({ ok: true, settings: body });
+  const next = normalizeSettings({
+    ...toSettingsResponse(user),
+    ...body,
+  });
+
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { isPrivate: !next.publicProfile },
+    }),
+    prisma.userSettings.upsert({
+      where: { userId: user.id },
+      create: {
+        userId: user.id,
+        theme: next.theme,
+        reducedMotion: next.reducedMotion,
+        neonEffects: next.neonEffects,
+        showHistory: next.showHistory,
+        autoplay: next.autoplay,
+        resumePlayback: next.resumePlayback,
+        playbackSpeed: next.playbackSpeed,
+        allowFollow: next.allowFollow,
+        notifyAnnouncements: next.notifyAnnouncements,
+        notifyEpisodes: next.notifyEpisodes,
+        notifyFollowers: next.notifyFollowers,
+        notifyReplies: next.notifyReplies,
+      },
+      update: {
+        theme: next.theme,
+        reducedMotion: next.reducedMotion,
+        neonEffects: next.neonEffects,
+        showHistory: next.showHistory,
+        autoplay: next.autoplay,
+        resumePlayback: next.resumePlayback,
+        playbackSpeed: next.playbackSpeed,
+        allowFollow: next.allowFollow,
+        notifyAnnouncements: next.notifyAnnouncements,
+        notifyEpisodes: next.notifyEpisodes,
+        notifyFollowers: next.notifyFollowers,
+        notifyReplies: next.notifyReplies,
+      },
+    }),
+  ]);
+
+  return NextResponse.json({ ok: true, settings: next });
 }

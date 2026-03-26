@@ -1,31 +1,49 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+import { authOptions } from "@/lib/auth";
+import prisma from "@/lib/prisma";
+import { normalizeSettings } from "@/lib/settings";
+import { detectVideoSource, toEmbeddableVideoUrl } from "@/lib/video";
+
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } },
+) {
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
-    
-    // Check if ID is Anime or Episode
+
     const anime = await prisma.anime.findUnique({
       where: { id: params.id },
-      include: { episodes: true }
+      include: {
+        episodes: {
+          orderBy: [{ season: "asc" }, { number: "asc" }],
+        },
+      },
     });
 
-    let episodeToPlay = null;
+    let episodeToPlay = null as
+      | (Awaited<ReturnType<typeof prisma.episode.findUnique>> & {
+          anime?: Awaited<ReturnType<typeof prisma.anime.findUnique>>;
+        })
+      | null;
     let animeData = anime;
 
     if (anime) {
-      if (anime.episodes.length > 0) {
-        episodeToPlay = anime.episodes[0];
-      }
+      episodeToPlay = anime.episodes[0] || null;
     } else {
-      // It might be an episode ID directly
       const episode = await prisma.episode.findUnique({
         where: { id: params.id },
-        include: { anime: true }
+        include: {
+          anime: {
+            include: {
+              episodes: {
+                orderBy: [{ season: "asc" }, { number: "asc" }],
+              },
+            },
+          },
+        },
       });
       if (episode) {
         episodeToPlay = episode;
@@ -33,31 +51,82 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       }
     }
 
-    if (!animeData) {
+    if (!animeData || !episodeToPlay) {
       return new NextResponse("Not found", { status: 404 });
     }
 
+    const playlist = (animeData.episodes || []).slice().sort((a, b) => {
+      if (a.season !== b.season) return a.season - b.season;
+      return a.number - b.number;
+    });
+    const currentIndex = playlist.findIndex(
+      (episode) => episode.id === episodeToPlay?.id,
+    );
+    const currentEpisode =
+      currentIndex >= 0 ? playlist[currentIndex] : episodeToPlay;
+    const nextEpisode =
+      currentIndex >= 0 ? playlist[currentIndex + 1] || null : null;
+    const prevEpisode =
+      currentIndex > 0 ? playlist[currentIndex - 1] || null : null;
+    const sourceType = detectVideoSource(
+      currentEpisode?.videoUrl,
+      currentEpisode?.sourceType,
+    );
+
     let history = null;
-    if (userEmail && episodeToPlay) {
-      const user = await prisma.user.findUnique({ where: { email: userEmail } });
+    let viewerSettings = normalizeSettings();
+    if (userEmail) {
+      const user = await prisma.user.findUnique({
+        where: { email: userEmail },
+        include: { settings: true },
+      });
       if (user) {
         history = await prisma.watchHistory.findUnique({
           where: {
             userId_episodeId: {
               userId: user.id,
-              episodeId: episodeToPlay.id
-            }
-          }
+              episodeId: currentEpisode.id,
+            },
+          },
+        });
+        viewerSettings = normalizeSettings({
+          theme: user.settings?.theme,
+          reducedMotion: user.settings?.reducedMotion,
+          neonEffects: user.settings?.neonEffects,
+          showHistory: user.settings?.showHistory,
+          autoplay: user.settings?.autoplay,
+          resumePlayback: user.settings?.resumePlayback,
+          publicProfile: !user.isPrivate,
+          allowFollow: user.settings?.allowFollow,
+          playbackSpeed: user.settings?.playbackSpeed,
+          notifyAnnouncements: user.settings?.notifyAnnouncements,
+          notifyEpisodes: user.settings?.notifyEpisodes,
+          notifyFollowers: user.settings?.notifyFollowers,
+          notifyReplies: user.settings?.notifyReplies,
         });
       }
     }
 
     return NextResponse.json({
       anime: animeData,
-      episodeId: episodeToPlay?.id,
-      videoToPlay: episodeToPlay?.videoUrl || "/videos/(AnimesTotais) JoJo's Bizarre Adventure (Parte 5) Golden Wind - 32 [rlee_BD-RIP_1080p_Trial-Áudio].mkv",
-      epTitle: episodeToPlay ? `Episódio ${episodeToPlay.number} - ${episodeToPlay.title}` : "",
-      history
+      episode: currentEpisode,
+      episodeId: currentEpisode.id,
+      videoToPlay: currentEpisode.videoUrl || "",
+      embedUrl: toEmbeddableVideoUrl(
+        currentEpisode.videoUrl,
+        currentEpisode.sourceType,
+      ),
+      epTitle: `Episodio ${currentEpisode.number} - ${currentEpisode.title}`,
+      playlist,
+      nextEpisode,
+      prevEpisode,
+      history:
+        viewerSettings.resumePlayback && sourceType === "direct"
+          ? history
+          : null,
+      viewerSettings,
+      sourceType,
+      isDirectSource: sourceType === "direct",
     });
   } catch (error) {
     return new NextResponse("Internal Error", { status: 500 });
