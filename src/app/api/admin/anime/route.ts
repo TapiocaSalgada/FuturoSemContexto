@@ -3,8 +3,8 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
-function isAdmin(session: Awaited<ReturnType<typeof getServerSession>>) {
-  return session && (session.user as any).role === "admin";
+function isAdmin(session: any) {
+  return session?.user?.role === "admin";
 }
 
 export async function POST(req: Request) {

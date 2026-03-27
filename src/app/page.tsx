@@ -84,16 +84,12 @@ export default async function HomePage() {
     }, [])
     .slice(0, 8);
 
-  const continueWatching = recentHistory.reduce<typeof recentHistory>(
-    (items, history) => {
-      const animeId = history.episode?.anime?.id;
-      if (!animeId) return items;
-      if (items.some((item) => item.episode?.anime?.id === animeId)) return items;
-      items.push(history);
-      return items;
-    },
-    [],
-  );
+  const continueWatching = recentHistory.reduce((items: typeof recentHistory, history) => {
+    const animeId = history.episode?.anime?.id;
+    if (!animeId) return items;
+    if (items.some((item) => item.episode?.anime?.id === animeId)) return items;
+    return [...items, history];
+  }, [] as typeof recentHistory);
 
   const featured = recentAnimes[0];
   const featuredHref = featured?.episodes?.[0]
