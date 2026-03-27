@@ -87,25 +87,82 @@ interface EpItem {
   sourceLabel?: string | null;
   introStartSec?: number | null;
   introEndSec?: number | null;
+  outroStartSec?: number | null;
+  outroEndSec?: number | null;
 }
 
-function EpisodeManager({ animeId, animeName, showMsg, localFiles, localFolders, inputClass, labelClass }: {
-  animeId: string; animeName: string;
-  showMsg: (t: string, type?: "ok" | "err") => void;
-  localFiles: { name: string; path: string; folder: string }[];
+function EpisodeManager({
+  animeId,
+  animeName,
+  showMsg,
+  localFiles,
+  localFolders,
+  inputClass,
+  labelClass,
+}: {
+  animeId: string;
+  animeName: string;
+  showMsg: (text: string, type?: "ok" | "err") => void;
+  localFiles: any[];
+  localFolders: string[];
+  inputClass: string;
+  labelClass: string;
+}) {
+  const [episodes, setEpisodes] = useState<EpItem[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<EpItem>>({});
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    if (!animeId) return;
+    fetch(`/api/admin/episode?animeId=${animeId}`)
+      .then((r) => r.json())
+      .then((data) => setEpisodes(data || []));
+  }, [animeId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const startEdit = (ep: EpItem) => {
+    setEditingId(ep.id);
+    setEditForm(ep);
+  };
+
+  const saveEdit = async () => {
+    if (!editForm.id) return;
+    setSaving(true);
+    const res = await fetch("/api/admin/episode", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    if (res.ok) {
+      showMsg("Episódio editado!");
+      setEditingId(null);
+      load();
+    } else {
+      showMsg("Erro ao salvar.", "err");
+    }
+    setSaving(false);
+  };
+
+  const deleteEp = async (id: string) => {
+    setDeleting(id);
+    const res = await fetch("/api/admin/episode", {
+      method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
+    if (res.ok) {
+      showMsg("Episódio removido.");
+      load();
+    } else {
+      showMsg("Erro ao apagar.", "err");
+    }
     setDeleting(null);
-    if (res.ok) { showMsg("Episódio apagado."); load(); }
-    else showMsg("Erro ao apagar.", "err");
   };
-
-  if (episodes.length === 0) return (
-    <section className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5">
-      <p className="text-sm text-zinc-500">📋 Nenhum episódio em <span className="font-bold text-white">{animeName}</span> ainda.</p>
-    </section>
-  );
 
   return (
     <section className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 space-y-3">

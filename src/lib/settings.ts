@@ -7,14 +7,28 @@ export const DEFAULT_SETTINGS = {
   resumePlayback: true,
   publicProfile: true,
   allowFollow: true,
-  playbackSpeed: "Normal",
+  playbackSpeed: "Normal" as string,
   notifyAnnouncements: true,
   notifyEpisodes: true,
   notifyFollowers: true,
   notifyReplies: true,
-} as const;
+};
 
-export type UserSettingsPayload = typeof DEFAULT_SETTINGS;
+export interface UserSettingsPayload {
+  theme: string;
+  reducedMotion: boolean;
+  neonEffects: boolean;
+  showHistory: boolean;
+  autoplay: boolean;
+  resumePlayback: boolean;
+  publicProfile: boolean;
+  allowFollow: boolean;
+  playbackSpeed: string;
+  notifyAnnouncements: boolean;
+  notifyEpisodes: boolean;
+  notifyFollowers: boolean;
+  notifyReplies: boolean;
+}
 
 export function normalizeSettings(
   partial?: Partial<UserSettingsPayload> | null,

@@ -32,6 +32,8 @@ export async function POST(req: Request) {
       sourceLabel,
       introStartSec,
       introEndSec,
+      outroStartSec,
+      outroEndSec,
     } = await req.json();
 
     if (!animeId || !videoUrl?.trim()) {
@@ -71,6 +73,8 @@ export async function POST(req: Request) {
         sourceLabel: sourceLabel?.trim() || null,
         introStartSec: parseOptionalNumber(introStartSec),
         introEndSec: parseOptionalNumber(introEndSec),
+        outroStartSec: parseOptionalNumber(outroStartSec),
+        outroEndSec: parseOptionalNumber(outroEndSec),
       },
     });
 
@@ -116,6 +120,8 @@ export async function PUT(req: Request) {
       sourceLabel,
       introStartSec,
       introEndSec,
+      outroStartSec,
+      outroEndSec,
     } = await req.json();
     if (!id) return new NextResponse("ID required", { status: 400 });
 
@@ -135,6 +141,12 @@ export async function PUT(req: Request) {
         }),
         ...(introEndSec !== undefined && {
           introEndSec: parseOptionalNumber(introEndSec),
+        }),
+        ...(outroStartSec !== undefined && {
+          outroStartSec: parseOptionalNumber(outroStartSec),
+        }),
+        ...(outroEndSec !== undefined && {
+          outroEndSec: parseOptionalNumber(outroEndSec),
         }),
       },
     });
