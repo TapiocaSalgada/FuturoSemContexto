@@ -22,11 +22,18 @@ export default async function HomePage() {
       where: { visibility: "public" },
       orderBy: { id: "desc" },
       take: 12,
-      include: {
-        categories: true,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        coverImage: true,
+        bannerImage: true,
+        status: true,
+        visibility: true,
         episodes: {
           orderBy: [{ season: "asc" }, { number: "asc" }],
           take: 1,
+          select: { id: true }
         },
       },
     }),
@@ -40,9 +47,15 @@ export default async function HomePage() {
       ? prisma.watchHistory.findMany({
           where: { userId: currentUser.id, progressSec: { gt: 0 } },
           orderBy: { updatedAt: "desc" },
-          include: {
+          select: {
+            id: true,
+            progressSec: true,
+            updatedAt: true,
             episode: {
-              include: {
+              select: {
+                id: true,
+                number: true,
+                season: true,
                 anime: {
                   select: { id: true, title: true, coverImage: true },
                 },

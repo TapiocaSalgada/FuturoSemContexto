@@ -360,17 +360,23 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     {/* ── Block Google Drive top-right escape buttons ── */}
                     {isDrive && (
                       <>
-                        {/* Top bar overlay – covers the top-right ~25% of the player */}
+                        {/* Desktop top-right pop-out block */}
                         <div
-                          className="absolute top-0 right-0 h-12 w-[40%] z-50"
+                          className="absolute top-0 right-0 h-16 w-32 z-[60]"
                           style={{ pointerEvents: "all", background: "transparent", cursor: "default" }}
-                          onClick={(e) => e.preventDefault()}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                         />
-                        {/* Extra block for mobile where the button renders lower */}
+                        {/* Mobile/Compact UI top-right block (often taller) */}
                         <div
-                          className="absolute bottom-12 right-0 h-12 w-[40%] z-50"
+                          className="absolute top-0 right-0 h-24 w-16 z-[60]"
                           style={{ pointerEvents: "all", background: "transparent", cursor: "default" }}
-                          onClick={(e) => e.preventDefault()}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                        />
+                        {/* Extra safety for some Drive embed variations */}
+                        <div
+                          className="absolute top-12 right-0 h-12 w-48 z-[60]"
+                          style={{ pointerEvents: "all", background: "transparent", cursor: "default" }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
                         />
                       </>
                     )}

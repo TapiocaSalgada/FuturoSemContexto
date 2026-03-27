@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
+export const revalidate = 60; // Revalidate every 1 minute
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
