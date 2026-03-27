@@ -4,6 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useState, useEffect, useRef } from "react";
 import { Search, Play, UserCircle } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface SearchResult {
   animes: { id: string; title: string; coverImage?: string; status: string }[];
@@ -72,9 +73,9 @@ export default function ExplorePage() {
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
               {results.animes.map(anime => (
                 <Link key={anime.id} href={`/anime/${anime.id}`} className="group">
-                  <div className="aspect-[2/3] rounded-xl overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
+                  <div className="relative aspect-[2/3] rounded-xl overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
                     {anime.coverImage
-                      ? <img src={anime.coverImage} alt={anime.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                      ? <Image src={anime.coverImage} alt={anime.title} fill sizes="(max-width: 768px) 100px, 150px" className="object-cover group-hover:scale-105 transition duration-300" />
                       : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><Play size={24} className="text-zinc-600" /></div>
                     }
                   </div>
@@ -93,9 +94,9 @@ export default function ExplorePage() {
               {results.users.map(user => (
                 <Link key={user.id} href={`/profile/${user.id}`}
                   className="flex items-center gap-4 p-3 bg-zinc-900/50 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-600 rounded-xl transition group">
-                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 border-2 border-zinc-700 group-hover:border-pink-500 transition">
+                  <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border-2 border-zinc-700 group-hover:border-pink-500 transition">
                     {user.avatarUrl
-                      ? <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                      ? <Image src={user.avatarUrl} alt={user.name} fill sizes="40px" className="object-cover" />
                       : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><UserCircle size={20} className="text-zinc-500" /></div>
                     }
                   </div>

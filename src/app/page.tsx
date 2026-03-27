@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import Link from "next/link";
+import Image from "next/image";
 import { Clock, Heart, Play, TrendingUp } from "lucide-react";
 
 import { authOptions } from "@/lib/auth";
@@ -104,13 +105,15 @@ export default async function HomePage() {
         {featured ? (
           <section className="relative w-full min-h-[56vh] lg:min-h-[66vh] flex flex-col justify-end p-8 lg:p-14 overflow-hidden">
             <div className="absolute inset-0 z-0">
-              <img
+              <Image
                 src={
                   featured.bannerImage ||
                   featured.coverImage ||
                   "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"
                 }
-                className="w-full h-full object-cover opacity-60 scale-105 transition-transform duration-700"
+                fill
+                priority
+                className="object-cover opacity-60 scale-105 transition-transform duration-700"
                 alt={featured.title}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#060606] via-[#060606]/70 to-transparent" />
@@ -119,7 +122,7 @@ export default async function HomePage() {
             </div>
             <div className="relative z-10 max-w-2xl space-y-4 animate-fadeInUp">
               <div className="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-black/35 backdrop-blur-sm border border-white/10">
-                <img src="/logo.png" alt="Futuro sem Contexto" className="w-6 h-6 rounded-lg object-cover" />
+                <Image src="/logo.png" alt="Futuro sem Contexto" width={24} height={24} className="rounded-lg object-cover" />
                 <span className="text-pink-400 font-black tracking-[0.2em] text-[11px] uppercase">
                   Futuro em destaque
                 </span>
@@ -148,7 +151,7 @@ export default async function HomePage() {
           </section>
         ) : (
           <div className="h-[40vh] flex items-center justify-center text-zinc-500 flex-col gap-3">
-            <img src="/logo.png" alt="Futuro sem Contexto" className="w-14 h-14 rounded-2xl object-cover opacity-70" />
+            <Image src="/logo.png" alt="Futuro sem Contexto" width={56} height={56} className="rounded-2xl object-cover opacity-70" />
             <p className="text-lg font-bold">Catalogo vazio.</p>
             <HomeCTA />
           </div>
@@ -171,9 +174,11 @@ export default async function HomePage() {
                       className="w-[170px] lg:w-[210px] shrink-0 snap-start group"
                     >
                       <div className="aspect-video rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 bg-zinc-900">
-                        <img
-                          src={anime.coverImage || ""}
-                          className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition duration-500"
+                        <Image
+                          src={anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                          fill
+                          sizes="(max-width: 768px) 170px, 210px"
+                          className="object-cover opacity-70 group-hover:scale-105 transition duration-500"
                           alt={anime.title}
                         />
                         <div className="absolute inset-x-0 bottom-0 h-1.5 bg-white/10">
@@ -221,9 +226,11 @@ export default async function HomePage() {
                     className="w-[130px] lg:w-[160px] shrink-0 snap-start group"
                   >
                     <div className="aspect-[2/3] rounded-xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.2)]">
-                      <img
-                        src={episode.anime?.coverImage || ""}
-                        className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
+                      <Image
+                        src={episode.anime?.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                        fill
+                        sizes="(max-width: 768px) 130px, 160px"
+                        className="object-cover group-hover:scale-110 transition duration-500"
                         alt={episode.anime?.title || ""}
                       />
                       <div className="absolute top-2 left-2 w-7 h-7 bg-pink-600 rounded-lg flex items-center justify-center text-xs font-black shadow-[0_0_10px_rgba(255,0,127,0.5)]">
@@ -259,9 +266,11 @@ export default async function HomePage() {
                     className="w-[130px] lg:w-[160px] shrink-0 snap-start group"
                   >
                     <div className="aspect-[2/3] rounded-xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.2)]">
-                      <img
-                        src={anime.coverImage || ""}
-                        className="w-full h-full object-cover group-hover:scale-110 transition duration-500"
+                      <Image
+                        src={anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                        fill
+                        sizes="(max-width: 768px) 130px, 160px"
+                        className="object-cover group-hover:scale-110 transition duration-500"
                         alt={anime.title}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-3">
