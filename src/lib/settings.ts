@@ -36,5 +36,7 @@ export function normalizeSettings(
   return {
     ...DEFAULT_SETTINGS,
     ...(partial || {}),
+    notifyAnnouncements: true, // Always true (mandatory)
+    notifyEpisodes: false, // Disabled feature
   };
 }

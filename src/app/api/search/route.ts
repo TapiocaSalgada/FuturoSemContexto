@@ -35,5 +35,8 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => rankMatch(b.name, q) - rankMatch(a.name, q))
     .slice(0, 5);
 
-  return NextResponse.json({ animes: sortedAnimes, users: sortedUsers });
+  return NextResponse.json(
+    { animes: sortedAnimes, users: sortedUsers },
+    { headers: { "Cache-Control": "s-maxage=60, stale-while-revalidate" } }
+  );
 }

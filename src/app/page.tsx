@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import Link from "next/link";
 import Image from "next/image";
 import { Clock, Heart, Play, TrendingUp } from "lucide-react";
+import { unstable_cache } from "next/cache";
 
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
@@ -11,17 +12,12 @@ import SuggestionButton from "@/components/SuggestionButton";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
-  const session = await getServerSession(authOptions);
-  const currentUser = session?.user?.email
-    ? await prisma.user.findUnique({ where: { email: session.user.email } })
-    : null;
-
-  const [recentAnimes, trendingData, recentHistory] = await Promise.all([
-    prisma.anime.findMany({
+const getCachedRecentAnimes = unstable_cache(
+  async () => {
+    return prisma.anime.findMany({
       where: { visibility: "public" },
       orderBy: { id: "desc" },
-      take: 12,
+      take: 5,
       select: {
         id: true,
         title: true,
@@ -36,35 +32,51 @@ export default async function HomePage() {
           select: { id: true }
         },
       },
-    }),
-    prisma.watchHistory.groupBy({
+    });
+  },
+  ['recent-animes-home'],
+  { revalidate: 60 } // cache 1 minute
+);
+
+const getCachedTrending = unstable_cache(
+  async () => {
+    return prisma.watchHistory.groupBy({
       by: ["episodeId"],
       _count: { episodeId: true },
       orderBy: { _count: { episodeId: "desc" } },
       take: 30,
-    }),
-    currentUser
-      ? prisma.watchHistory.findMany({
-          where: { userId: currentUser.id, progressSec: { gt: 0 } },
-          orderBy: { updatedAt: "desc" },
-          select: {
-            id: true,
-            progressSec: true,
-            updatedAt: true,
-            episode: {
-              select: {
-                id: true,
-                number: true,
-                season: true,
-                anime: {
-                  select: { id: true, title: true, coverImage: true },
-                },
-              },
-            },
+    });
+  },
+  ['trending-data-home'],
+  { revalidate: 120 } // cache 2 minutes
+);
+
+export default async function HomePage() {
+  const session = await getServerSession(authOptions);
+  let recentHistory: any[] = [];
+  
+  if (session?.user?.email) {
+    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+    if (user) {
+      recentHistory = await prisma.watchHistory.findMany({
+        where: { userId: user.id, progressSec: { gt: 0 } },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          progressSec: true,
+          updatedAt: true,
+          episode: {
+            select: { id: true, number: true, season: true, thumbnailUrl: true, anime: { select: { id: true, title: true, coverImage: true } } },
           },
-          take: 24,
-        })
-      : Promise.resolve([]),
+        },
+        take: 24,
+      });
+    }
+  }
+
+  const [recentAnimes, trendingData] = await Promise.all([
+    getCachedRecentAnimes(),
+    getCachedTrending(),
   ]);
 
   const trendingEpisodeIds = trendingData.map((item) => item.episodeId);
@@ -116,17 +128,21 @@ export default async function HomePage() {
     <AppLayout>
       <div className="pb-24">
         {featured ? (
-          <section className="relative w-full min-h-[56vh] lg:min-h-[66vh] flex flex-col justify-end p-8 lg:p-14 overflow-hidden">
+          <section className="relative w-full min-h-[75vh] lg:min-h-[85vh] flex flex-col justify-end p-6 lg:p-14 overflow-hidden">
             <div className="absolute inset-0 z-0">
               <Image
-                src={
-                  featured.bannerImage ||
-                  featured.coverImage ||
-                  "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"
-                }
+                src={featured.bannerImage || featured.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
                 fill
                 priority
-                className="object-cover opacity-60 scale-105 transition-transform duration-700"
+                className="hidden md:block object-cover opacity-60 scale-105 transition-transform duration-700"
+                alt={featured.title}
+              />
+              {/* Mobile Cover (Portrait) */}
+              <Image
+                src={featured.coverImage || featured.bannerImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                fill
+                priority
+                className="md:hidden object-cover opacity-70 scale-105 transition-transform duration-700"
                 alt={featured.title}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#060606] via-[#060606]/70 to-transparent" />
@@ -146,18 +162,25 @@ export default async function HomePage() {
               <p className="text-zinc-300 text-sm lg:text-base line-clamp-3 max-w-xl">
                 {featured.description || "Seu proximo anime ja esta pronto para entrar em tela cheia."}
               </p>
-              <div className="flex items-center gap-3 pt-2 flex-wrap">
-                <Link
+              <div className="flex items-center gap-4 text-sm font-bold mt-2">
+                <span className="text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.4)]">
+                  {80 + (featured.title.length % 20)}% Relevante
+                </span>
+                <span className="text-zinc-400">TV</span>
+                <span className="text-zinc-400 px-1.5 py-0.5 border border-zinc-600 rounded text-[10px]">HD</span>
+              </div>
+              <div className="flex items-center gap-3 pt-2 w-full md:w-auto">
+                <Link prefetch={true}
                   href={featuredHref}
-                  className="bg-white text-black px-7 py-3 rounded-full font-black flex items-center gap-2 hover:bg-pink-500 hover:text-white transition-all shadow-lg hover:shadow-[0_0_25px_rgba(255,0,127,0.5)] text-sm"
+                  className="flex-1 md:flex-none justify-center bg-white text-black px-7 py-3 rounded-xl font-black flex items-center gap-2 hover:bg-white/90 hover:scale-105 transition-all text-sm"
                 >
-                  <Play fill="currentColor" size={16} /> Assistir Agora
+                  <Play fill="currentColor" size={16} /> Assistir
                 </Link>
-                <Link
+                <Link prefetch={true}
                   href={`/anime/${featured.id}`}
-                  className="bg-zinc-800/80 backdrop-blur-md text-white px-7 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-zinc-700 transition text-sm"
+                  className="flex-1 md:flex-none justify-center bg-zinc-800/80 backdrop-blur-md text-white px-7 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-zinc-700 hover:scale-105 transition-all text-sm"
                 >
-                  Ver pagina do anime
+                  Detalhes
                 </Link>
               </div>
             </div>
@@ -181,14 +204,14 @@ export default async function HomePage() {
                   const anime = history.episode?.anime;
                   if (!anime || !history.episode) return null;
                   return (
-                    <Link
+                    <Link prefetch={true}
                       key={history.id}
                       href={`/watch/${history.episode.id}`}
                       className="w-[170px] lg:w-[210px] shrink-0 snap-start group"
                     >
                       <div className="aspect-video rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 bg-zinc-900">
                         <Image
-                          src={anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                          src={history.episode?.thumbnailUrl || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
                           fill
                           sizes="(max-width: 768px) 170px, 210px"
                           className="object-cover opacity-70 group-hover:scale-105 transition duration-500"
@@ -233,7 +256,7 @@ export default async function HomePage() {
               </h2>
               <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x">
                 {trendingAnimes.map((episode, index) => (
-                  <Link
+                  <Link prefetch={true}
                     key={episode.animeId}
                     href={`/anime/${episode.animeId}`}
                     className="w-[130px] lg:w-[160px] shrink-0 snap-start group"
@@ -273,7 +296,7 @@ export default async function HomePage() {
               </h2>
               <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x">
                 {recentAnimes.map((anime) => (
-                  <Link
+                  <Link prefetch={true}
                     key={anime.id}
                     href={`/anime/${anime.id}`}
                     className="w-[130px] lg:w-[160px] shrink-0 snap-start group"

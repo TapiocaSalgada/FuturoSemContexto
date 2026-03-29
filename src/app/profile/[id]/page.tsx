@@ -4,7 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
-import { Heart, Edit3, Check, UploadCloud, Lock, Film, Trophy } from "lucide-react";
+import { Heart, Edit3, Check, UploadCloud, Lock, Film, Trophy, X } from "lucide-react";
 import Link from "next/link";
 
 interface ProfileUser {
@@ -16,21 +16,64 @@ interface ProfileUser {
   histories?: { episode: { title?: string; number?: number; season?: number; anime: { id: string; title: string; coverImage?: string } } }[];
 }
 
-function UploadBtn({ onUpload }: { onUpload: (url: string) => void }) {
-  const [loading, setLoading] = useState(false);
-  const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+const PROFESSIONAL_AVATARS = [
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=ff007f",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Aidan&backgroundColor=333333",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Aneka&backgroundColor=5865F2",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Brooklynn&backgroundColor=ff007f",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Jude&backgroundColor=333333",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Ryan&backgroundColor=5865F2",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Sara&backgroundColor=ff007f",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Destiny&backgroundColor=333333",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Emery&backgroundColor=5865F2",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Mia&backgroundColor=ff007f",
+];
+
+function AvatarPickerModal({ onClose, onSelect, currentUrl }: { onClose: () => void, onSelect: (url: string) => void, currentUrl: string }) {
+  const [loadingImg, setLoadingImg] = useState<string | null>(null);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
-    setLoading(true);
+    setLoadingImg("upload");
     const fd = new FormData(); fd.append("file", f); fd.append("folder", "uploads");
     const r = await fetch("/api/upload", { method: "POST", body: fd });
-    const d = await r.json(); if (d.url) onUpload(d.url);
-    setLoading(false);
+    const d = await r.json(); if (d.url) { onSelect(d.url); onClose(); }
+    setLoadingImg(null);
   };
+
   return (
-    <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition cursor-pointer rounded-full">
-      {loading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <UploadCloud size={18} className="text-white" />}
-      <input type="file" accept="image/*" className="hidden" onChange={handle} disabled={loading} />
-    </label>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[#111] border border-zinc-800 rounded-3xl p-6 w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh] animate-fadeInUp">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="font-black text-xl text-white">Escolha um Avatar</h3>
+          <button onClick={onClose} className="p-2 bg-zinc-800 rounded-full text-zinc-400 hover:text-white transition"><X size={16} /></button>
+        </div>
+        
+        <label className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-zinc-700 hover:border-pink-500 bg-zinc-900/50 hover:bg-zinc-800 transition cursor-pointer mb-6 group">
+          {loadingImg === "upload" ? (
+             <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <>
+              <UploadCloud size={24} className="text-zinc-500 group-hover:text-pink-500 transition" />
+              <span className="text-sm font-bold text-zinc-300 group-hover:text-white">Fazer Upload de Foto</span>
+            </>
+          )}
+          <input type="file" accept="image/*" className="hidden" onChange={handleUpload} disabled={loadingImg === "upload"} />
+        </label>
+
+        <div className="overflow-y-auto pr-2 scrollbar-hide">
+          <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Ou escolha um pronto:</p>
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
+            {PROFESSIONAL_AVATARS.map(url => (
+               <button key={url} onClick={() => { onSelect(url); onClose(); }} className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition ${currentUrl === url ? "border-pink-500 scale-105 shadow-[0_0_15px_rgba(255,0,127,0.5)]" : "border-transparent hover:border-zinc-500 opacity-70 hover:opacity-100"}`}>
+                 <img src={url} alt="" className="w-full h-full object-cover" />
+               </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -61,7 +104,7 @@ function BannerUpload({ onUpload }: { onUpload: (url: string) => void }) {
 
 
 export default function ProfilePage() {
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const params = useParams();
   const userId = (params?.id as string) || "";
 
@@ -70,6 +113,8 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", bio: "", avatarUrl: "", bannerUrl: "", isPrivate: false });
   const [saving, setSaving] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState(true);
 
   // Modal followers setup
   const [showFollowUsers, setShowFollowUsers] = useState<"followers" | "following" | null>(null);
@@ -108,6 +153,9 @@ export default function ProfilePage() {
     setSaving(true);
     await fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) });
     setProfile(p => p ? { ...p, ...editForm } : null);
+    if (isOwnProfile && editForm.avatarUrl !== session?.user?.image) {
+      await updateSession({ image: editForm.avatarUrl });
+    }
     setIsEditing(false);
     setSaving(false);
   };
@@ -178,10 +226,20 @@ export default function ProfilePage() {
           <div className="flex flex-col sm:flex-row items-start gap-6">
             {/* Avatar */}
             <div className="relative group shrink-0">
-              <div className="w-28 h-28 rounded-full border-4 border-[#060606] overflow-hidden bg-zinc-800 shadow-2xl">
-                <img src={isEditing && editForm.avatarUrl ? editForm.avatarUrl : (profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=ff007f&color=fff`)} className="w-full h-full object-cover" alt={profile.name} />
+              <div className="w-28 h-28 rounded-full border-4 border-[#060606] overflow-hidden bg-zinc-800 shadow-2xl relative">
+                {avatarLoading && <div className="absolute inset-0 bg-zinc-800 animate-pulse z-10" />}
+                <img 
+                  onLoad={() => setAvatarLoading(false)}
+                  src={isEditing && editForm.avatarUrl ? editForm.avatarUrl : (profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=ff007f&color=fff`)} 
+                  className={`w-full h-full object-cover transition duration-300 ${avatarLoading ? "opacity-0" : "opacity-100"}`} 
+                  alt={profile.name} 
+                />
               </div>
-              {isOwnProfile && isEditing && <UploadBtn onUpload={url => setEditForm(ef => ({ ...ef, avatarUrl: url }))} />}
+              {isOwnProfile && isEditing && (
+                <button onClick={() => setShowAvatarPicker(true)} className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition cursor-pointer rounded-full">
+                  <Edit3 size={18} className="text-white" />
+                </button>
+              )}
             </div>
 
             {/* Info */}
@@ -347,6 +405,14 @@ export default function ProfilePage() {
             </button>
           </div>
         </div>
+      )}
+
+      {showAvatarPicker && (
+         <AvatarPickerModal 
+           onClose={() => setShowAvatarPicker(false)} 
+           onSelect={(url) => { setEditForm(ef => ({ ...ef, avatarUrl: url })); setAvatarLoading(true); }} 
+           currentUrl={editForm.avatarUrl || profile.avatarUrl || ""} 
+         />
       )}
     </AppLayout>
   );

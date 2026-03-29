@@ -46,6 +46,7 @@ function NotificationGlyph({ type }: { type: NotificationItem["type"] }) {
 
 export default function Header() {
   const { data: session } = useSession();
+  const [isImageLoading, setIsImageLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -343,12 +344,14 @@ export default function Header() {
             className="flex items-center gap-1.5 hover:opacity-90 transition pl-1"
             title="Perfil"
           >
-            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-pink-500/60 hover:border-pink-400 transition shadow-[0_0_8px_rgba(255,0,127,0.25)]">
+            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-pink-500/60 hover:border-pink-400 transition shadow-[0_0_8px_rgba(255,0,127,0.25)] relative bg-zinc-900">
+              {isImageLoading && <div className="absolute inset-0 bg-zinc-800 animate-pulse z-0" />}
               <img
                 src={displayAvatar}
-                className="w-full h-full object-cover"
+                className={`w-full h-full object-cover relative z-10 transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
                 alt="avatar"
                 key={displayAvatar}
+                onLoad={() => setIsImageLoading(false)}
               />
             </div>
           </button>
@@ -373,6 +376,12 @@ export default function Header() {
                 </Link>
               </div>
               <div className="border-t border-zinc-800 py-1">
+                <button
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
+                >
+                  <UserPlus size={15} className="text-pink-500" /> Trocar de conta
+                </button>
                 <button
                   onClick={() => signOut()}
                   className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-red-400 hover:bg-red-500/10 transition"

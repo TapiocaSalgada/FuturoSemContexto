@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   });
   await createNotificationsForUsers(
     users
-      .filter((user) => user.settings?.notifyAnnouncements !== false)
+      .filter((user) => user.settings?.notifyAnnouncements === true)
       .map((user) => user.id),
     {
       actorId: null,

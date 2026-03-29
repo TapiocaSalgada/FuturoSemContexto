@@ -6,8 +6,9 @@ import { useSession } from "next-auth/react";
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
-  Home, Search, Star, Settings, Heart, Clock, Disc3, ShieldCheck, X, Menu, MessageSquare
+  Home, Search, Star, Settings, Heart, Clock, Disc3, ShieldCheck, X, Menu, MessageSquare, LogOut
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -68,7 +69,17 @@ export default function Sidebar() {
       </nav>
 
       {/* Settings at bottom */}
-      <div className="mt-auto pt-4 border-t border-white/5">
+      <div className="mt-auto pt-4 border-t border-white/5 space-y-1">
+        <a
+          href="https://discord.gg/futurosemcontexto"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 min-h-[44px] text-zinc-400 hover:text-[#5865F2] hover:bg-[#5865F2]/10`}
+          title="Entrar no Discord"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 127.14 96.36" className="shrink-0"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 109.27 109.27 0 0 0-29.08 0 72.37 72.37 0 0 0-3.37-6.83 105.43 105.43 0 0 0-26.23 8.09C2.04 33.84-2.69 58.85.92 83.46a105.73 105.73 0 0 0 32.14 16.14 77.7 77.7 0 0 0 6.89-11.11 72.17 72.17 0 0 1-10.82-5.18c.9-.66 1.8-1.35 2.66-2a75.34 75.34 0 0 0 64.32 0c.87.68 1.76 1.34 2.66 2a72.55 72.55 0 0 1-10.85 5.18 78 78 0 0 0 6.89 11.1 105.35 105.35 0 0 0 32.19-16.14c3.9-27.42-4.14-51.48-19.3-75.38zm-51.06 65.6c-6.17 0-11.3-5.63-11.3-12.54 0-6.9 4.96-12.54 11.3-12.54 6.34 0 11.45 5.68 11.3 12.54 0 6.91-4.96 12.54-11.3 12.54zm33.85 0c-6.17 0-11.3-5.63-11.3-12.54 0-6.9 4.96-12.54 11.3-12.54 6.34 0 11.45 5.68 11.3 12.54 0 6.91-4.96 12.54-11.3 12.54z"/></svg>
+          <span className={`font-semibold text-sm ${mobile ? "block" : "hidden lg:block"} `}>Discord do Grupo</span>
+        </a>
         <Link
           href="/settings"
           onClick={() => setMobileOpen(false)}
@@ -82,6 +93,16 @@ export default function Sidebar() {
           <Settings size={20} className="shrink-0" />
           <span className={`font-semibold text-sm ${mobile ? "block" : "hidden lg:block"}`}>Configurações</span>
         </Link>
+        {mobile && (
+          <button
+            onClick={() => { setMobileOpen(false); signOut({ callbackUrl: "/login" }); }}
+            className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 min-h-[44px] text-zinc-500 hover:text-red-400 hover:bg-red-500/10 w-full text-left`}
+            title="Trocar de conta / Sair"
+          >
+            <LogOut size={20} className="shrink-0" />
+            <span className={`font-semibold text-sm block`}>Sair da Conta</span>
+          </button>
+        )}
       </div>
     </>
   );

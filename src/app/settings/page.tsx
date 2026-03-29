@@ -68,7 +68,7 @@ export default function SettingsPage() {
     bannerUrl: "",
   });
   const [profileMsg, setProfileMsg] = useState("");
-  const [pwForm, setPwForm] = useState({ current: "", newPw: "", confirm: "" });
+  const [pwForm, setPwForm] = useState({ current: "", newPw: "", confirm: "", confirmEmail: "" });
   const [pwMsg, setPwMsg] = useState("");
   const [emailForm, setEmailForm] = useState({ password: "", newEmail: "" });
   const [emailMsg, setEmailMsg] = useState("");
@@ -184,12 +184,13 @@ export default function SettingsPage() {
       body: JSON.stringify({
         currentPassword: pwForm.current,
         newPassword: pwForm.newPw,
+        confirmEmail: pwForm.confirmEmail,
       }),
     });
 
     if (res.ok) {
       setPwMsg("Senha alterada.");
-      setPwForm({ current: "", newPw: "", confirm: "" });
+      setPwForm({ current: "", newPw: "", confirm: "", confirmEmail: "" });
     } else {
       const data = await res.json();
       setPwMsg(data.error || "Erro ao alterar senha.");
@@ -304,6 +305,10 @@ export default function SettingsPage() {
       </div>
     );
   }
+
+  const userEmail = session?.user?.email || "";
+  const [localPart, domain] = userEmail.split("@");
+  const censoredEmail = localPart ? `${localPart.substring(0, Math.ceil(localPart.length / 2))}***@${domain || ""}` : "";
 
   return (
     <AppLayout>
@@ -465,6 +470,16 @@ export default function SettingsPage() {
                   <p className="font-bold text-sm text-zinc-300 uppercase tracking-wider text-xs">
                     Alterar Senha
                   </p>
+                  <p className="text-xs text-zinc-400 mb-2">Para sua segurança, confirme seu e-mail verdadeiro ({censoredEmail}) para trocar a senha.</p>
+                  <InputField
+                    label="E-mail de Confirmação"
+                    value={pwForm.confirmEmail}
+                    onChange={(value) =>
+                      setPwForm((current) => ({ ...current, confirmEmail: value }))
+                    }
+                    type="email"
+                    placeholder="Seu e-mail..."
+                  />
                   <InputField
                     label="Senha atual"
                     value={pwForm.current}
@@ -551,16 +566,6 @@ export default function SettingsPage() {
 
             {section === "notifications" && (
               <div>
-                <Toggle
-                  label="Anuncios do admin"
-                  desc="Receba notificacoes de avisos publicados pelo painel."
-                  settingKey="notifyAnnouncements"
-                />
-                <Toggle
-                  label="Novos episodios"
-                  desc="Receba alertas quando um anime favoritado ganhar episodio novo."
-                  settingKey="notifyEpisodes"
-                />
                 <Toggle
                   label="Novos seguidores"
                   desc="Avise quando alguem comecar a seguir seu perfil."

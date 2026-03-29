@@ -97,6 +97,7 @@ model Episode {
   introEndSec   Int?
   outroStartSec Int?
   outroEndSec   Int?
+  thumbnailUrl  String?
   histories     WatchHistory[]
 }
 

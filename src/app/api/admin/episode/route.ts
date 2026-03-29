@@ -88,7 +88,7 @@ export async function POST(req: Request) {
 
     await createNotificationsForUsers(
       favorites
-        .filter((favorite) => favorite.user.settings?.notifyEpisodes !== false)
+        .filter((favorite) => favorite.user.settings?.notifyEpisodes === true)
         .map((favorite) => favorite.userId),
       {
         actorId: null,

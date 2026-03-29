@@ -1,15 +1,10 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import DiscordProvider from "next-auth/providers/discord";
 import prisma from "./prisma";
 import bcrypt from "bcryptjs";
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    DiscordProvider({
-      clientId: process.env.DISCORD_CLIENT_ID || "",
-      clientSecret: process.env.DISCORD_CLIENT_SECRET || "",
-    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -34,7 +29,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (!user.password) {
-          throw new Error("Esta conta foi criada com o Discord. Faça login pelo Discord.");
+          throw new Error("Sua conta não possui senha. Contate o administrador.");
         }
 
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
@@ -55,30 +50,11 @@ export const authOptions: NextAuthOptions = {
   ],
   session: { strategy: "jwt" },
   callbacks: {
-    async signIn({ user, account }) {
-      if (account?.provider === "discord") {
-        if (!user.email) return false;
-        let dbUser = await prisma.user.findUnique({ where: { email: user.email } });
-        if (!dbUser) {
-          dbUser = await prisma.user.create({
-            data: {
-              email: user.email,
-              name: user.name || "Discord User",
-              avatarUrl: user.image,
-            }
-          });
-        } else if (user.image && dbUser.avatarUrl !== user.image) {
-          // Keep Discord avatar fresh on each login
-          dbUser = await prisma.user.update({ where: { id: dbUser.id }, data: { avatarUrl: user.image }, select: { id: true, role: true, avatarUrl: true } }) as any;
-        }
-        user.id = dbUser!.id;
-        (user as any).role = dbUser!.role;
-        (user as any).avatarUrl = (dbUser as any).avatarUrl || user.image;
-        return true;
+    async jwt({ token, user, trigger, session }) {
+      if (trigger === "update" && session?.image) {
+        token.picture = session.image;
       }
-      return true;
-    },
-    async jwt({ token, user }) {
+
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;

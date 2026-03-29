@@ -17,7 +17,7 @@ interface Anime {
   id: string; title: string; description?: string; coverImage?: string; bannerImage?: string;
   status: string; visibility: string;
   categories: { id: string; name: string }[];
-  episodes: { id: string; title: string; number: number; season: number; duration?: string; videoUrl?: string }[];
+  episodes: { id: string; title: string; number: number; season: number; duration?: string; videoUrl?: string; thumbnailUrl?: string }[];
 }
 
 function CommentItem({ comment, animeId, currentUserId, onRefresh }: {
@@ -114,6 +114,7 @@ export default function AnimePageClient() {
   const [selectedFolder, setSelectedFolder] = useState("");
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [groupedEps, setGroupedEps] = useState<Record<number, typeof anime extends null ? never[] : Anime["episodes"]>>({});
+  const [lastWatchedEpId, setLastWatchedEpId] = useState<string | null>(null);
 
   const loadComments = useCallback(() => {
     if (!id) return;
@@ -138,6 +139,9 @@ export default function AnimePageClient() {
         setIsFavorited(favs.some(f => f.animeId === id));
       });
       fetch("/api/favorites/folders").then(r => r.json()).then(setFolders);
+      fetch(`/api/history?animeId=${id}`).then(r => r.json()).then(data => {
+        if (data?.episodeId) setLastWatchedEpId(data.episodeId);
+      }).catch(() => {});
     }
   }, [id, session, loadComments]);
 
@@ -216,7 +220,7 @@ export default function AnimePageClient() {
           <img src={anime.bannerImage || anime.coverImage || ""} className="w-full h-full object-cover opacity-50" alt={anime.title} />
           <div className="absolute inset-0 bg-gradient-to-t from-[#060606] via-[#060606]/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#060606]/30 to-transparent" />
-          <Link href="/" className="absolute top-6 left-6 p-2.5 bg-zinc-900/80 hover:bg-pink-600 rounded-full text-white transition z-10 group shadow-lg">
+          <Link prefetch={true} href="/" className="absolute top-6 left-6 p-2.5 bg-zinc-900/80 hover:bg-pink-600 rounded-full text-white transition z-10 group shadow-lg">
             <ArrowLeft size={20} className="group-hover:-translate-x-0.5 transition" />
           </Link>
         </div>
@@ -239,17 +243,20 @@ export default function AnimePageClient() {
               <h1 className="text-3xl lg:text-5xl font-black text-white">{anime.title}</h1>
               <p className="mt-4 text-zinc-300 leading-relaxed max-w-2xl text-sm lg:text-base">{anime.description || "Nenhuma sinopse disponível."}</p>
               <div className="flex items-center gap-3 mt-6 flex-wrap">
-                {anime.episodes.length > 0 && (
-                  <Link href={`/watch/${anime.episodes[0]?.id}`}
-                    className="flex items-center gap-2 bg-white text-black font-black px-6 py-2.5 rounded-full hover:bg-pink-500 hover:text-white transition shadow-lg hover:shadow-[0_0_20px_rgba(255,0,127,0.4)] text-sm">
-                    <Play fill="currentColor" size={16} /> Assistir
-                  </Link>
-                )}
+                {anime.episodes.length > 0 && (() => {
+                  const lastWatchedEp = anime.episodes.find(e => e.id === lastWatchedEpId);
+                  return (
+                    <Link prefetch={true} href={`/watch/${lastWatchedEpId || anime.episodes[0]?.id}`}
+                      className="flex items-center gap-2 bg-white text-black font-black px-6 py-2.5 rounded-xl hover:bg-pink-500 hover:text-white transition shadow-lg hover:shadow-[0_0_20px_rgba(255,0,127,0.4)] text-sm">
+                      <Play fill="currentColor" size={16} /> {lastWatchedEp ? `Continuar Ep ${lastWatchedEp.number}` : "Assistir"}
+                    </Link>
+                  );
+                })()}
                 {session && (
                   <button onClick={handleFavorite}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-bold text-sm transition border ${isFavorited ? "bg-pink-500/20 border-pink-500 text-pink-400 hover:bg-pink-500/30" : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:border-pink-500 hover:text-pink-400"}`}>
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition border ${isFavorited ? "bg-pink-500/20 border-pink-500 text-pink-400 hover:bg-pink-500/30" : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:border-pink-500 hover:text-pink-400"}`}>
                     <Heart size={16} className={isFavorited ? "fill-pink-400" : ""} />
-                    {isFavorited ? "Favoritado" : "Favoritar"}
+                    {isFavorited ? "Minha Lista" : "P/ Lista"}
                   </button>
                 )}
               </div>
@@ -268,9 +275,9 @@ export default function AnimePageClient() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {(groupedEps[season] as Anime["episodes"] || []).map(ep => (
                       <div key={ep.id} className="bg-zinc-900/50 border border-zinc-800 hover:border-pink-500 rounded-xl overflow-hidden group transition flex flex-col">
-                        <Link href={`/watch/${ep.id}`} className="block">
+                        <Link prefetch={true} href={`/watch/${ep.id}`} className="block">
                           <div className="aspect-video bg-zinc-800 relative">
-                            <img src={anime.bannerImage || anime.coverImage || ""} className="w-full h-full object-cover opacity-40 group-hover:opacity-70 transition" alt="" />
+                            <img src={ep.thumbnailUrl || anime.bannerImage || anime.coverImage || ""} className="w-full h-full object-cover opacity-40 group-hover:opacity-70 transition" alt="" />
                             <div className="absolute inset-0 flex items-center justify-center">
                               <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-pink-500/80 transition">
                                 <Play size={18} className="text-white fill-white" />
@@ -340,8 +347,8 @@ export default function AnimePageClient() {
                 </div>
               </form>
             ) : (
-              <Link href="/login" className="block text-center py-4 text-zinc-500 hover:text-pink-500 transition mb-6 text-sm">
-                <Link href="/login" className="text-pink-500 hover:underline">Faça login</Link> para comentar
+              <Link prefetch={true} href="/login" className="block text-center py-4 text-zinc-500 hover:text-pink-500 transition mb-6 text-sm">
+                <Link prefetch={true} href="/login" className="text-pink-500 hover:underline">Faça login</Link> para comentar
               </Link>
             )}
 

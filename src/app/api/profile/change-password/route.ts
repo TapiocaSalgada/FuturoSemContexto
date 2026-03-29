@@ -9,8 +9,9 @@ export async function POST(req: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { currentPassword, newPassword } = await req.json();
-    if (!currentPassword || !newPassword) return NextResponse.json({ error: "Dados incompletos." }, { status: 400 });
+    const { currentPassword, newPassword, confirmEmail } = await req.json();
+    if (!currentPassword || !newPassword || !confirmEmail) return NextResponse.json({ error: "Dados incompletos." }, { status: 400 });
+    if (confirmEmail !== session.user.email) return NextResponse.json({ error: "E-mail de confirmação incorreto." }, { status: 400 });
     if (newPassword.length < 6) return NextResponse.json({ error: "Nova senha deve ter mínimo 6 caracteres." }, { status: 400 });
 
     const user = await prisma.user.findUnique({ where: { email: session.user.email } });

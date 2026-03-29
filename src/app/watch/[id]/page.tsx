@@ -314,14 +314,14 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     <div className="min-h-screen bg-[#050505]">
       <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-6 space-y-6">
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <Link
+          <Link prefetch={true}
             href={`/anime/${data.anime.id}`}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-white transition border border-white/5"
           >
             <ArrowLeft size={16} /> Voltar para o anime
           </Link>
           {data.nextEpisode && (
-            <Link
+            <Link prefetch={true}
               href={`/watch/${data.nextEpisode.id}`}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-pink-600 hover:bg-pink-500 text-white font-bold transition"
             >
@@ -387,7 +387,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 {showSkipIntro && (
                   <button
                     onClick={handleSkipIntro}
-                    className="absolute right-4 bottom-16 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-black hover:bg-pink-500 hover:text-white transition shadow-lg z-30"
+                    className="absolute right-4 bottom-20 md:bottom-16 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-black hover:bg-pink-500 hover:text-white transition shadow-lg z-30 opacity-90"
                   >
                     <FastForward size={16} /> Pular abertura
                   </button>
@@ -397,9 +397,19 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 {showSkipOutro && (
                   <button
                     onClick={handleSkipOutro}
-                    className="absolute right-4 bottom-4 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-black hover:bg-pink-500 hover:text-white transition shadow-lg z-30"
+                    className="absolute right-4 bottom-20 md:bottom-16 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-black hover:bg-pink-500 hover:text-white transition shadow-lg z-30 opacity-90"
                   >
                     <FastForward size={16} /> Pular encerramento
+                  </button>
+                )}
+
+                {/* Next Episode Floating Button */}
+                {data.nextEpisode && (
+                  <button
+                    onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
+                    className="absolute top-4 right-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md text-white/90 hover:bg-pink-500 hover:text-white transition shadow-[0_0_15px_rgba(0,0,0,0.5)] z-30 opacity-80 hover:opacity-100 text-xs font-bold border border-white/10"
+                  >
+                    Próximo <SkipForward size={14} className="fill-current" />
                   </button>
                 )}
 
@@ -439,7 +449,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
             {(data.prevEpisode || data.nextEpisode) && (
               <div className="flex items-center gap-3 w-full">
                 {data.prevEpisode && (
-                  <Link
+                  <Link prefetch={true}
                     href={`/watch/${data.prevEpisode.id}`}
                     className="flex-1 flex items-center justify-center gap-2 py-4 px-4 rounded-[20px] bg-zinc-900/80 hover:bg-zinc-800 border border-white/5 text-white font-bold transition group"
                   >
@@ -449,7 +459,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 )}
 
                 {data.nextEpisode && (
-                  <Link
+                  <Link prefetch={true}
                     href={`/watch/${data.nextEpisode.id}`}
                     className="flex-1 flex items-center justify-center gap-2 py-4 px-4 rounded-[20px] bg-pink-600 hover:bg-pink-500 shadow-[0_0_30px_rgba(236,72,153,0.3)] text-white font-bold transition group"
                   >
@@ -537,7 +547,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 <h2 className="text-lg font-black text-white">{data.playlist.length} episódios</h2>
               </div>
               {data.nextEpisode && (
-                <Link
+                <Link prefetch={true}
                   href={`/watch/${data.nextEpisode.id}`}
                   className="w-10 h-10 rounded-2xl bg-pink-600 hover:bg-pink-500 text-white inline-flex items-center justify-center transition"
                 >
@@ -554,7 +564,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     {episodes.map((episode) => {
                       const active = episode.id === data.episode.id;
                       return (
-                        <Link
+                        <Link prefetch={true}
                           key={episode.id}
                           href={`/watch/${episode.id}`}
                           className={`block rounded-2xl border px-3 py-3 transition ${
