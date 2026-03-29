@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { Play, ArrowLeft, Heart, MessageSquare, Send, CornerDownRight, Edit3, Trash2, Check, X, FolderOpen, ChevronDown } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface Comment {
   id: string; content: string; createdAt: string; updatedAt: string;
@@ -48,8 +49,9 @@ function CommentItem({ comment, animeId, currentUserId, onRefresh }: {
   return (
     <div className="space-y-2">
       <div className="flex gap-3 group">
-        <img src={comment.user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.user.name)}&background=333&color=fff`}
-          className="w-8 h-8 rounded-full shrink-0 mt-0.5" alt={comment.user.name} />
+        <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0 mt-0.5">
+          <Image src={comment.user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.user.name)}&background=333&color=fff`} fill className="object-cover" alt={comment.user.name} />
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <Link href={`/profile/${comment.user.id}`} className="font-bold text-sm text-white hover:text-pink-500 transition">{comment.user.name}</Link>
@@ -335,8 +337,9 @@ export default function AnimePageClient() {
                   ))}
                 </div>
                 <div className="flex gap-3">
-                  <img src={(session.user as any)?.avatarUrl || session.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user?.name || "U")}&background=ff007f&color=fff`}
-                    className="w-9 h-9 rounded-full shrink-0 object-cover" alt="avatar" />
+                  <div className="relative w-9 h-9 rounded-full overflow-hidden shrink-0">
+                    <Image src={(session.user as any)?.avatarUrl || session.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user?.name || "U")}&background=ff007f&color=fff`} fill className="object-cover" alt="avatar" />
+                  </div>
                   <div className="flex-1 flex items-center gap-2 bg-zinc-900/70 border border-zinc-700 hover:border-zinc-500 rounded-xl px-4 py-2.5 transition focus-within:border-pink-500">
                     <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Deixe um comentário..."
                       className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder:text-zinc-600 min-w-0" />

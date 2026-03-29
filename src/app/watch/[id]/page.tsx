@@ -312,8 +312,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="min-h-screen bg-[#050505]">
-      <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-6 space-y-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="max-w-[1600px] mx-auto px-0 lg:px-6 py-0 md:py-6 space-y-0 md:space-y-6">
+        {/* Top Navigation (Desktop only, or hidden on very small screens) */}
+        <div className="hidden md:flex items-center justify-between gap-3 flex-wrap">
           <Link prefetch={true}
             href={`/anime/${data.anime.id}`}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-zinc-900/80 hover:bg-zinc-800 text-white transition border border-white/5"
@@ -330,10 +331,20 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           )}
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-6 items-start">
-          <section className="space-y-4">
+        {/* Mobile Top Nav Overlay (Visible only on mobile) */}
+        <div className="md:hidden absolute top-4 left-4 z-50">
+          <Link prefetch={true}
+            href={`/anime/${data.anime.id}`}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 shadow-[0_0_15px_rgba(0,0,0,0.8)]"
+          >
+            <ArrowLeft size={20} />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-0 md:gap-6 items-start">
+          <section className="space-y-0 md:space-y-4">
             {/* ── Player ── */}
-            <div ref={playerWrapRef} className="relative rounded-[28px] overflow-hidden border border-white/10 bg-black shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
+            <div ref={playerWrapRef} className="relative rounded-none lg:rounded-[28px] overflow-hidden border-0 lg:border lg:border-white/10 bg-black shadow-2xl">
               <div className="aspect-video relative">
                 {data.isDirectSource ? (
                   <video
@@ -407,9 +418,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 {data.nextEpisode && (
                   <button
                     onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
-                    className="absolute top-4 right-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md text-white/90 hover:bg-pink-500 hover:text-white transition shadow-[0_0_15px_rgba(0,0,0,0.5)] z-30 opacity-80 hover:opacity-100 text-xs font-bold border border-white/10"
+                    className="absolute top-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:top-4 md:right-4 md:left-auto inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-lg text-white font-bold hover:bg-pink-600 transition shadow-[0_0_20px_rgba(0,0,0,0.8)] z-40 border border-white/20 uppercase tracking-wider text-[10px] md:text-xs"
                   >
-                    Próximo <SkipForward size={14} className="fill-current" />
+                    Próximo Episódio <SkipForward size={14} className="fill-current" />
                   </button>
                 )}
 
@@ -447,31 +458,32 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
             {/* ── Previous / Next Buttons (Below Player) ── */}
             {(data.prevEpisode || data.nextEpisode) && (
-              <div className="flex items-center gap-3 w-full">
+              <div className="flex items-center gap-3 w-full px-4 md:px-0 mt-4 md:mt-0 overflow-hidden">
                 {data.prevEpisode && (
                   <Link prefetch={true}
                     href={`/watch/${data.prevEpisode.id}`}
-                    className="flex-1 flex items-center justify-center gap-2 py-4 px-4 rounded-[20px] bg-zinc-900/80 hover:bg-zinc-800 border border-white/5 text-white font-bold transition group"
+                    className="flex-1 flex items-center justify-center gap-2 py-4 px-4 rounded-[20px] bg-zinc-900/60 backdrop-blur-md border border-zinc-800 text-white font-bold hover:bg-zinc-800 transition group text-sm"
                   >
                     <SkipForward size={18} className="rotate-180 text-zinc-400 group-hover:text-white transition" />
-                    Episódio Anterior
+                    <span className="hidden sm:inline">Ep</span> Anterior
                   </Link>
                 )}
 
                 {data.nextEpisode && (
                   <Link prefetch={true}
                     href={`/watch/${data.nextEpisode.id}`}
-                    className="flex-1 flex items-center justify-center gap-2 py-4 px-4 rounded-[20px] bg-pink-600 hover:bg-pink-500 shadow-[0_0_30px_rgba(236,72,153,0.3)] text-white font-bold transition group"
+                    className="flex-[2] flex items-center justify-center gap-2 py-4 px-4 rounded-[20px] bg-gradient-to-r from-pink-600 to-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-white font-black transition-all hover:scale-[1.02] active:scale-95 group text-sm md:text-base relative overflow-hidden"
                   >
-                    Próximo Episódio
-                    <SkipForward size={18} className="text-pink-300 group-hover:text-white transition" />
+                    <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition" />
+                    Próximo <span className="hidden sm:inline">Episódio</span>
+                    <SkipForward size={18} className="text-white fill-white/80" />
                   </Link>
                 )}
               </div>
             )}
 
             {/* ── Info + Rating ── */}
-            <div className="bg-zinc-900/55 border border-zinc-800 rounded-[28px] p-5 lg:p-6">
+            <div className="bg-transparent md:bg-zinc-900/55 md:border md:border-zinc-800 rounded-none md:rounded-[28px] p-5 lg:p-6 mt-2 md:mt-0">
               <div className="flex items-center gap-3 flex-wrap">
                 <img src="/logo.png" alt="Futuro sem Contexto" className="w-10 h-10 rounded-2xl object-cover" />
                 <div>

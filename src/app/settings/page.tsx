@@ -13,7 +13,11 @@ import {
   Settings,
   UploadCloud,
   UserCircle,
+  LogOut,
+  Image as ImageIcon,
+  MessageCircle,
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 import { DEFAULT_SETTINGS, type UserSettingsPayload } from "@/lib/settings";
 
@@ -107,6 +111,17 @@ export default function SettingsPage() {
       });
   }, []);
 
+  const PRESET_AVATARS = [
+    "https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=ff007f",
+    "https://api.dicebear.com/7.x/notionists/svg?seed=Avery&backgroundColor=9333ea",
+    "https://api.dicebear.com/7.x/bottts/svg?seed=Jasper&backgroundColor=0ea5e9",
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=Luna&backgroundColor=f43f5e",
+    "https://api.dicebear.com/7.x/micah/svg?seed=Oliver&backgroundColor=eab308"
+  ];
+
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [showAvatarPresets, setShowAvatarPresets] = useState(false);
+
   useEffect(() => {
     const id = (session?.user as any)?.id;
     if (!id) return;
@@ -154,17 +169,27 @@ export default function SettingsPage() {
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (field === "avatarUrl") setAvatarUploading(true);
     const formData = new FormData();
     formData.append("file", file);
     formData.append("folder", "uploads");
-    const response = await fetch("/api/upload", {
-      method: "POST",
-      body: formData,
-    });
-    const data = await response.json();
-    if (data.url) {
-      setProfileForm((current) => ({ ...current, [field]: data.url }));
+    try {
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json();
+      if (data.url) {
+        setProfileForm((current) => ({ ...current, [field]: data.url }));
+      }
+    } finally {
+      if (field === "avatarUrl") setAvatarUploading(false);
     }
+  };
+
+  const selectPresetAvatar = (url: string) => {
+    setProfileForm((current) => ({ ...current, avatarUrl: url }));
+    setShowAvatarPresets(false);
   };
 
   const handleChangePassword = async () => {
@@ -371,6 +396,39 @@ export default function SettingsPage() {
 
             {section === "conta" && (
               <div className="space-y-8">
+                {/* Ações Globais */}
+                <div className="flex gap-3 flex-wrap">
+                  <a href="https://discord.gg/futurosemcontexto" target="_blank" rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3 rounded-xl transition shadow-lg text-sm">
+                    <MessageCircle size={18} /> Entrar no Discord
+                  </a>
+                  <button onClick={() => signOut()}
+                    className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 border border-zinc-700 hover:border-red-500/50 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
+                    <LogOut size={18} /> Trocar de Conta
+                  </button>
+                </div>
+
+                {/* Avatar Preset Modal */}
+                {showAvatarPresets && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAvatarPresets(false)} />
+                    <div className="relative bg-[#1a1a1a] border border-zinc-700 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fadeInUp">
+                      <h3 className="font-bold text-lg text-white mb-4">Escolha um Ícone</h3>
+                      <div className="grid grid-cols-4 gap-4 mb-6">
+                        {PRESET_AVATARS.map((url, i) => (
+                          <button key={i} onClick={() => selectPresetAvatar(url)}
+                            className="aspect-square rounded-full overflow-hidden border-2 border-transparent hover:border-pink-500 hover:scale-105 transition">
+                            <img src={url} alt={`Avatar ${i}`} className="w-full h-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                      <button onClick={() => setShowAvatarPresets(false)} className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl transition">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <p className="font-bold text-sm text-zinc-300 mb-3 uppercase tracking-wider text-xs">
                     Imagens
@@ -400,29 +458,41 @@ export default function SettingsPage() {
                         onChange={(event) => handleUpload(event, "bannerUrl")}
                       />
                     </label>
-                    <label className="group cursor-pointer flex items-center justify-center">
-                      <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-zinc-700 group-hover:border-pink-500 transition relative bg-zinc-800">
-                        <img
-                          src={
-                            profileForm.avatarUrl ||
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                              profileForm.name || "U",
-                            )}&background=ff007f&color=fff`
-                          }
-                          className="w-full h-full object-cover"
-                          alt="Avatar"
-                        />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-full">
-                          <UploadCloud size={18} className="text-white" />
+                    <div className="flex flex-col items-center gap-3">
+                      <label className="group cursor-pointer flex items-center justify-center">
+                        <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-zinc-700 group-hover:border-pink-500 transition relative bg-zinc-800">
+                          <img
+                            src={
+                              profileForm.avatarUrl ||
+                              `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                profileForm.name || "U",
+                              )}&background=ff007f&color=fff`
+                            }
+                            className={`w-full h-full object-cover ${avatarUploading ? "opacity-30 blur-sm" : ""}`}
+                            alt="Avatar"
+                          />
+                          {avatarUploading ? (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          ) : (
+                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center rounded-full">
+                              <UploadCloud size={18} className="text-white" />
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(event) => handleUpload(event, "avatarUrl")}
-                      />
-                    </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(event) => handleUpload(event, "avatarUrl")}
+                        />
+                      </label>
+                      <button onClick={() => setShowAvatarPresets(true)}
+                        className="text-xs font-bold text-zinc-400 hover:text-pink-400 border border-zinc-700 hover:border-pink-500 px-3 py-1.5 rounded-full transition bg-zinc-800/50 flex items-center gap-1">
+                        <ImageIcon size={12} /> Escolher Coleção
+                      </button>
+                    </div>
                   </div>
                 </div>
 

@@ -21,6 +21,10 @@ const nextConfig = {
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "cdn.anilist.co" },
       { protocol: "https", hostname: "s4.anilist.co" },
+      { protocol: "https", hostname: "*.googleusercontent.com" },
+      { protocol: "https", hostname: "cdn.discordapp.com" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+      { protocol: "https", hostname: "api.dicebear.com" },
     ],
   },
   async headers() {

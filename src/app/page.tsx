@@ -32,6 +32,9 @@ const getCachedRecentAnimes = unstable_cache(
           take: 1,
           select: { id: true }
         },
+        ratings: {
+          select: { rating: true }
+        }
       },
     });
   },
@@ -117,6 +120,16 @@ export default async function HomePage() {
   }, [] as typeof recentHistory);
 
   const featured = recentAnimes[0];
+  
+  let featuredRelevance = 98;
+  if (featured && (featured as any).ratings && (featured as any).ratings.length > 0) {
+    const rArray = (featured as any).ratings;
+    const avg = rArray.reduce((acc: number, r: { rating: number }) => acc + r.rating, 0) / rArray.length;
+    featuredRelevance = Math.max(10, Math.round((avg / 5) * 100));
+  } else if (featured) {
+    featuredRelevance = 80 + (featured.title.length % 20);
+  }
+
   const featuredHref = featured?.episodes?.[0]
     ? `/watch/${featured.episodes[0].id}`
     : featured
@@ -163,7 +176,7 @@ export default async function HomePage() {
               </p>
               <div className="flex items-center gap-4 text-sm font-bold mt-2">
                 <span className="text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.4)]">
-                  {80 + (featured.title.length % 20)}% Relevante
+                  {featuredRelevance}% Relevante
                 </span>
                 <span className="text-zinc-400">TV</span>
                 <span className="text-zinc-400 px-1.5 py-0.5 border border-zinc-600 rounded text-[10px]">HD</span>

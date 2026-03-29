@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Bell,
   LogOut,
@@ -191,9 +192,10 @@ export default function Header() {
                         >
                           <div className="w-8 h-11 rounded overflow-hidden shrink-0 bg-zinc-800">
                             {anime.coverImage && (
-                              <img
+                              <Image
                                 src={anime.coverImage}
-                                className="w-full h-full object-cover"
+                                fill
+                                className="object-cover"
                                 alt=""
                               />
                             )}
@@ -228,16 +230,19 @@ export default function Header() {
                           }}
                           className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition"
                         >
-                          <img
-                            src={
-                              user.avatarUrl ||
-                              `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                user.name,
-                              )}&background=333&color=fff`
-                            }
-                            className="w-7 h-7 rounded-full shrink-0 object-cover"
-                            alt={user.name}
-                          />
+                          <div className="relative w-7 h-7 rounded-full overflow-hidden shrink-0">
+                            <Image
+                              src={
+                                user.avatarUrl ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                  user.name,
+                                )}&background=333&color=fff`
+                              }
+                              fill
+                              className="object-cover"
+                              alt={user.name}
+                            />
+                          </div>
                           <p className="text-sm text-white font-semibold">
                             {user.name}
                           </p>
@@ -294,10 +299,11 @@ export default function Header() {
                         <div className="flex items-start gap-3">
                           <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
                             {notification.actor?.avatarUrl ? (
-                              <img
+                              <Image
                                 src={notification.actor.avatarUrl}
                                 alt={notification.actor.name}
-                                className="w-full h-full rounded-full object-cover"
+                                fill
+                                className="object-cover rounded-full"
                               />
                             ) : (
                               <NotificationGlyph type={notification.type} />
@@ -349,12 +355,14 @@ export default function Header() {
           >
             <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-pink-500/60 hover:border-pink-400 transition shadow-[0_0_8px_rgba(255,0,127,0.25)] relative bg-zinc-900">
               {isImageLoading && <div className="absolute inset-0 bg-zinc-800 animate-pulse z-0" />}
-              <img
+              <Image
                 src={displayAvatar}
-                className={`w-full h-full object-cover relative z-10 transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+                fill
+                className={`object-cover relative z-10 transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
                 alt="avatar"
                 key={displayAvatar}
                 onLoad={() => setIsImageLoading(false)}
+                unoptimized={displayAvatar.startsWith('http') ? false : true}
               />
             </div>
           </button>

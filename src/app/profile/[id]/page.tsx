@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { Heart, Edit3, Check, UploadCloud, Lock, Film, Trophy, X } from "lucide-react";
 import Link from "next/link";
 import AnimeCard from "@/components/AnimeCard";
+import Image from "next/image";
 
 interface ProfileUser {
   id: string; name: string; avatarUrl?: string; bannerUrl?: string; bio?: string; isPrivate: boolean;
@@ -68,7 +69,7 @@ function AvatarPickerModal({ onClose, onSelect, currentUrl }: { onClose: () => v
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
             {PROFESSIONAL_AVATARS.map(url => (
                <button key={url} onClick={() => { onSelect(url); onClose(); }} className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition ${currentUrl === url ? "border-pink-500 scale-105 shadow-[0_0_15px_rgba(255,0,127,0.5)]" : "border-transparent hover:border-zinc-500 opacity-70 hover:opacity-100"}`}>
-                 <img src={url} alt="" className="w-full h-full object-cover" />
+                 <Image src={url} alt="" fill className="object-cover" />
                </button>
             ))}
           </div>
@@ -179,8 +180,8 @@ export default function ProfilePage() {
             <div className="max-w-4xl mx-auto px-6 lg:px-10 -mt-16 relative z-10">
               <div className="flex flex-col sm:flex-row items-start gap-6">
                 <div className="relative group shrink-0">
-                  <div className="w-28 h-28 rounded-full border-4 border-[#060606] overflow-hidden bg-zinc-800 shadow-2xl">
-                    <img src={session.user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.name || "U")}&background=ff007f&color=fff`} className="w-full h-full object-cover" alt="" />
+                  <div className="w-28 h-28 rounded-full border-4 border-[#060606] overflow-hidden bg-zinc-800 shadow-2xl relative">
+                    <Image src={session.user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.name || "U")}&background=ff007f&color=fff`} fill className="object-cover" alt="" unoptimized={session.user.image?.startsWith('http') ? false : true} />
                   </div>
                 </div>
                 <div className="flex-1 pt-4">
@@ -229,11 +230,13 @@ export default function ProfilePage() {
             <div className="relative group shrink-0">
               <div className="w-28 h-28 rounded-full border-4 border-[#060606] overflow-hidden bg-zinc-800 shadow-2xl relative">
                 {avatarLoading && <div className="absolute inset-0 bg-zinc-800 animate-pulse z-10" />}
-                <img 
+                <Image 
                   onLoad={() => setAvatarLoading(false)}
                   src={isEditing && editForm.avatarUrl ? editForm.avatarUrl : (profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=ff007f&color=fff`)} 
-                  className={`w-full h-full object-cover transition duration-300 ${avatarLoading ? "opacity-0" : "opacity-100"}`} 
+                  fill
+                  className={`object-cover transition duration-300 ${avatarLoading ? "opacity-0" : "opacity-100"}`} 
                   alt={profile.name} 
+                  unoptimized={isEditing && editForm.avatarUrl?.startsWith('blob') ? true : false}
                 />
               </div>
               {isOwnProfile && isEditing && (
@@ -398,7 +401,9 @@ export default function ProfilePage() {
               ) : (
                 followList.map(u => (
                   <Link key={u.id} href={`/profile/${u.id}`} onClick={() => setShowFollowUsers(null)} className="flex items-center gap-3 p-2 hover:bg-zinc-800 rounded-lg transition group">
-                    <img src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=ff007f&color=fff`} className="w-10 h-10 rounded-full object-cover" alt="" />
+                    <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
+                      <Image src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=ff007f&color=fff`} fill className="object-cover" alt="" />
+                    </div>
                     <p className="text-sm font-bold text-zinc-300 group-hover:text-white transition">{u.name}</p>
                   </Link>
                 ))
