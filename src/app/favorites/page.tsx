@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { UserCircle, Edit3, Check, UploadCloud, Lock, Unlock, Plus, FolderOpen, Trash2 } from "lucide-react";
 import Link from "next/link";
+import AnimeCard from "@/components/AnimeCard";
 
 interface Folder {
   id: string;
@@ -134,13 +135,14 @@ export default function FavoritesPage() {
               <div className="p-5">
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   {looseFavorites.map(fav => (
-                    <Link key={fav.animeId} href={`/anime/${fav.anime.id}`}
-                      className="w-[100px] shrink-0 group">
-                      <div className="aspect-[2/3] rounded-xl overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
-                        <img src={fav.anime.coverImage || "https://via.placeholder.com/200x300?text=?"} alt={fav.anime.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                      </div>
-                      <p className="text-xs text-zinc-400 group-hover:text-white transition mt-2 truncate text-center">{fav.anime.title}</p>
-                    </Link>
+                    <AnimeCard
+                      key={fav.animeId}
+                      href={`/anime/${fav.anime.id}`}
+                      title={fav.anime.title}
+                      image={fav.anime.coverImage}
+                      className="w-[100px] sm:w-[130px]"
+                      subTitle={fav.anime.title}
+                    />
                   ))}
                 </div>
               </div>
@@ -181,13 +183,14 @@ export default function FavoritesPage() {
                 ) : (
                   <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                     {folder.favorites.map(fav => (
-                      <Link key={fav.animeId} href={`/anime/${fav.anime.id}`}
-                        className="w-[100px] shrink-0 group">
-                        <div className="aspect-[2/3] rounded-xl overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
-                          <img src={fav.anime.coverImage || "https://via.placeholder.com/200x300?text=?"} alt={fav.anime.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
-                        </div>
-                        <p className="text-xs text-zinc-400 group-hover:text-white transition mt-2 truncate text-center">{fav.anime.title}</p>
-                      </Link>
+                      <AnimeCard
+                        key={fav.animeId}
+                        href={`/anime/${fav.anime.id}`}
+                        title={fav.anime.title}
+                        image={fav.anime.coverImage}
+                        className="w-[100px] sm:w-[130px]"
+                        subTitle={fav.anime.title}
+                      />
                     ))}
                   </div>
                 )}

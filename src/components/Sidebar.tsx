@@ -30,7 +30,7 @@ export default function Sidebar() {
   const NavContent = ({ mobile = false }: { mobile?: boolean }) => (
     <>
       {/* Logo */}
-      <Link href="/" className="flex items-center gap-3 mb-8 overflow-hidden group px-2" onClick={() => setMobileOpen(false)}>
+      <Link prefetch={true} href="/" className="flex items-center gap-3 mb-8 overflow-hidden group px-2" onClick={() => setMobileOpen(false)}>
         <Image
           src="/logo.png"
           alt="Futuro sem Contexto"
@@ -51,6 +51,7 @@ export default function Sidebar() {
           const active = pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href));
           return (
             <Link
+              prefetch={true}
               key={link.href}
               href={link.href}
               onClick={() => setMobileOpen(false)}
@@ -81,6 +82,7 @@ export default function Sidebar() {
           <span className={`font-semibold text-sm ${mobile ? "block" : "hidden lg:block"} `}>Discord do Grupo</span>
         </a>
         <Link
+          prefetch={true}
           href="/settings"
           onClick={() => setMobileOpen(false)}
           className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 min-h-[44px] ${

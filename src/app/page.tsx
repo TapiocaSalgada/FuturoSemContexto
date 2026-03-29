@@ -9,6 +9,7 @@ import prisma from "@/lib/prisma";
 import AppLayout from "@/components/AppLayout";
 import HomeCTA from "@/components/HomeCTA";
 import SuggestionButton from "@/components/SuggestionButton";
+import AnimeCard from "@/components/AnimeCard";
 
 export const dynamic = "force-dynamic";
 
@@ -55,23 +56,21 @@ export default async function HomePage() {
   const session = await getServerSession(authOptions);
   let recentHistory: any[] = [];
   
-  if (session?.user?.email) {
-    const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-    if (user) {
-      recentHistory = await prisma.watchHistory.findMany({
-        where: { userId: user.id, progressSec: { gt: 0 } },
-        orderBy: { updatedAt: "desc" },
-        select: {
-          id: true,
-          progressSec: true,
-          updatedAt: true,
-          episode: {
-            select: { id: true, number: true, season: true, thumbnailUrl: true, anime: { select: { id: true, title: true, coverImage: true } } },
-          },
+  if (session?.user && (session.user as any).id) {
+    const userId = (session.user as any).id;
+    recentHistory = await prisma.watchHistory.findMany({
+      where: { userId: userId, progressSec: { gt: 0 } },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        progressSec: true,
+        updatedAt: true,
+        episode: {
+          select: { id: true, number: true, season: true, thumbnailUrl: true, anime: { select: { id: true, title: true, coverImage: true } } },
         },
-        take: 24,
-      });
-    }
+      },
+      take: 24,
+    });
   }
 
   const [recentAnimes, trendingData] = await Promise.all([
@@ -209,7 +208,7 @@ export default async function HomePage() {
                       href={`/watch/${history.episode.id}`}
                       className="w-[170px] lg:w-[210px] shrink-0 snap-start group"
                     >
-                      <div className="aspect-video rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 bg-zinc-900">
+                      <div className="aspect-video rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 bg-zinc-900 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.3)]">
                         <Image
                           src={history.episode?.thumbnailUrl || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
                           fill
@@ -217,14 +216,19 @@ export default async function HomePage() {
                           className="object-cover opacity-70 group-hover:scale-105 transition duration-500"
                           alt={anime.title}
                         />
-                        <div className="absolute inset-x-0 bottom-0 h-1.5 bg-white/10">
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                          <div className="w-10 h-10 rounded-full bg-pink-600/90 text-white flex items-center justify-center shadow-[0_0_15px_rgba(255,0,127,0.6)] transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                            <Play size={18} className="ml-1" fill="currentColor" />
+                          </div>
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 h-1.5 bg-white/20">
                           <div
-                            className="h-full bg-pink-500"
+                            className="h-full bg-pink-500 relative"
                             style={{
                               width: `${Math.max(
                                 12,
                                 Math.min(
-                                  92,
+                                  98,
                                   Math.round(
                                     (history.progressSec /
                                       Math.max(history.progressSec + 300, 900)) *
@@ -233,7 +237,9 @@ export default async function HomePage() {
                                 ),
                               )}%`,
                             }}
-                          />
+                          >
+                             <div className="absolute right-0 top-1/2 -translate-y-1/2 hidden group-hover:block w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_5px_rgba(255,255,255,0.8)]" />
+                          </div>
                         </div>
                       </div>
                       <p className="text-sm text-white font-bold mt-2 truncate">
@@ -256,34 +262,23 @@ export default async function HomePage() {
               </h2>
               <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x">
                 {trendingAnimes.map((episode, index) => (
-                  <Link prefetch={true}
+                  <AnimeCard
                     key={episode.animeId}
                     href={`/anime/${episode.animeId}`}
-                    className="w-[130px] lg:w-[160px] shrink-0 snap-start group"
-                  >
-                    <div className="aspect-[2/3] rounded-xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.2)]">
-                      <Image
-                        src={episode.anime?.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
-                        fill
-                        sizes="(max-width: 768px) 130px, 160px"
-                        className="object-cover group-hover:scale-110 transition duration-500"
-                        alt={episode.anime?.title || ""}
-                      />
-                      <div className="absolute top-2 left-2 w-7 h-7 bg-pink-600 rounded-lg flex items-center justify-center text-xs font-black shadow-[0_0_10px_rgba(255,0,127,0.5)]">
+                    title={episode.anime?.title || ""}
+                    image={episode.anime?.coverImage}
+                    className="w-[130px] lg:w-[160px]"
+                    badgeTopLeft={
+                      <div className="w-7 h-7 bg-pink-600 rounded-lg flex items-center justify-center text-xs font-black shadow-[0_0_10px_rgba(255,0,127,0.5)]">
                         {index + 1}
                       </div>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-3">
-                        <div>
-                          <p className="text-white font-bold text-xs truncate w-full">
-                            {episode.anime?.title}
-                          </p>
-                          <p className="text-[11px] text-zinc-300 mt-1">
-                            T{episode.season} Ep {episode.number}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
+                    }
+                    overlayText={
+                      <p className="text-[11px] text-zinc-300">
+                        T{episode.season} Ep {episode.number}
+                      </p>
+                    }
+                  />
                 ))}
               </div>
             </section>
@@ -296,35 +291,20 @@ export default async function HomePage() {
               </h2>
               <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x">
                 {recentAnimes.map((anime) => (
-                  <Link prefetch={true}
+                  <AnimeCard
                     key={anime.id}
                     href={`/anime/${anime.id}`}
-                    className="w-[130px] lg:w-[160px] shrink-0 snap-start group"
-                  >
-                    <div className="aspect-[2/3] rounded-xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.2)]">
-                      <Image
-                        src={anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
-                        fill
-                        sizes="(max-width: 768px) 130px, 160px"
-                        className="object-cover group-hover:scale-110 transition duration-500"
-                        alt={anime.title}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-3">
-                        <div>
-                          <p className="text-white font-bold text-xs truncate">
-                            {anime.title}
-                          </p>
-                          <div className="flex items-center gap-1 mt-1">
-                            <Heart size={10} className="text-pink-400 fill-pink-400" />
-                            <span className="text-xs text-zinc-400">Futuro sem Contexto</span>
-                          </div>
-                        </div>
+                    title={anime.title}
+                    image={anime.coverImage}
+                    className="w-[130px] lg:w-[160px]"
+                    overlayText={
+                      <div className="flex items-center gap-1">
+                        <Heart size={10} className="text-pink-400 fill-pink-400" />
+                        <span className="text-xs text-zinc-400">Novo Episódio</span>
                       </div>
-                    </div>
-                    <p className="text-xs text-zinc-500 group-hover:text-white transition mt-2 truncate">
-                      {anime.title}
-                    </p>
-                  </Link>
+                    }
+                    subTitle={anime.title}
+                  />
                 ))}
               </div>
             </section>

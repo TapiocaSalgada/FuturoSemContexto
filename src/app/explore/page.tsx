@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Search, Play, UserCircle } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import AnimeCard from "@/components/AnimeCard";
 
 interface SearchResult {
   animes: { id: string; title: string; coverImage?: string; status: string }[];
@@ -72,15 +73,13 @@ export default function ExplorePage() {
             <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">Animes</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
               {results.animes.map(anime => (
-                <Link key={anime.id} href={`/anime/${anime.id}`} className="group">
-                  <div className="relative aspect-[2/3] rounded-xl overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
-                    {anime.coverImage
-                      ? <Image src={anime.coverImage} alt={anime.title} fill sizes="(max-width: 768px) 100px, 150px" className="object-cover group-hover:scale-105 transition duration-300" />
-                      : <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><Play size={24} className="text-zinc-600" /></div>
-                    }
-                  </div>
-                  <p className="text-xs text-zinc-400 group-hover:text-white transition mt-2 truncate">{anime.title}</p>
-                </Link>
+                <AnimeCard
+                  key={anime.id}
+                  href={`/anime/${anime.id}`}
+                  title={anime.title}
+                  image={anime.coverImage}
+                  subTitle={anime.title}
+                />
               ))}
             </div>
           </section>

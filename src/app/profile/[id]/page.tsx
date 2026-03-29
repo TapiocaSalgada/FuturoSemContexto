@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
 import { Heart, Edit3, Check, UploadCloud, Lock, Film, Trophy, X } from "lucide-react";
 import Link from "next/link";
+import AnimeCard from "@/components/AnimeCard";
 
 interface ProfileUser {
   id: string; name: string; avatarUrl?: string; bannerUrl?: string; bio?: string; isPrivate: boolean;
@@ -313,12 +314,13 @@ export default function ProfilePage() {
                   const anime = h.episode?.anime;
                   if (!anime) return null;
                   return (
-                    <Link key={i} href={`/anime/${anime.id}`} className="w-20 shrink-0 group">
-                      <div className="aspect-[2/3] rounded-lg overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
-                        <img src={anime.coverImage || ""} alt={anime.title} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                      </div>
-                      <p className="text-xs text-zinc-500 group-hover:text-white transition mt-1 truncate text-center">{anime.title}</p>
-                    </Link>
+                    <AnimeCard
+                      key={i}
+                      href={`/anime/${anime.id}`}
+                      title={anime.title}
+                      image={anime.coverImage}
+                      className="w-[90px] sm:w-[110px]"
+                    />
                   );
                 })}
               </div>
@@ -338,12 +340,13 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
                       {looseFavorites.map(fav => (
-                        <Link key={fav.animeId} href={`/anime/${fav.anime.id}`} className="w-20 shrink-0 group">
-                          <div className="aspect-[2/3] rounded-lg overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
-                            <img src={fav.anime.coverImage || ""} alt={fav.anime.title} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                          </div>
-                          <p className="text-xs text-zinc-500 group-hover:text-white transition mt-1 truncate text-center">{fav.anime.title}</p>
-                        </Link>
+                        <AnimeCard
+                          key={fav.animeId}
+                          href={`/anime/${fav.anime.id}`}
+                          title={fav.anime.title}
+                          image={fav.anime.coverImage}
+                          className="w-[90px] sm:w-[110px]"
+                        />
                       ))}
                     </div>
                   </div>
@@ -361,13 +364,14 @@ export default function ProfilePage() {
                         {folderFavs.length === 0
                           ? <p className="text-zinc-600 text-xs">Pasta vazia.</p>
                           : folderFavs.map(fav => (
-                            <Link key={fav.animeId} href={`/anime/${fav.anime.id}`} className="w-20 shrink-0 group">
-                              <div className="aspect-[2/3] rounded-lg overflow-hidden border border-zinc-800 group-hover:border-pink-500 transition">
-                                <img src={fav.anime.coverImage || ""} alt={fav.anime.title} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                              </div>
-                              <p className="text-xs text-zinc-500 group-hover:text-white transition mt-1 truncate text-center">{fav.anime.title}</p>
-                            </Link>
-                          ))
+                              <AnimeCard
+                                key={fav.animeId}
+                                href={`/anime/${fav.anime.id}`}
+                                title={fav.anime.title}
+                                image={fav.anime.coverImage}
+                                className="w-[90px] sm:w-[110px]"
+                              />
+                            ))
                         }
                       </div>
                     </div>

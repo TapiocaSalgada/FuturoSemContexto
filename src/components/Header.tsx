@@ -180,6 +180,7 @@ export default function Header() {
                       </p>
                       {searchResults.animes.map((anime) => (
                         <Link
+                          prefetch={true}
                           key={anime.id}
                           href={`/anime/${anime.id}`}
                           onClick={() => {
@@ -218,6 +219,7 @@ export default function Header() {
                       </p>
                       {searchResults.users.map((user) => (
                         <Link
+                          prefetch={true}
                           key={user.id}
                           href={`/profile/${user.id}`}
                           onClick={() => {
@@ -321,6 +323,7 @@ export default function Header() {
                     if (notification.link) {
                       return (
                         <Link
+                          prefetch={true}
                           key={notification.id}
                           href={notification.link}
                           onClick={() => setShowNotifications(false)}
@@ -368,7 +371,8 @@ export default function Header() {
               </div>
               <div className="py-1">
                 <Link
-                  href="/profile"
+                  prefetch={true}
+                  href={`/profile/${(session.user as any)?.id || ""}`}
                   onClick={() => setShowProfile(false)}
                   className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
                 >

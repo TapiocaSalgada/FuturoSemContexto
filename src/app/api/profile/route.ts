@@ -32,31 +32,25 @@ export async function GET(req: NextRequest) {
 
   const session = await getServerSession(authOptions);
 
-  // Run owner-check and profile fetch in parallel
-  const [sessionDbUser, user] = await Promise.all([
-    session?.user?.email
-      ? prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } })
-      : Promise.resolve(null),
-    prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true, name: true, avatarUrl: true, bannerUrl: true, bio: true, isPrivate: true,
-        settings: { select: { showHistory: true, allowFollow: true } },
-        _count: { select: { followers: true, following: true } },
-        favorites: {
-          include: {
-            anime: { select: { id: true, title: true, coverImage: true } },
-            folder: { select: { id: true, name: true, isPrivate: true } },
-          },
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: {
+      id: true, name: true, avatarUrl: true, bannerUrl: true, bio: true, isPrivate: true,
+      settings: { select: { showHistory: true, allowFollow: true } },
+      _count: { select: { followers: true, following: true } },
+      favorites: {
+        include: {
+          anime: { select: { id: true, title: true, coverImage: true } },
+          folder: { select: { id: true, name: true, isPrivate: true } },
         },
-        favoriteFolders: { select: { id: true, name: true, isPrivate: true } },
       },
-    }),
-  ]);
+      favoriteFolders: { select: { id: true, name: true, isPrivate: true } },
+    },
+  });
 
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-  const isOwner = sessionDbUser?.id === id;
+  const isOwner = (session?.user as any)?.id === id;
 
   // If private and not owner, hide favorites/history
   if (user.isPrivate && !isOwner) {

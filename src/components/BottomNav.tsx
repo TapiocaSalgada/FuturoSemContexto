@@ -28,6 +28,7 @@ export default function BottomNav() {
           const active = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
           <Link
+              prefetch={true}
               key={href}
               href={href}
               className={`relative flex flex-col items-center gap-1 py-3 px-4 min-w-[60px] transition-all duration-200 ${
