@@ -120,8 +120,6 @@ export default function SettingsPage() {
         setSettings(next);
         applyVisualSettings(next);
         setTheme(next.theme || "pink");
-        if (data.wallpaperUrl) setWallpaperUrl(data.wallpaperUrl);
-        if (typeof data.wallpaperEnabled === "boolean") setWallpaperEnabled(data.wallpaperEnabled);
       });
   }, []);
 

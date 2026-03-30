@@ -71,8 +71,6 @@ export async function PATCH(req: NextRequest) {
         notifyEpisodes: next.notifyEpisodes,
         notifyFollowers: next.notifyFollowers,
         notifyReplies: next.notifyReplies,
-        wallpaperUrl: (body as any)?.wallpaperUrl || undefined,
-        wallpaperEnabled: (body as any)?.wallpaperEnabled ?? undefined,
       },
     }),
   ]);
