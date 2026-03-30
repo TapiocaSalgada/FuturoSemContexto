@@ -91,12 +91,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   const [autoplayCountdown, setAutoplayCountdown] = useState<number | null>(null);
   const AUTOPLAY_SECONDS = 10;
 
-  // ── Rating state ──
-  const [ratingData, setRatingData] = useState<{ average: number | null; total: number; userRating: number | null }>({
-    average: null, total: 0, userRating: null,
-  });
-  const [ratingHover, setRatingHover] = useState(0);
-
   useEffect(() => {
     setLoading(true);
     setResumeApplied(false);
@@ -110,9 +104,18 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       .then((payload) => {
         setData(payload);
         setLoading(false);
-        // fetch rating for this anime
-        if (payload?.anime?.id) {
-          fetch(`/api/ratings?animeId=${payload.anime.id}`).then(r => r.json()).then(setRatingData);
+
+        // --- HACK PARA IFRAMES (GOOGLE DRIVE, ETC) ---
+        // Iframe content security policy prevents the video 'timeupdate' events from bubbling up.
+        // We push a 'started watching' history event roughly 10s after the page mounts so the episode is tracked.
+        if (!payload.isDirectSource) {
+          setTimeout(() => {
+            fetch("/api/history", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ animeId: payload.anime.id, episodeId: payload.episodeId, progressSec: 1 })
+            }).catch(() => {});
+          }, 10000);
         }
       });
 
@@ -281,17 +284,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     setAutoplayCountdown(null);
   };
 
-  const handleRate = async (star: number) => {
-    if (!data?.anime?.id || !session) return;
-    const res = await fetch("/api/ratings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ animeId: data.anime.id, rating: star }),
-    });
-    const updated = await res.json();
-    if (updated.ok !== false) setRatingData(updated);
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex justify-center items-center text-pink-500">
@@ -418,7 +410,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 {data.nextEpisode && (
                   <button
                     onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
-                    className="absolute top-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:top-4 md:right-4 md:left-auto inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-lg text-white font-bold hover:bg-pink-600 transition shadow-[0_0_20px_rgba(0,0,0,0.8)] z-40 border border-white/20 uppercase tracking-wider text-[10px] md:text-xs"
+                    className="hidden md:inline-flex absolute right-4 top-4 items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-lg text-white font-bold hover:bg-pink-600 transition shadow-[0_0_20px_rgba(0,0,0,0.8)] z-40 border border-white/20 uppercase tracking-wider text-[10px] md:text-xs"
                   >
                     Próximo Episódio <SkipForward size={14} className="fill-current" />
                   </button>
@@ -502,42 +494,27 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     <Clock3 size={14} /> Retomando de {Math.floor(data.history.progressSec / 60)}m
                   </span>
                 ) : null}
+
+                {!data.isDirectSource && session && (
+                  <button
+                    onClick={() => {
+                      fetch("/api/history", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ animeId: data.anime.id, episodeId: data.episodeId, progressSec: 1000, watched: true })
+                      });
+                      alert("Marcado como visto!");
+                    }}
+                    className="px-3 py-1 rounded-full bg-pink-500/20 text-pink-400 hover:bg-pink-500 hover:text-white transition font-bold"
+                  >
+                    ✓ Marcar como Visto
+                  </button>
+                )}
               </div>
 
               <p className="mt-4 text-zinc-400 text-sm leading-relaxed">{data.epTitle}</p>
 
-              {/* ── Star Rating ── */}
-              {session && (
-                <div className="mt-5 pt-4 border-t border-zinc-800">
-                  <p className="text-xs font-bold text-zinc-500 mb-2 uppercase tracking-wider">
-                    {ratingData.average ? `★ ${ratingData.average} / 5 (${ratingData.total} votos)` : "Avalie este anime"}
-                  </p>
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => handleRate(star)}
-                        onMouseEnter={() => setRatingHover(star)}
-                        onMouseLeave={() => setRatingHover(0)}
-                        className="transition-transform hover:scale-125"
-                      >
-                        <Star
-                          size={26}
-                          className={`transition ${
-                            star <= (ratingHover || ratingData.userRating || 0)
-                              ? "text-yellow-400 fill-yellow-400"
-                              : "text-zinc-600"
-                          }`}
-                        />
-                      </button>
-                    ))}
-                    {ratingData.userRating && (
-                      <span className="ml-2 text-xs text-zinc-500">Sua nota: {ratingData.userRating}★</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
+              {/* -- END Star Rating Block Moved to Anime Page -- */}
               {/* Keyboard shortcut hint (desktop only) */}
               {data.isDirectSource && (
                 <p className="mt-3 text-[11px] text-zinc-600 hidden md:block">

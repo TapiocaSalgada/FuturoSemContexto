@@ -18,6 +18,25 @@ export default function Sidebar() {
   // Close drawer on route change
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
+  // Save current account to LocalStorage for "Multi-Account Switcher"
+  useEffect(() => {
+    if (session?.user?.email) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('savedAccounts') || '[]');
+        const exists = saved.find((s:any) => s.email === session.user?.email);
+        const userAvatar = (session.user as any).avatarUrl || session.user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.name || "U")}&background=ff007f&color=fff`;
+        if (!exists) {
+          saved.push({ email: session.user.email, name: session.user.name, avatar: userAvatar });
+          localStorage.setItem('savedAccounts', JSON.stringify(saved));
+        } else if (exists.avatar !== userAvatar || exists.name !== session.user.name) {
+          exists.avatar = userAvatar;
+          exists.name = session.user.name;
+          localStorage.setItem('savedAccounts', JSON.stringify(saved));
+        }
+      } catch (e) {}
+    }
+  }, [session]);
+
   const links = [
     { name: "Início", href: "/", icon: Home },
     { name: "Explorar", href: "/explore", icon: Search },

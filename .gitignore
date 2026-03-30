@@ -33,3 +33,4 @@ prisma-push-result.txt
 *.log
 
 .vercel
+.env*.local

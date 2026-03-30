@@ -4,7 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
-import { Play, ArrowLeft, Heart, MessageSquare, Send, CornerDownRight, Edit3, Trash2, Check, X, FolderOpen, ChevronDown } from "lucide-react";
+import { Play, ArrowLeft, Heart, MessageSquare, Send, CornerDownRight, Edit3, Trash2, Check, X, FolderOpen, ChevronDown, Star } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -118,6 +118,22 @@ export default function AnimePageClient() {
   const [groupedEps, setGroupedEps] = useState<Record<number, typeof anime extends null ? never[] : Anime["episodes"]>>({});
   const [lastWatchedEpId, setLastWatchedEpId] = useState<string | null>(null);
 
+  const [ratingData, setRatingData] = useState<{ average: number | null; total: number; userRating: number | null }>({
+    average: null, total: 0, userRating: null,
+  });
+  const [ratingHover, setRatingHover] = useState(0);
+
+  const handleRate = async (star: number) => {
+    if (!id || !session) return;
+    const res = await fetch("/api/ratings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ animeId: id, rating: star }),
+    });
+    const updated = await res.json();
+    if (updated.ok !== false) setRatingData(updated);
+  };
+
   const loadComments = useCallback(() => {
     if (!id) return;
     fetch(`/api/comments?animeId=${id}`).then(r => r.json()).then(setComments);
@@ -144,6 +160,7 @@ export default function AnimePageClient() {
       fetch(`/api/history?animeId=${id}`).then(r => r.json()).then(data => {
         if (data?.episodeId) setLastWatchedEpId(data.episodeId);
       }).catch(() => {});
+      fetch(`/api/ratings?animeId=${id}`).then(r => r.json()).then(setRatingData).catch(() => {});
     }
   }, [id, session, loadComments]);
 
@@ -262,6 +279,41 @@ export default function AnimePageClient() {
                   </button>
                 )}
               </div>
+
+              {/* ── Star Rating (Moved from Player) ── */}
+              {session && (
+                <div className="mt-8 pt-6 border-t border-white/5 w-full max-w-sm">
+                  <p className="text-sm font-bold text-zinc-400 mb-3 flex items-center gap-2">
+                    <Star size={16} className="text-pink-500" />
+                    {ratingData.average ? `Avaliação: ${ratingData.average} / 5 (${ratingData.total} votos)` : "Avalie este anime"}
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => handleRate(star)}
+                        onMouseEnter={() => setRatingHover(star)}
+                        onMouseLeave={() => setRatingHover(0)}
+                        className="transition-transform hover:scale-110 p-1"
+                      >
+                        <Star
+                          size={28}
+                          className={`transition ${
+                            star <= (ratingHover || ratingData.userRating || 0)
+                              ? "text-yellow-400 fill-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]"
+                              : "text-zinc-600 hover:text-pink-400"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    {ratingData.userRating && (
+                      <span className="ml-3 text-xs font-bold text-pink-400 px-2 py-1 rounded bg-pink-500/10 border border-pink-500/20">
+                        Sua nota: {ratingData.userRating}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

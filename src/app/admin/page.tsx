@@ -7,8 +7,9 @@ import { useRouter } from "next/navigation";
 import {
   Users, Film, MessageSquare, Megaphone, Plus, Trash2, Edit3,
   Clock, Eye, EyeOff, Check, X, UploadCloud, RefreshCw, Star,
-  AlertTriangle, Search, Shield
+  AlertTriangle, Search, Shield, Download
 } from "lucide-react";
+import Link from "next/link";
 
 type TabKey = "animes" | "users" | "suggestions" | "announcements";
 
@@ -487,7 +488,14 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Anime Form */}
               <section className="bg-zinc-900/40 border border-zinc-800 rounded-2xl p-6 space-y-4">
-                <h2 className="font-bold text-lg">{editingAnime ? "✏️ Editar Anime" : "➕ Adicionar Anime"}</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="font-bold text-lg">{editingAnime ? "✏️ Editar Anime" : "➕ Adicionar Anime"}</h2>
+                  {!editingAnime && (
+                    <Link href="/admin/import" className="flex items-center gap-2 bg-pink-500/10 text-pink-500 hover:bg-pink-500 hover:text-white px-3 py-1.5 rounded-lg text-xs font-black transition border border-pink-500/20">
+                      <Download size={14} /> IMPORTAR API
+                    </Link>
+                  )}
+                </div>
                 <form onSubmit={handleAnimeSubmit} className="space-y-3">
                   <div>
                     <label className={labelClass}>Título *</label>

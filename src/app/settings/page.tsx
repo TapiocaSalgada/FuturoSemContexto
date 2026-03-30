@@ -78,7 +78,18 @@ export default function SettingsPage() {
   const [emailMsg, setEmailMsg] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [showAccountsModal, setShowAccountsModal] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<{email: string; name: string; avatar: string}[]>([]);
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    if (showAccountsModal) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('savedAccounts') || '[]');
+        setSavedAccounts(saved);
+      } catch (e) {}
+    }
+  }, [showAccountsModal]);
 
   const persistSettings = useCallback(async (next: UserSettingsPayload) => {
     setSettings(next);
@@ -400,29 +411,44 @@ export default function SettingsPage() {
                 <div className="flex gap-3 flex-wrap">
                   <a href="https://discord.gg/futurosemcontexto" target="_blank" rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3 rounded-xl transition shadow-lg text-sm">
-                    <MessageCircle size={18} /> Entrar no Discord
+                    <MessageCircle size={18} /> Discord
                   </a>
-                  <button onClick={() => signOut()}
+                  <button onClick={() => setShowAccountsModal(true)}
                     className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 border border-zinc-700 hover:border-red-500/50 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
                     <LogOut size={18} /> Trocar de Conta
                   </button>
                 </div>
 
-                {/* Avatar Preset Modal */}
-                {showAvatarPresets && (
+                {/* Switch Account Modal */}
+                {showAccountsModal && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAvatarPresets(false)} />
-                    <div className="relative bg-[#1a1a1a] border border-zinc-700 rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fadeInUp">
-                      <h3 className="font-bold text-lg text-white mb-4">Escolha um Ícone</h3>
-                      <div className="grid grid-cols-4 gap-4 mb-6">
-                        {PRESET_AVATARS.map((url, i) => (
-                          <button key={i} onClick={() => selectPresetAvatar(url)}
-                            className="aspect-square rounded-full overflow-hidden border-2 border-transparent hover:border-pink-500 hover:scale-105 transition">
-                            <img src={url} alt={`Avatar ${i}`} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAccountsModal(false)} />
+                    <div className="relative bg-[#1a1a1a] border border-zinc-700 rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-fadeInUp">
+                      <h3 className="font-bold text-xl text-white mb-6 text-center">Trocar de Conta</h3>
+                      
+                      <div className="space-y-3 max-h-60 overflow-y-auto pr-1 mb-6">
+                        {savedAccounts.filter(a => a.email !== session?.user?.email).map(acc => (
+                          <button key={acc.email} onClick={() => signOut({ callbackUrl: `/login?email=${acc.email}` })}
+                            className="w-full flex items-center gap-4 p-3 bg-zinc-900/60 border border-zinc-800 hover:border-pink-500 rounded-2xl transition group text-left"
+                          >
+                            <img src={acc.avatar} className="w-10 h-10 rounded-full object-cover border-2 border-zinc-800 group-hover:border-pink-500 transition" alt="avatar" />
+                            <div className="flex-1 min-w-0">
+                                <p className="font-bold text-white text-sm truncate">{acc.name}</p>
+                                <p className="text-[10px] text-zinc-500 truncate">{acc.email}</p>
+                            </div>
                           </button>
                         ))}
+                        <button onClick={() => signOut({ callbackUrl: '/login' })}
+                          className="w-full flex items-center gap-4 p-3 bg-zinc-900/40 border border-zinc-800 border-dashed hover:border-pink-500 rounded-2xl transition group text-left"
+                        >
+                          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-pink-500 group-hover:bg-pink-500/10 transition">
+                            <LogOut size={18} />
+                          </div>
+                          <p className="font-bold text-zinc-400 group-hover:text-pink-500 text-sm transition">Nova Conta</p>
+                        </button>
                       </div>
-                      <button onClick={() => setShowAvatarPresets(false)} className="w-full bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-3 rounded-xl transition">
+
+                      <button onClick={() => setShowAccountsModal(false)} className="w-full py-3 text-zinc-500 hover:text-white font-bold transition text-sm">
                         Cancelar
                       </button>
                     </div>
