@@ -16,6 +16,7 @@ export default async function HistoryPage() {
 
   const userId = (session.user as any).id;
   if (!userId) redirect("/login");
+  const isAdmin = (session.user as any)?.role === "admin";
 
   const history = await prisma.watchHistory.findMany({
     where: { userId },
@@ -23,7 +24,7 @@ export default async function HistoryPage() {
     include: {
       episode: {
         include: {
-          anime: { select: { id: true, title: true, coverImage: true, bannerImage: true } },
+          anime: { select: { id: true, title: true, coverImage: true, bannerImage: true, visibility: true } },
         },
       },
     },
@@ -36,8 +37,11 @@ export default async function HistoryPage() {
       if (!animeId) return map;
       if (!map.has(animeId)) map.set(animeId, item);
       return map;
-    }, new Map<string, typeof history[number]>() ).values()
-  );
+    }, new Map<string, typeof history[number]>()).values()
+  ).filter((item) => {
+    const visibility = item.episode?.anime?.visibility;
+    return visibility === "public" || isAdmin;
+  });
 
   return (
     <AppLayout>

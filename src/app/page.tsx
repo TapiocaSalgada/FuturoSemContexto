@@ -58,6 +58,7 @@ const getCachedTrending = unstable_cache(
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
+  const isAdmin = (session?.user as any)?.role === "admin";
   let recentHistory: any[] = [];
   
   if (session?.user && (session.user as any).id) {
@@ -113,12 +114,18 @@ export default async function HomePage() {
     }, [])
     .slice(0, 8);
 
-  const continueWatching = recentHistory.reduce((items: typeof recentHistory, history) => {
-    const animeId = history.episode?.anime?.id;
-    if (!animeId) return items;
-    if (items.some((item) => item.episode?.anime?.id === animeId)) return items;
-    return [...items, history];
-  }, [] as typeof recentHistory).slice(0, 5);
+  const continueWatching = recentHistory
+    .reduce((items: typeof recentHistory, history) => {
+      const animeId = history.episode?.anime?.id;
+      if (!animeId) return items;
+      if (items.some((item) => item.episode?.anime?.id === animeId)) return items;
+      return [...items, history];
+    }, [] as typeof recentHistory)
+    .filter((item) => {
+      const visibility = item.episode?.anime?.visibility;
+      return visibility === "public" || isAdmin;
+    })
+    .slice(0, 5);
 
   // -- Resilience: Filter out broken/empty animes --
   const validAnimes = recentAnimes.filter(a => a.title && a.id);
