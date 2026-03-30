@@ -4,7 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Search, Loader2, Download, CheckCircle2, ChevronLeft, Film, PlayCircle, ExternalLink } from "lucide-react";
+import { Search, Loader2, Download, CheckCircle2, ChevronLeft, Film, PlayCircle, ExternalLink, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 interface KappaAnime {
@@ -49,12 +49,12 @@ export default function AnimeImportPage() {
     setResults([]);
     try {
       const res = await fetch(`/api/admin/proxy?endpoint=search&keyword=${encodeURIComponent(query)}`);
-      if (!res.ok) throw new Error("API Proxy Error");
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       setResults(data || []);
       if (data.length === 0) showMsg("Nenhum resultado na API externa.", "err");
-    } catch (error) {
-      showMsg("Erro ao buscar na API externa.", "err");
+    } catch (error: any) {
+      showMsg(error.message || "Erro ao buscar na API externa.", "err");
     } finally {
       setLoading(false);
     }

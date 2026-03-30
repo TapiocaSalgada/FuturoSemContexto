@@ -22,23 +22,35 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(url);
-    if (!res.ok) throw new Error("API responded with error");
+    if (!res.ok) {
+        return NextResponse.json({ error: `API responded with status ${res.status}` }, { status: res.status });
+    }
+    
+    // Safety check for JSON content type
+    const contentType = res.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+        return NextResponse.json({ error: "Invalid response format from API" }, { status: 502 });
+    }
+
     const data = await res.json();
     
     // Transform Search RESULTS from Object to Array (Kappa API quirk)
+    // Adding defensive fallbacks for title/image to avoid UI labels like 'API ID: ERROR'
     if (endpoint === "search" && data && typeof data === "object" && !Array.isArray(data)) {
-        const list = Object.entries(data).map(([id, val]: [string, any]) => ({
-            id,
-            title: val.title,
-            image: val.img || val.image,
-            url: val.url
-        }));
+        const list = Object.entries(data)
+          .filter(([id, val]: [string, any]) => val && id !== "null")
+          .map(([id, val]: [string, any]) => ({
+            id: id || "unknown",
+            title: val.title || "Título indisponível",
+            image: val.img || val.image || "https://img.freepik.com/premium-vector/photo-icon-with-picture-landscape-vector-isolated-white-background-eps-10_399089-2810.jpg",
+            url: val.url || "#"
+          }));
         return NextResponse.json(list);
     }
 
     return NextResponse.json(data);
   } catch (error) {
     console.error("Proxy Error", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error during Proxy" }, { status: 500 });
   }
 }

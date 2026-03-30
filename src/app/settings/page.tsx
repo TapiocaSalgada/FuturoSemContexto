@@ -408,11 +408,8 @@ export default function SettingsPage() {
             {section === "conta" && (
               <div className="space-y-8">
                 {/* Ações Globais */}
+                {/* Ações Globais */}
                 <div className="flex gap-3 flex-wrap">
-                  <a href="https://discord.gg/futurosemcontexto" target="_blank" rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold py-3 rounded-xl transition shadow-lg text-sm">
-                    <MessageCircle size={18} /> Discord
-                  </a>
                   <button onClick={() => setShowAccountsModal(true)}
                     className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 border border-zinc-700 hover:border-red-500/50 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
                     <LogOut size={18} /> Trocar de Conta
@@ -514,10 +511,6 @@ export default function SettingsPage() {
                           onChange={(event) => handleUpload(event, "avatarUrl")}
                         />
                       </label>
-                      <button onClick={() => setShowAvatarPresets(true)}
-                        className="text-xs font-bold text-zinc-400 hover:text-pink-400 border border-zinc-700 hover:border-pink-500 px-3 py-1.5 rounded-full transition bg-zinc-800/50 flex items-center gap-1">
-                        <ImageIcon size={12} /> Escolher Coleção
-                      </button>
                     </div>
                   </div>
                 </div>
