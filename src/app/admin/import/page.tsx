@@ -90,10 +90,11 @@ export default function AnimeImportPage() {
       // 2. Fetch Episodes from Proxy
       setImportProgress(p => ({ ...p, status: "Buscando lista de episódios..." }));
       const epsRes = await fetch(`/api/admin/proxy?endpoint=episodes&id=${item.id}`);
-      const epsData: KappaEpisode[] = await epsRes.json();
+      const epsData = await epsRes.json();
+      console.log("Kappa API Episodes Response:", epsData);
       
-      if (!epsData || epsData.length === 0) {
-        showMsg("Anime criado, mas não foram encontrados episódios na API.", "ok");
+      if (!epsData || !Array.isArray(epsData) || epsData.length === 0) {
+        showMsg("Anime criado, mas não foram encontrados episódios ou erro na API.", "ok");
         setImportingId(null);
         return;
       }

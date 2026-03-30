@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { revalidateTag } from "next/cache";
 
 function isAdmin(session: any) {
   return session?.user?.role === "admin";
@@ -28,6 +29,10 @@ export async function POST(req: Request) {
         visibility: visibility || "admin_only"
       } 
     });
+    
+    // Invalidate Home Page Cache
+    revalidateTag("recent-animes-home");
+
     return NextResponse.json(anime);
   } catch (error) {
     console.error("Anime Creation Error", error);
@@ -49,6 +54,10 @@ export async function PUT(req: NextRequest) {
     if (status !== undefined) data.status = status;
     if (visibility !== undefined) data.visibility = visibility;
     const anime = await prisma.anime.update({ where: { id }, data });
+    
+    // Invalidate Cache
+    revalidateTag("recent-animes-home");
+
     return NextResponse.json(anime);
   } catch (error) {
     console.error("Anime Update Error", error);
@@ -62,6 +71,10 @@ export async function DELETE(req: NextRequest) {
     if (!isAdmin(session)) return new NextResponse("Unauthorized", { status: 401 });
     const { id } = await req.json();
     await prisma.anime.delete({ where: { id } });
+    
+    // Invalidate Cache
+    revalidateTag("recent-animes-home");
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Anime Delete Error", error);

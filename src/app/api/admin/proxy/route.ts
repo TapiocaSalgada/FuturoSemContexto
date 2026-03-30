@@ -16,14 +16,21 @@ export async function GET(req: NextRequest) {
 
   if (!endpoint) return new NextResponse("Endpoint required", { status: 400 });
 
-  let url = `https://api-anime-free.vercel.app/api/${endpoint}`;
-  if (id) url += `?id=${id}`;
-  if (keyword) url += `?keyword=${encodeURIComponent(keyword)}`;
+  const baseUrl = "https://anime-api-kappa-one.vercel.app/api";
+  let url = `${baseUrl}/${endpoint}`;
+  
+  const params = new URLSearchParams();
+  if (endpoint === "search" && keyword) params.append("keyword", keyword);
+  if (endpoint === "episodes" && id) params.append("anime_id", id);
+  if (endpoint === "episode-video" && id) params.append("episode_id", id);
+
+  const queryString = params.toString();
+  if (queryString) url += `?${queryString}`;
 
   try {
     const res = await fetch(url);
     if (!res.ok) {
-        return NextResponse.json({ error: `API responded with status ${res.status}` }, { status: res.status });
+        return NextResponse.json({ error: `API responded with status ${res.status} [${endpoint}]` }, { status: res.status });
     }
     
     // Safety check for JSON content type
