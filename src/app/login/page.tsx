@@ -1,21 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Heart, Mail, Lock, Loader2, ChevronLeft, UserPlus } from "lucide-react";
+import { Heart, Mail, Lock, Loader2, ChevronLeft, UserPlus, CheckCircle2, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState("Entrando...");
   
   // -- Saved Accounts Logic --
-  const [savedAccounts, setSavedAccounts] = useState<{email: string; name: string; avatar: string}[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<{email: string; name: string; avatar: string} | null>(null);
+  // -- Saved Accounts Logic --
+  const [savedAccounts, setSavedAccounts] = useState<{email: string; name: string; avatar: string; handoffHash?: string}[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<{email: string; name: string; avatar: string; handoffHash?: string} | null>(null);
   const [showSavedList, setShowSavedList] = useState(true);
 
   useEffect(() => {
@@ -41,10 +44,46 @@ export default function LoginPage() {
     }
   }, []);
 
-  const selectSavedAccount = (acc: {email: string; name: string; avatar: string}) => {
-    setSelectedAccount(acc);
-    setIdentifier(acc.email);
-    setShowSavedList(false);
+  // Update localStorage with NEW handoffHash from session after login
+  useEffect(() => {
+    if (session?.user && (session.user as any).handoffHash) {
+      const { email, name, image, handoffHash } = session.user as any;
+      try {
+        const saved = JSON.parse(localStorage.getItem('savedAccounts') || '[]');
+        const updated = saved.filter((a: any) => a.email !== email);
+        updated.unshift({ email, name, avatar: image, handoffHash });
+        localStorage.setItem('savedAccounts', JSON.stringify(updated.slice(0, 5)));
+        setSavedAccounts(updated.slice(0, 5));
+      } catch (e) {}
+    }
+  }, [session]);
+
+  const selectSavedAccount = async (acc: {email: string; name: string; avatar: string; handoffHash?: string}) => {
+    if (acc.handoffHash) {
+      setLoading(true);
+      setLoadingStatus("Preparando sua sessão...");
+      const res = await signIn("credentials", {
+        email: acc.email,
+        password: acc.handoffHash,
+        isQuick: "true",
+        redirect: false,
+      });
+      if (res?.error) {
+        setLoading(false);
+        setError("Sessão expirada. Entre com sua senha novamente.");
+        setSelectedAccount(acc);
+        setIdentifier(acc.email);
+        setShowSavedList(false);
+      } else {
+        setLoadingStatus("Bem-vindo de volta!");
+        router.push("/");
+        router.refresh();
+      }
+    } else {
+      setSelectedAccount(acc);
+      setIdentifier(acc.email);
+      setShowSavedList(false);
+    }
   };
 
   const removeSavedAccount = (email: string, e: React.MouseEvent) => {
@@ -64,16 +103,19 @@ export default function LoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setLoadingStatus("Autenticando...");
     setError("");
     const res = await signIn("credentials", {
       email: identifier,
       password,
+      isQuick: "false",
       redirect: false,
     });
-    setLoading(false);
     if (res?.error) {
+      setLoading(false);
       setError("E-mail, usuário ou senha incorretos.");
     } else {
+      setLoadingStatus("Quase pronto...");
       router.push("/");
       router.refresh();
     }
@@ -102,8 +144,24 @@ export default function LoginPage() {
           <h1 className="text-xl font-black tracking-tighter text-pink-500 leading-none text-center mt-2">
             FUTURO SEM <br /><span className="text-white uppercase">Contexto</span>
           </h1>
-          <p className="text-zinc-500 text-xs mt-1">Bem-vindo de volta!</p>
+          <p className="text-zinc-500 text-[10px] uppercase tracking-widest mt-1 font-bold">PLATAFORMA PREMIUM</p>
         </div>
+
+        {/* Full Screen Immersive Loading */}
+        {loading && (
+          <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/80 backdrop-blur-2xl animate-fadeIn">
+            <div className="relative">
+              <div className="absolute inset-0 bg-pink-500/20 blur-3xl animate-pulse" />
+              <Loader2 className="w-16 h-16 text-pink-500 animate-spin relative z-10" />
+            </div>
+            <p className="mt-6 text-white font-black text-xl tracking-tighter animate-pulse">{loadingStatus}</p>
+            <div className="mt-2 flex gap-1">
+              <div className="w-1.5 h-1.5 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: "0s" }} />
+              <div className="w-1.5 h-1.5 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
+              <div className="w-1.5 h-1.5 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="p-3 bg-red-500/20 border border-red-500/50 text-red-400 rounded-xl mb-6 text-sm text-center font-bold animate-fadeInUp">
@@ -122,13 +180,15 @@ export default function LoginPage() {
                   <div className="flex items-center gap-4">
                     <img src={acc.avatar} alt="avatar" className="w-12 h-12 rounded-full object-cover border-2 border-zinc-800 group-hover:border-pink-500 transition" />
                     <div className="text-left">
-                      <p className="font-bold text-white text-base">{acc.name}</p>
-                      <p className="text-xs text-zinc-500">{acc.email}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-bold text-white text-base">{acc.name}</p>
+                        {acc.handoffHash && <Sparkles size={12} className="text-pink-500" />}
+                      </div>
+                      <p className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Conta Salva</p>
                     </div>
                   </div>
                   <button onClick={(e) => removeSavedAccount(acc.email, e)} className="p-2 text-zinc-600 hover:text-red-500 transition opacity-0 group-hover:opacity-100" title="Remover Conta">
-                    <Loader2 size={16} className="hidden" /> {/* Dummy para manter lucide imported mas usar o proprio estilo, na real não precisamos usar icone aki ou usar um simples txt */}
-                    <span className="text-xs font-bold uppercase">X</span>
+                    <span className="text-xs font-bold uppercase">Remover</span>
                   </button>
                 </div>
               ))}

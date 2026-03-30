@@ -74,6 +74,7 @@ export default function AnimeImportPage() {
           title: item.title,
           coverImage: item.image,
           status: "ongoing",
+          visibility: "admin_only",
           description: `Importado via API: ${item.title}`
         })
       });
@@ -107,11 +108,12 @@ export default function AnimeImportPage() {
         try {
           // Get video URL from Proxy
           const videoRes = await fetch(`/api/admin/proxy?endpoint=episode-video&id=${kappaEp.id}`);
+          if (!videoRes.ok) throw new Error("Video API unreachable");
           const videoData = await videoRes.json();
 
           if (videoData && videoData.videoUrl) {
             // Save to local DB
-            await fetch("/api/admin/episode", {
+            const saveRes = await fetch("/api/admin/episode", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -123,6 +125,10 @@ export default function AnimeImportPage() {
                 sourceLabel: "Kappa API"
               })
             });
+
+            if (!saveRes.ok && saveRes.status !== 409) {
+               console.warn(`Erro ao salvar ep ${kappaEp.number}`);
+            }
           }
         } catch (e) {
           console.error(`Erro no Ep ${kappaEp.number}`, e);

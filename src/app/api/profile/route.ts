@@ -32,21 +32,31 @@ export async function GET(req: NextRequest) {
 
   const session = await getServerSession(authOptions);
 
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true, name: true, avatarUrl: true, bannerUrl: true, bio: true, isPrivate: true,
-      settings: { select: { showHistory: true, allowFollow: true } },
-      _count: { select: { followers: true, following: true } },
-      favorites: {
-        include: {
-          anime: { select: { id: true, title: true, coverImage: true } },
-          folder: { select: { id: true, name: true, isPrivate: true } },
+  const [user, rawHistories] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true, name: true, avatarUrl: true, bannerUrl: true, bio: true, isPrivate: true,
+        settings: { select: { showHistory: true, allowFollow: true } },
+        _count: { select: { followers: true, following: true } },
+        favorites: {
+          include: {
+            anime: { select: { id: true, title: true, coverImage: true } },
+            folder: { select: { id: true, name: true, isPrivate: true } },
+          },
         },
+        favoriteFolders: { select: { id: true, name: true, isPrivate: true } },
       },
-      favoriteFolders: { select: { id: true, name: true, isPrivate: true } },
-    },
-  });
+    }),
+    prisma.watchHistory.findMany({
+      where: { userId: id },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+      include: {
+        episode: { include: { anime: { select: { id: true, title: true, coverImage: true } } } },
+      },
+    })
+  ]);
 
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
@@ -58,19 +68,11 @@ export async function GET(req: NextRequest) {
     (user as any).favoriteFolders = [];
   }
 
-  // Fetch histories (deduplicated by anime, limited scan for speed)
+  // Deduplicate and process histories (only if allowed)
   let historiesList: any[] = [];
   const canShowHistory = isOwner || (!user.isPrivate && user.settings?.showHistory !== false);
-  if (canShowHistory) {
-    const rawHistories = await prisma.watchHistory.findMany({
-      where: { userId: id },
-      orderBy: { updatedAt: "desc" },
-      take: 50, // Limit scan to avoid full-table reads
-      include: {
-        episode: { include: { anime: { select: { id: true, title: true, coverImage: true } } } },
-      },
-    });
-
+  
+  if (canShowHistory && rawHistories) {
     const seenAnimes = new Set<string>();
     for (const h of rawHistories) {
       const aid = h.episode?.anime?.id;
