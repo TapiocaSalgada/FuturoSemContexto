@@ -188,6 +188,14 @@ export default function AnimeImportPage() {
     }
   };
 
+  const importAll = async () => {
+    if (importingId) return;
+    const list = results.length ? results : combinedResults;
+    for (const item of list) {
+      await importAnime(item as KappaAnime);
+    }
+  };
+
   // @ts-expect-error role
   if (status === "loading" || (status === "authenticated" && session?.user?.role !== "admin")) return null;
 
@@ -232,6 +240,14 @@ export default function AnimeImportPage() {
             >
               {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
               <span className="hidden md:block">BUSCAR</span>
+            </button>
+            <button
+              type="button"
+              disabled={loading || !!importingId || combinedResults.length === 0}
+              onClick={importAll}
+              className="bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white font-bold px-6 rounded-2xl transition flex items-center gap-2 border border-zinc-700"
+            >
+              <Download size={16} /> Importar tudo
             </button>
           </form>
         </section>

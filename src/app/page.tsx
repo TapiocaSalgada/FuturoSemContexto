@@ -133,7 +133,18 @@ export default async function HomePage() {
       const visibility = item.episode?.anime?.visibility;
       return visibility === "public" || isAdmin;
     })
-    .slice(0, 5);
+    .slice(0, 5)
+    .map((item) => ({
+      ...item,
+      episode: {
+        ...item.episode,
+        thumbnailUrl:
+          item.episode?.thumbnailUrl ||
+          item.episode?.anime?.bannerImage ||
+          item.episode?.anime?.coverImage ||
+          "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80",
+      },
+    }));
 
   // -- Resilience: Filter out broken/empty animes --
   const validAnimes = recentAnimes.filter(a => a.title && a.id);
@@ -238,13 +249,14 @@ export default async function HomePage() {
                       className="w-[170px] lg:w-[210px] shrink-0 snap-start group"
                     >
                       <div className="aspect-video rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 bg-zinc-900 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.3)]">
-                        <Image
-                          src={history.episode?.thumbnailUrl || history.episode?.anime?.bannerImage || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
-                          fill
-                          sizes="(max-width: 768px) 170px, 210px"
-                          className="object-cover opacity-70 group-hover:scale-105 transition duration-500"
-                          alt={anime.title}
-                        />
+                 <Image
+                  src={history.episode?.thumbnailUrl || history.episode?.anime?.bannerImage || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                  fill
+                  sizes="(max-width: 768px) 170px, 210px"
+                  className="object-cover opacity-70 group-hover:scale-105 transition duration-500"
+                  alt={anime.title}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"; }}
+                />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                           <div className="w-10 h-10 rounded-full bg-pink-600/90 text-white flex items-center justify-center shadow-[0_0_15px_rgba(255,0,127,0.6)] transform scale-75 group-hover:scale-100 transition-transform duration-300">
                             <Play size={18} className="ml-1" fill="currentColor" />

@@ -39,6 +39,12 @@ export default function AnimeCard({
             fill
             sizes="(max-width: 768px) 160px, 200px"
             className="object-cover group-hover:scale-110 transition duration-500"
+            onError={(e) => {
+              const target = e.currentTarget as any;
+              if (target?.src !== "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80") {
+                target.src = "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80";
+              }
+            }}
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-pink-400">

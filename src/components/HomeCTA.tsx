@@ -12,7 +12,7 @@ export default function HomeCTA() {
         href="/admin"
         className="inline-flex items-center gap-2 text-xs text-zinc-500 hover:text-pink-500 transition border border-zinc-800 hover:border-pink-500/30 rounded-lg px-3 py-2"
       >
-        ⚙️ Painel Admin — Adicionar Animes
+        ⚙️ Painel Admin
       </Link>
     </div>
   );

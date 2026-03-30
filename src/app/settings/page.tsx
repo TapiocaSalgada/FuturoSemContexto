@@ -20,6 +20,7 @@ import {
 import { signOut } from "next-auth/react";
 
 import { DEFAULT_SETTINGS, type UserSettingsPayload } from "@/lib/settings";
+import { useThemeStore } from "@/lib/theme-store";
 
 type Section = "conta" | "notifications" | "appearance" | "privacy" | "playback";
 
@@ -41,8 +42,7 @@ const sectionLabels: Record<Section, string> = {
 
 function applyTheme(theme: string) {
   const html = document.documentElement;
-  html.classList.remove("theme-galactic", "theme-ocean", "theme-matrix");
-  if (theme !== "pink") html.classList.add(`theme-${theme}`);
+  html.setAttribute("data-theme", theme);
 }
 
 function applyReducedMotion(enabled: boolean) {
@@ -119,6 +119,9 @@ export default function SettingsPage() {
         const next = { ...DEFAULT_SETTINGS, ...data };
         setSettings(next);
         applyVisualSettings(next);
+        setTheme(next.theme || "pink");
+        if (data.wallpaperUrl) setWallpaperUrl(data.wallpaperUrl);
+        if (typeof data.wallpaperEnabled === "boolean") setWallpaperEnabled(data.wallpaperEnabled);
       });
   }, []);
 
@@ -133,6 +136,8 @@ export default function SettingsPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [showAvatarPresets, setShowAvatarPresets] = useState(false);
 
+  const { theme, setTheme, wallpaperUrl, setWallpaperUrl, wallpaperEnabled, setWallpaperEnabled } = useThemeStore();
+
   useEffect(() => {
     const id = (session?.user as any)?.id;
     if (!id) return;
@@ -146,6 +151,7 @@ export default function SettingsPage() {
           avatarUrl: profile.avatarUrl || "",
           bannerUrl: profile.bannerUrl || "",
         });
+        if (profile.wallpaperUrl) setWallpaperUrl(profile.wallpaperUrl);
       });
   }, [session]);
 
@@ -153,8 +159,10 @@ export default function SettingsPage() {
 
   const toggle = (key: keyof UserSettingsPayload) =>
     persistSettings({ ...settings, [key]: !settings[key] });
-  const select = (key: keyof UserSettingsPayload, value: string) =>
+  const select = (key: keyof UserSettingsPayload, value: string) => {
     persistSettings({ ...settings, [key]: value });
+    if (key === "theme") setTheme(value);
+  };
 
   const handleSaveProfile = async () => {
     setProfileLoading(true);
@@ -176,7 +184,7 @@ export default function SettingsPage() {
 
   const handleUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
-    field: "avatarUrl" | "bannerUrl",
+    field: "avatarUrl" | "bannerUrl" | "wallpaper",
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -191,7 +199,12 @@ export default function SettingsPage() {
       });
       const data = await response.json();
       if (data.url) {
-        setProfileForm((current) => ({ ...current, [field]: data.url }));
+        if (field === "wallpaper") {
+          setWallpaperUrl(data.url);
+          setWallpaperEnabled(true);
+        } else {
+          setProfileForm((current) => ({ ...current, [field]: data.url }));
+        }
       }
     } finally {
       if (field === "avatarUrl") setAvatarUploading(false);
@@ -670,36 +683,68 @@ export default function SettingsPage() {
 
             {section === "appearance" && (
               <div>
-                <div className="py-4 border-b border-zinc-800">
-                  <p className="font-semibold text-white text-sm mb-3">
-                    Tema de cores
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: "pink", label: "Rosa Neon", color: "bg-pink-600" },
-                      { value: "galactic", label: "Roxo Galactic", color: "bg-purple-600" },
-                      { value: "ocean", label: "Azul Oceano", color: "bg-sky-600" },
-                      { value: "matrix", label: "Verde Matrix", color: "bg-green-600" },
-                      { value: "sunset", label: "Sunset Laranja", color: "bg-orange-500" },
-                      { value: "midnight", label: "Midnight Blue", color: "bg-indigo-700" },
-                      { value: "mint", label: "Mint Fresh", color: "bg-emerald-500" },
-                      { value: "carbon", label: "Carbono", color: "bg-zinc-700" },
-                    ].map((theme) => (
-                      <button
-                        key={theme.value}
-                        onClick={() => select("theme", theme.value)}
-                        className={`flex items-center gap-2 p-3 rounded-xl border text-sm font-bold transition ${
-                          settings.theme === theme.value
-                            ? "border-white bg-zinc-800"
-                            : "border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/50"
-                        }`}
-                      >
-                        <span
-                          className={`w-4 h-4 rounded-full ${theme.color} shrink-0`}
-                        />
-                        {theme.label}
-                      </button>
-                    ))}
+                <div className="py-4 border-b border-zinc-800 space-y-4">
+                  <div>
+                    <p className="font-semibold text-white text-sm mb-3">
+                      Tema de cores
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: "pink", label: "Rosa Neon", color: "bg-pink-600" },
+                        { value: "galactic", label: "Roxo Galactic", color: "bg-purple-600" },
+                        { value: "ocean", label: "Azul Oceano", color: "bg-sky-600" },
+                        { value: "matrix", label: "Verde Matrix", color: "bg-green-600" },
+                        { value: "sunset", label: "Sunset Laranja", color: "bg-orange-500" },
+                        { value: "midnight", label: "Midnight Blue", color: "bg-indigo-700" },
+                        { value: "mint", label: "Mint Fresh", color: "bg-emerald-500" },
+                        { value: "carbon", label: "Carbono", color: "bg-zinc-700" },
+                      ].map((t) => (
+                        <button
+                          key={t.value}
+                          onClick={() => { select("theme", t.value); setTheme(t.value); }}
+                          className={`flex items-center gap-2 p-3 rounded-xl border text-sm font-bold transition ${
+                            (settings.theme || theme) === t.value
+                              ? "border-white bg-zinc-800"
+                              : "border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/50"
+                          }`}
+                        >
+                          <span
+                            className={`w-4 h-4 rounded-full ${t.color} shrink-0`}
+                          />
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="font-semibold text-white text-sm">Papel de parede</p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        value={wallpaperUrl}
+                        onChange={(e) => setWallpaperUrl(e.target.value)}
+                        placeholder="https://...jpg"
+                        className="flex-1 bg-zinc-950 border border-zinc-800 focus:border-pink-500 rounded-xl px-3 py-2 text-sm text-white"
+                      />
+                      <label className="group cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-700 hover:border-pink-500 transition bg-zinc-900">
+                        <ImageIcon size={16} className="text-zinc-400 group-hover:text-pink-400" />
+                        <span className="text-xs text-zinc-300 group-hover:text-white">Galeria</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUpload(e, "wallpaper")} />
+                      </label>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-zinc-400">
+                      <input
+                        id="wp-enabled"
+                        type="checkbox"
+                        className="w-4 h-4"
+                        checked={wallpaperEnabled}
+                        onChange={(e) => setWallpaperEnabled(e.target.checked)}
+                      />
+                      <label htmlFor="wp-enabled">Exibir papel de parede (desligue em mobile se pesar)</label>
+                    </div>
+                    <div className="text-xs text-zinc-500 flex items-center gap-2">
+                      <ImageIcon size={14} /> Dica: use imagem 1920x1080 otimizada.
+                    </div>
                   </div>
                 </div>
                 <Toggle
@@ -741,11 +786,6 @@ export default function SettingsPage() {
                   label="Reproducao automatica"
                   desc="Inicia o proximo episodio automaticamente quando existir."
                   settingKey="autoplay"
-                />
-                <Toggle
-                  label="Retomar de onde parou"
-                  desc="Volta automaticamente para o ultimo ponto salvo."
-                  settingKey="resumePlayback"
                 />
                 <SelectField
                   label="Velocidade padrao"

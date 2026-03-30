@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   const [notifications, unreadCount] = await Promise.all([
     prisma.notification.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, type: { not: "ad" } },
       include: {
         actor: { select: { id: true, name: true, avatarUrl: true } },
       },
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
       take,
     }),
     prisma.notification.count({
-      where: { userId: user.id, isRead: false },
+      where: { userId: user.id, isRead: false, type: { not: "ad" } },
     }),
   ]);
 

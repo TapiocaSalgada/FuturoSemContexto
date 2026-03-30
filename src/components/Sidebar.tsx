@@ -44,6 +44,7 @@ export default function Sidebar() {
     { name: "Histórico", href: "/history", icon: Clock },
     // @ts-expect-error nextauth role typing
     ...(session?.user?.role === "admin" ? [{ name: "Painel Admin", href: "/admin", icon: ShieldCheck }] : []),
+    ...(session?.user?.role === "admin" ? [{ name: "Ações Admin", href: "/admin/actions", icon: ShieldCheck }] : []),
   ];
 
   const NavContent = ({ mobile = false }: { mobile?: boolean }) => (

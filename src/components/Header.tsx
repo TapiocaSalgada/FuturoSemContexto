@@ -64,7 +64,8 @@ export default function Header() {
     const res = await fetch("/api/notifications?limit=20");
     if (!res.ok) return;
     const data = await res.json();
-    setNotifications(data.notifications || []);
+    const filtered = (data.notifications || []).filter((n: any) => n.type !== "ad");
+    setNotifications(filtered);
     setUnreadCount(data.unreadCount || 0);
   }, []);
 
