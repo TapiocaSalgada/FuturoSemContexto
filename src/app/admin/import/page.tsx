@@ -48,7 +48,8 @@ export default function AnimeImportPage() {
     setLoading(true);
     setResults([]);
     try {
-      const res = await fetch(`https://api-anime-free.vercel.app/api/search?keyword=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/admin/proxy?endpoint=search&keyword=${encodeURIComponent(query)}`);
+      if (!res.ok) throw new Error("API Proxy Error");
       const data = await res.json();
       setResults(data || []);
       if (data.length === 0) showMsg("Nenhum resultado na API externa.", "err");
@@ -85,9 +86,9 @@ export default function AnimeImportPage() {
       const newAnime = await animeRes.json();
       const localAnimeId = newAnime.id;
 
-      // 2. Fetch Episodes from API
+      // 2. Fetch Episodes from Proxy
       setImportProgress(p => ({ ...p, status: "Buscando lista de episódios..." }));
-      const epsRes = await fetch(`https://api-anime-free.vercel.app/api/episodes?id=${item.id}`);
+      const epsRes = await fetch(`/api/admin/proxy?endpoint=episodes&id=${item.id}`);
       const epsData: KappaEpisode[] = await epsRes.json();
       
       if (!epsData || epsData.length === 0) {
@@ -104,8 +105,8 @@ export default function AnimeImportPage() {
         setImportProgress(p => ({ ...p, current: i + 1, status: `Processando Ep ${kappaEp.number}...` }));
 
         try {
-          // Get video URL
-          const videoRes = await fetch(`https://api-anime-free.vercel.app/api/episode-video?id=${kappaEp.id}`);
+          // Get video URL from Proxy
+          const videoRes = await fetch(`/api/admin/proxy?endpoint=episode-video&id=${kappaEp.id}`);
           const videoData = await videoRes.json();
 
           if (videoData && videoData.videoUrl) {
