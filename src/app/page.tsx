@@ -69,7 +69,7 @@ export default async function HomePage() {
         progressSec: true,
         updatedAt: true,
         episode: {
-          select: { id: true, number: true, season: true, thumbnailUrl: true, anime: { select: { id: true, title: true, coverImage: true } } },
+          select: { id: true, number: true, season: true, thumbnailUrl: true, anime: { select: { id: true, title: true, coverImage: true, bannerImage: true } } },
         },
       },
       take: 24,
@@ -117,7 +117,7 @@ export default async function HomePage() {
     if (!animeId) return items;
     if (items.some((item) => item.episode?.anime?.id === animeId)) return items;
     return [...items, history];
-  }, [] as typeof recentHistory);
+  }, [] as typeof recentHistory).slice(0, 5);
 
   // -- Resilience: Filter out broken/empty animes --
   const validAnimes = recentAnimes.filter(a => a.title && a.id);
@@ -178,12 +178,8 @@ export default async function HomePage() {
               <p className="text-zinc-300 text-sm lg:text-base line-clamp-3 max-w-xl">
                 {featured.description || "Seu proximo anime ja esta pronto para entrar em tela cheia."}
               </p>
-              <div className="flex items-center gap-4 text-sm font-bold mt-2">
-                <span className="text-green-500 drop-shadow-[0_0_8px_rgba(34,197,94,0.4)]">
-                  {featuredRelevance}% Relevante
-                </span>
-                <span className="text-zinc-400">TV</span>
-                <span className="text-zinc-400 px-1.5 py-0.5 border border-zinc-600 rounded text-[10px]">HD</span>
+              <div className="flex items-center gap-4 text-sm font-bold mt-2 text-zinc-400">
+                {/* Removed Relevante/TV/HD badges for cleaner hero */}
               </div>
               <div className="flex items-center gap-3 pt-2 w-full md:w-auto">
                 <Link prefetch={true}
@@ -227,7 +223,7 @@ export default async function HomePage() {
                     >
                       <div className="aspect-video rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 bg-zinc-900 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.3)]">
                         <Image
-                          src={history.episode?.thumbnailUrl || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                           src={history.episode?.thumbnailUrl || history.episode?.anime?.bannerImage || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
                           fill
                           sizes="(max-width: 768px) 170px, 210px"
                           className="object-cover opacity-70 group-hover:scale-105 transition duration-500"

@@ -23,11 +23,21 @@ export default async function HistoryPage() {
     include: {
       episode: {
         include: {
-          anime: { select: { id: true, title: true, coverImage: true } },
+          anime: { select: { id: true, title: true, coverImage: true, bannerImage: true } },
         },
       },
     },
   });
+
+  // Mostrar somente o item mais recente por anime
+  const uniqueHistory = Array.from(
+    history.reduce((map, item) => {
+      const animeId = item.episode?.anime?.id;
+      if (!animeId) return map;
+      if (!map.has(animeId)) map.set(animeId, item);
+      return map;
+    }, new Map<string, typeof history[number]>() ).values()
+  );
 
   return (
     <AppLayout>
@@ -40,7 +50,7 @@ export default async function HistoryPage() {
           <p className="text-zinc-500 text-sm mt-1">Todos os episódios que você assistiu, em ordem.</p>
         </div>
 
-        {history.length === 0 ? (
+        {uniqueHistory.length === 0 ? (
           <div className="text-center py-20 text-zinc-500">
             <Clock size={48} className="mx-auto mb-4 opacity-30" />
             <p className="font-bold">Seu histórico está vazio.</p>
@@ -51,14 +61,14 @@ export default async function HistoryPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {history.map((h) => {
+            {uniqueHistory.map((h) => {
               const anime = h.episode?.anime;
               const ep = h.episode;
               return (
                 <Link prefetch={true} key={h.id} href={`/watch/${ep?.id}`}
                   className="flex items-center gap-4 p-4 bg-zinc-900/60 hover:bg-zinc-800/80 border border-zinc-800 hover:border-pink-500 rounded-2xl transition-all duration-300 group hover:shadow-[0_0_20px_rgba(255,0,127,0.15)]">
-                  <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-xl overflow-hidden shrink-0 bg-zinc-800">
-                    <Image src={anime?.coverImage || "https://via.placeholder.com/300x200?text=?"} alt={anime?.title || "Capa"} fill sizes="(max-width: 768px) 100px, 150px" className="object-cover group-hover:scale-110 transition duration-500 opacity-90 group-hover:opacity-100" />
+                   <div className="relative w-24 h-14 sm:w-28 sm:h-16 rounded-xl overflow-hidden shrink-0 bg-zinc-800">
+                     <Image src={h.episode?.thumbnailUrl || anime?.bannerImage || anime?.coverImage || "https://via.placeholder.com/300x200?text=?"} alt={anime?.title || "Capa"} fill sizes="(max-width: 768px) 100px, 150px" className="object-cover group-hover:scale-110 transition duration-500 opacity-90 group-hover:opacity-100" />
                     <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-300" />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-300">
                        <div className="w-8 h-8 rounded-full bg-pink-500 text-white flex items-center justify-center shadow-[0_0_10px_rgba(255,0,127,0.8)]">

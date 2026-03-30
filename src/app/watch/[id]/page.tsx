@@ -313,14 +313,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           >
             <ArrowLeft size={16} /> Voltar para o anime
           </Link>
-          {data.nextEpisode && (
-            <Link prefetch={true}
-              href={`/watch/${data.nextEpisode.id}`}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-pink-600 hover:bg-pink-500 text-white font-bold transition"
-            >
-              Próximo Episódio <SkipForward size={16} />
-            </Link>
-          )}
         </div>
 
         {/* Mobile Top Nav Overlay (Visible only on mobile) */}
@@ -403,16 +395,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     className="absolute right-4 bottom-20 md:bottom-16 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-black font-black hover:bg-pink-500 hover:text-white transition shadow-lg z-30 opacity-90"
                   >
                     <FastForward size={16} /> Pular encerramento
-                  </button>
-                )}
-
-                {/* Next Episode Floating Button */}
-                {data.nextEpisode && (
-                  <button
-                    onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
-                    className="hidden md:inline-flex absolute right-4 top-4 items-center gap-2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-lg text-white font-bold hover:bg-pink-600 transition shadow-[0_0_20px_rgba(0,0,0,0.8)] z-40 border border-white/20 uppercase tracking-wider text-[10px] md:text-xs"
-                  >
-                    Próximo Episódio <SkipForward size={14} className="fill-current" />
                   </button>
                 )}
 
