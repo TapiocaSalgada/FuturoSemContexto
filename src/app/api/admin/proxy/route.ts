@@ -39,20 +39,35 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Invalid response format from API" }, { status: 502 });
     }
 
-    const data = await res.json();
+    let data = await res.json();
     
-    // Transform Search RESULTS from Object to Array (Kappa API quirk)
-    // Adding defensive fallbacks for title/image to avoid UI labels like 'API ID: ERROR'
-    if (endpoint === "search" && data && typeof data === "object" && !Array.isArray(data)) {
-        const list = Object.entries(data)
-          .filter(([id, val]: [string, any]) => val && id !== "null")
-          .map(([id, val]: [string, any]) => ({
-            id: id || "unknown",
-            title: val.title || "Título indisponível",
-            image: val.img || val.image || "https://img.freepik.com/premium-vector/photo-icon-with-picture-landscape-vector-isolated-white-background-eps-10_399089-2810.jpg",
-            url: val.url || "#"
-          }));
-        return NextResponse.json(list);
+    // Normalize Kappa API: unwrap { sucesso: true, dados: [...] } or { success: true, video_url: "..." }
+    const success = data?.sucesso || data?.success;
+    if (data && success) {
+        if (data.dados) data = data.dados;
+        // else if it has video_url it's already at top level with success
+    }
+
+    // Transform Search results if they come as a named object-map (OLD API legacy fallback)
+    if (endpoint === "search") {
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+            data = Object.entries(data)
+                .filter(([id, val]: [string, any]) => val && id !== "null")
+                .map(([id, val]: [string, any]) => ({
+                    id: id || "unknown",
+                    title: val.title || "Título indisponível",
+                    image: val.img || val.image || "https://img.freepik.com/premium-vector/photo-icon-with-picture-landscape-vector-isolated-white-background-eps-10_399089-2810.jpg",
+                    url: val.url || "#"
+                }));
+        } else if (Array.isArray(data)) {
+            // New API Array format - ensure id mapping is consistent
+            data = data.map((item: any) => ({
+                id: item.id || item.anime_id || "unknown",
+                title: item.title || item.nome || "Indisponível",
+                image: item.img || item.image || item.image_url || "https://img.freepik.com/premium-vector/photo-icon-with-picture-landscape-vector-isolated-white-background-eps-10_399089-2810.jpg",
+                url: item.url || "#"
+            }));
+        }
     }
 
     return NextResponse.json(data);
