@@ -14,7 +14,6 @@ import {
   UploadCloud,
   UserCircle,
   LogOut,
-  Image as ImageIcon,
   MessageCircle,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
@@ -134,7 +133,7 @@ export default function SettingsPage() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [showAvatarPresets, setShowAvatarPresets] = useState(false);
 
-  const { theme, setTheme, wallpaperUrl, setWallpaperUrl, wallpaperEnabled, setWallpaperEnabled } = useThemeStore();
+  const { theme, setTheme } = useThemeStore();
 
   useEffect(() => {
     const id = (session?.user as any)?.id;
@@ -149,7 +148,6 @@ export default function SettingsPage() {
           avatarUrl: profile.avatarUrl || "",
           bannerUrl: profile.bannerUrl || "",
         });
-        if (profile.wallpaperUrl) setWallpaperUrl(profile.wallpaperUrl);
       });
   }, [session]);
 
@@ -182,7 +180,7 @@ export default function SettingsPage() {
 
   const handleUpload = async (
     event: React.ChangeEvent<HTMLInputElement>,
-    field: "avatarUrl" | "bannerUrl" | "wallpaper",
+    field: "avatarUrl" | "bannerUrl",
   ) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -196,14 +194,9 @@ export default function SettingsPage() {
         body: formData,
       });
       const data = await response.json();
-      if (data.url) {
-        if (field === "wallpaper") {
-          setWallpaperUrl(data.url);
-          setWallpaperEnabled(true);
-        } else {
+        if (data.url) {
           setProfileForm((current) => ({ ...current, [field]: data.url }));
         }
-      }
     } finally {
       if (field === "avatarUrl") setAvatarUploading(false);
     }
@@ -712,36 +705,6 @@ export default function SettingsPage() {
                           {t.label}
                         </button>
                       ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="font-semibold text-white text-sm">Papel de parede</p>
-                    <div className="flex items-center gap-3">
-                      <input
-                        value={wallpaperUrl}
-                        onChange={(e) => setWallpaperUrl(e.target.value)}
-                        placeholder="https://...jpg"
-                        className="flex-1 bg-zinc-950 border border-zinc-800 focus:border-pink-500 rounded-xl px-3 py-2 text-sm text-white"
-                      />
-                      <label className="group cursor-pointer inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-700 hover:border-pink-500 transition bg-zinc-900">
-                        <ImageIcon size={16} className="text-zinc-400 group-hover:text-pink-400" />
-                        <span className="text-xs text-zinc-300 group-hover:text-white">Galeria</span>
-                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleUpload(e, "wallpaper")} />
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-zinc-400">
-                      <input
-                        id="wp-enabled"
-                        type="checkbox"
-                        className="w-4 h-4"
-                        checked={wallpaperEnabled}
-                        onChange={(e) => setWallpaperEnabled(e.target.checked)}
-                      />
-                      <label htmlFor="wp-enabled">Exibir papel de parede (desligue em mobile se pesar)</label>
-                    </div>
-                    <div className="text-xs text-zinc-500 flex items-center gap-2">
-                      <ImageIcon size={14} /> Dica: use imagem 1920x1080 otimizada.
                     </div>
                   </div>
                 </div>
