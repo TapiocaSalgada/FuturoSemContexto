@@ -10,6 +10,7 @@ import AppLayout from "@/components/AppLayout";
 import HomeCTA from "@/components/HomeCTA";
 import SuggestionButton from "@/components/SuggestionButton";
 import AnimeCard from "@/components/AnimeCard";
+import HorizontalCarousel from "@/components/HorizontalCarousel";
 
 export const dynamic = "force-dynamic";
 
@@ -179,7 +180,7 @@ export default async function HomePage() {
                 {featured.description || "Seu proximo anime ja esta pronto para entrar em tela cheia."}
               </p>
               <div className="flex items-center gap-4 text-sm font-bold mt-2 text-zinc-400">
-                {/* Removed Relevante/TV/HD badges for cleaner hero */}
+                {/* Info strip intentionally minimal */}
               </div>
               <div className="flex items-center gap-3 pt-2 w-full md:w-auto">
                 <Link prefetch={true}
@@ -211,7 +212,7 @@ export default async function HomePage() {
               <h2 className="text-lg font-black flex items-center gap-2 mb-5 border-l-4 border-pink-500 pl-4">
                 <Play size={18} className="text-pink-500" /> Continue Assistindo
               </h2>
-              <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x">
+              <HorizontalCarousel>
                 {continueWatching.map((history) => {
                   const anime = history.episode?.anime;
                   if (!anime || !history.episode) return null;
@@ -223,7 +224,7 @@ export default async function HomePage() {
                     >
                       <div className="aspect-video rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 bg-zinc-900 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.3)]">
                         <Image
-                           src={history.episode?.thumbnailUrl || history.episode?.anime?.bannerImage || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                          src={history.episode?.thumbnailUrl || history.episode?.anime?.bannerImage || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
                           fill
                           sizes="(max-width: 768px) 170px, 210px"
                           className="object-cover opacity-70 group-hover:scale-105 transition duration-500"
@@ -264,7 +265,7 @@ export default async function HomePage() {
                     </Link>
                   );
                 })}
-              </div>
+              </HorizontalCarousel>
             </section>
           )}
 
@@ -273,27 +274,28 @@ export default async function HomePage() {
               <h2 className="text-lg font-black flex items-center gap-2 mb-5 border-l-4 border-pink-500 pl-4">
                 <TrendingUp size={18} className="text-pink-500" /> Em Alta
               </h2>
-              <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x">
+              <HorizontalCarousel>
                 {trendingAnimes.map((episode, index) => (
-                  <AnimeCard
-                    key={episode.animeId}
-                    href={`/anime/${episode.animeId}`}
-                    title={episode.anime?.title || ""}
-                    image={episode.anime?.coverImage}
-                    className="w-[130px] lg:w-[160px]"
-                    badgeTopLeft={
-                      <div className="w-7 h-7 bg-pink-600 rounded-lg flex items-center justify-center text-xs font-black shadow-[0_0_10px_rgba(255,0,127,0.5)]">
-                        {index + 1}
-                      </div>
-                    }
-                    overlayText={
-                      <p className="text-[11px] text-zinc-300">
-                        T{episode.season} Ep {episode.number}
-                      </p>
-                    }
-                  />
+                  <div key={episode.animeId} className="snap-start shrink-0">
+                    <AnimeCard
+                      href={`/anime/${episode.animeId}`}
+                      title={episode.anime?.title || ""}
+                      image={episode.anime?.coverImage}
+                      className="w-[140px] lg:w-[170px]"
+                      badgeTopLeft={
+                        <div className="w-7 h-7 bg-pink-600 rounded-lg flex items-center justify-center text-xs font-black shadow-[0_0_10px_rgba(255,0,127,0.5)]">
+                          {index + 1}
+                        </div>
+                      }
+                      overlayText={
+                        <p className="text-[11px] text-zinc-300">
+                          T{episode.season} Ep {episode.number}
+                        </p>
+                      }
+                    />
+                  </div>
                 ))}
-              </div>
+              </HorizontalCarousel>
             </section>
           )}
 
@@ -309,21 +311,23 @@ export default async function HomePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
-                {validAnimes.slice(0, 12).map((anime) => (
-                  <AnimeCard
-                    key={anime.id}
-                    href={`/anime/${anime.id}`}
-                    title={anime.title || "Título Indisponível"}
-                    image={anime.coverImage}
-                    subTitle={
-                      <span className="flex items-center gap-2">
-                         {anime.status === "ongoing" ? "Em Lançamento" : "Finalizado"}
-                      </span>
-                    }
-                  />
+              <HorizontalCarousel>
+                {validAnimes.slice(0, 18).map((anime) => (
+                  <div key={anime.id} className="snap-start shrink-0">
+                    <AnimeCard
+                      href={`/anime/${anime.id}`}
+                      title={anime.title || "Título Indisponível"}
+                      image={anime.coverImage}
+                      className="w-[140px] sm:w-[160px] md:w-[180px]"
+                      subTitle={
+                        <span className="flex items-center gap-2">
+                           {anime.status === "ongoing" ? "Em Lançamento" : "Finalizado"}
+                        </span>
+                      }
+                    />
+                  </div>
                 ))}
-              </div>
+              </HorizontalCarousel>
             </section>
           )}
 
