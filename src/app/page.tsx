@@ -134,17 +134,20 @@ export default async function HomePage() {
       return visibility === "public" || isAdmin;
     })
     .slice(0, 5)
-    .map((item) => ({
-      ...item,
-      episode: {
-        ...item.episode,
-        thumbnailUrl:
-          item.episode?.thumbnailUrl ||
-          item.episode?.anime?.bannerImage ||
-          item.episode?.anime?.coverImage ||
-          "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80",
-      },
-    }));
+    .map((item) => {
+      if (!item || !item.episode) return item;
+      return {
+        ...item,
+        episode: {
+          ...(item.episode || {}),
+          thumbnailUrl:
+            item.episode?.thumbnailUrl ||
+            item.episode?.anime?.bannerImage ||
+            item.episode?.anime?.coverImage ||
+            "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80",
+        },
+      };
+    });
 
   // -- Resilience: Filter out broken/empty animes --
   const validAnimes = recentAnimes.filter(a => a.title && a.id);

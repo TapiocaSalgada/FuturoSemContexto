@@ -42,7 +42,8 @@ export default async function HistoryPage() {
       return map;
     }, new Map<string, typeof history[number]>()).values()
   ).filter((item) => {
-    const visibility = item.episode?.anime?.visibility;
+    if (!item || !item.episode || !item.episode.anime) return false;
+    const visibility = item.episode.anime.visibility;
     return visibility === "public" || isAdmin;
   });
 
