@@ -40,12 +40,13 @@ export async function GET(req: NextRequest) {
     }
 
     let data = await res.json();
-    
-    // Normalize Kappa API: unwrap { sucesso: true, dados: [...] } or { success: true, video_url: "..." }
+
+    // Normalize envelopes and field names used by the Kappa API
     const success = data?.sucesso || data?.success;
     if (data && success) {
-        if (data.dados) data = data.dados;
-        // else if it has video_url it's already at top level with success
+        if (Array.isArray(data.dados)) data = data.dados;
+        else if (Array.isArray(data.data)) data = data.data;
+        else if (data.video_url || data.videoUrl) data = { videoUrl: data.video_url || data.videoUrl };
     }
 
     // Transform Search results if they come as a named object-map (OLD API legacy fallback)
@@ -68,6 +69,33 @@ export async function GET(req: NextRequest) {
                 url: item.url || "#"
             }));
         }
+    }
+
+    // Normalize episodes payload (API returns { success, data: [...] })
+    if (endpoint === "episodes") {
+        if (!Array.isArray(data)) {
+            return NextResponse.json({ error: "Invalid episodes payload from API" }, { status: 502 });
+        }
+
+        data = data.map((item: any, idx: number) => {
+            const number = Number(item.episodio || item.number || item.episode || idx + 1);
+            return {
+                id: item.id || item.episode_id || item.episodio_id || `ep-${idx}`,
+                number: Number.isFinite(number) ? number : idx + 1,
+                title: item.episode_name || item.title || `Episódio ${item.episodio || idx + 1}`,
+                link: item.link || item.url || null,
+                thumbnail: item.imagem || item.image || null,
+            };
+        });
+    }
+
+    // Normalize episode video payload (expects { videoUrl })
+    if (endpoint === "episode-video") {
+        const videoUrl = data?.videoUrl || data?.video_url;
+        if (!videoUrl) {
+            return NextResponse.json({ error: "Video URL not found in API response" }, { status: 502 });
+        }
+        data = { videoUrl };
     }
 
     return NextResponse.json(data);
