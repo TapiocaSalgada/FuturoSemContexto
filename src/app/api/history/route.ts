@@ -33,7 +33,22 @@ export async function GET(req: Request) {
       });
       return NextResponse.json(history || { episodeId: null });
     }
-    return NextResponse.json([]);
+    const list = await prisma.watchHistory.findMany({
+      where: {
+        userId: user.id,
+        ...(isAdmin ? {} : { episode: { anime: { visibility: "public" } } }),
+      },
+      orderBy: { updatedAt: "desc" },
+      include: {
+        episode: {
+          include: {
+            anime: { select: { id: true, title: true, coverImage: true, bannerImage: true, visibility: true } },
+          },
+        },
+      },
+      take: 100,
+    });
+    return NextResponse.json(list);
   } catch (error) {
     return new NextResponse("Internal Error", { status: 500 });
   }
