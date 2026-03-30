@@ -11,13 +11,23 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!isAdmin(session)) return new NextResponse("Unauthorized", { status: 401 });
-    const { title, description, coverImage, bannerImage, status } = await req.json();
+    const { title, description, coverImage, bannerImage, status, visibility } = await req.json();
+    if (!title) return new NextResponse("Título obrigatório.", { status: 400 });
 
     // Prevent duplicates
     const existing = await prisma.anime.findFirst({ where: { title: { equals: title, mode: "insensitive" } } });
     if (existing) return new NextResponse("Anime já existe no catálogo.", { status: 409 });
 
-    const anime = await prisma.anime.create({ data: { title, description, coverImage, bannerImage, status: status || "ongoing", visibility: "public" } });
+    const anime = await prisma.anime.create({ 
+      data: { 
+        title, 
+        description, 
+        coverImage, 
+        bannerImage, 
+        status: status || "ongoing", 
+        visibility: visibility || "admin_only"
+      } 
+    });
     return NextResponse.json(anime);
   } catch (error) {
     console.error("Anime Creation Error", error);

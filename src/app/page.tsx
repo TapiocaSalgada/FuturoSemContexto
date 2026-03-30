@@ -119,14 +119,16 @@ export default async function HomePage() {
     return [...items, history];
   }, [] as typeof recentHistory);
 
-  const featured = recentAnimes[0];
+  // -- Resilience: Filter out broken/empty animes --
+  const validAnimes = recentAnimes.filter(a => a.title && a.id);
+  const featured = validAnimes[0];
   
   let featuredRelevance = 98;
   if (featured && (featured as any).ratings && (featured as any).ratings.length > 0) {
     const rArray = (featured as any).ratings;
     const avg = rArray.reduce((acc: number, r: { rating: number }) => acc + r.rating, 0) / rArray.length;
     featuredRelevance = Math.max(10, Math.round((avg / 5) * 100));
-  } else if (featured) {
+  } else if (featured?.title) {
     featuredRelevance = 80 + (featured.title.length % 20);
   }
 
@@ -147,16 +149,18 @@ export default async function HomePage() {
                 fill
                 priority
                 className="hidden md:block object-cover opacity-60 scale-105 transition-transform duration-700"
-                alt={featured.title}
+                alt={featured.title || "Destaque"}
               />
-              {/* Mobile Cover (Portrait) */}
-              <Image
-                src={featured.coverImage || featured.bannerImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
-                fill
-                priority
-                className="md:hidden object-cover opacity-70 scale-105 transition-transform duration-700"
-                alt={featured.title}
-              />
+              {/* Mobile Banner Fallback */}
+              <div className="absolute inset-0 z-0 block md:hidden">
+                <Image
+                  src={featured.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
+                  fill
+                  priority
+                  className="object-cover opacity-60"
+                  alt={featured.title || "Destaque"}
+                />
+              </div>
               <div className="absolute inset-0 bg-gradient-to-t from-[#060606] via-[#060606]/70 to-transparent" />
               <div className="absolute inset-0 bg-gradient-to-r from-[#060606] via-[#060606]/40 to-transparent" />
               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(6,6,6,0.88)_100%)]" />
@@ -297,26 +301,30 @@ export default async function HomePage() {
             </section>
           )}
 
-          {recentAnimes.length > 0 && (
+          {/* Seção Recentes */}
+          {validAnimes.length > 0 && (
             <section className="animate-fadeInUp delay-200">
-              <h2 className="text-lg font-black flex items-center gap-2 mb-5 border-l-4 border-pink-500 pl-4">
-                <Clock size={18} className="text-pink-500" /> Adicionados Recentemente
-              </h2>
-              <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide snap-x">
-                {recentAnimes.map((anime) => (
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-8 bg-pink-500 rounded-full shadow-[0_0_15px_rgba(255,0,127,0.5)]" />
+                  <h3 className="text-2xl font-black italic tracking-tighter text-white uppercase">
+                    Adicionados recentemente
+                  </h3>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                {validAnimes.slice(0, 12).map((anime) => (
                   <AnimeCard
                     key={anime.id}
                     href={`/anime/${anime.id}`}
-                    title={anime.title}
+                    title={anime.title || "Título Indisponível"}
                     image={anime.coverImage}
-                    className="w-[130px] lg:w-[160px]"
-                    overlayText={
-                      <div className="flex items-center gap-1">
-                        <Heart size={10} className="text-pink-400 fill-pink-400" />
-                        <span className="text-xs text-zinc-400">Novo Episódio</span>
-                      </div>
+                    subTitle={
+                      <span className="flex items-center gap-2">
+                         {anime.status === "ongoing" ? "Em Lançamento" : "Finalizado"}
+                      </span>
                     }
-                    subTitle={anime.title}
                   />
                 ))}
               </div>
