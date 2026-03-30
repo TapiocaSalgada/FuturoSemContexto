@@ -19,7 +19,10 @@ export default async function HistoryPage() {
   const isAdmin = (session.user as any)?.role === "admin";
 
   const history = await prisma.watchHistory.findMany({
-    where: { userId },
+    where: {
+      userId,
+      ...(isAdmin ? {} : { episode: { anime: { visibility: "public" } } }),
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       episode: {

@@ -4,7 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
-import { Play, ArrowLeft, Heart, MessageSquare, Send, CornerDownRight, Edit3, Trash2, Check, X, FolderOpen, ChevronDown, Star } from "lucide-react";
+import { Play, ArrowLeft, Heart, MessageSquare, Send, CornerDownRight, Edit3, Trash2, Check, X, FolderOpen, ChevronDown, Star, Loader2, Clock3 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -122,6 +122,9 @@ export default function AnimePageClient() {
     average: null, total: 0, userRating: null,
   });
   const [ratingHover, setRatingHover] = useState(0);
+  const [isWatchLater, setIsWatchLater] = useState(false);
+  const [watchLaterFolderId, setWatchLaterFolderId] = useState<string | null>(null);
+  const [watchLaterLoading, setWatchLaterLoading] = useState(false);
 
   const handleRate = async (star: number) => {
     if (!id || !session) return;
@@ -141,31 +144,43 @@ export default function AnimePageClient() {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/ratings?animeId=${id}`).then(r => r.json()).then(setRatingData).catch(() => {});
-  }, [id]);
+    const abort = new AbortController();
 
-  useEffect(() => {
-    if (!id) return;
-    fetch(`/api/anime/${id}`).then(r => r.json()).then((a: Anime) => {
+    fetch(`/api/ratings?animeId=${id}`, { signal: abort.signal }).then(r => r.json()).then(setRatingData).catch(() => {});
+
+    fetch(`/api/anime/${id}`, { signal: abort.signal }).then(r => r.json()).then((a: Anime) => {
       setAnime(a);
-      // Group episodes by season
       const grouped: Record<number, Anime["episodes"]> = {};
       a.episodes.forEach(ep => {
         if (!grouped[ep.season]) grouped[ep.season] = [];
         grouped[ep.season].push(ep);
       });
       setGroupedEps(grouped as any);
-    });
+    }).catch(() => {});
+
     loadComments();
     if (session) {
-      fetch("/api/favorites").then(r => r.json()).then((favs: { animeId: string }[]) => {
-        setIsFavorited(favs.some(f => f.animeId === id));
-      });
-      fetch("/api/favorites/folders").then(r => r.json()).then(setFolders);
-      fetch(`/api/history?animeId=${id}`).then(r => r.json()).then(data => {
-        if (data?.episodeId) setLastWatchedEpId(data.episodeId);
-      }).catch(() => {});
+      (async () => {
+        const [favs, foldersRes, historyRes] = await Promise.all([
+          fetch("/api/favorites", { signal: abort.signal }).then(r => r.json()).catch(() => []),
+          fetch("/api/favorites/folders", { signal: abort.signal }).then(r => r.json()).catch(() => []),
+          fetch(`/api/history?animeId=${id}`, { signal: abort.signal }).then(r => r.json()).catch(() => null),
+        ]);
+
+        setIsFavorited(Array.isArray(favs) && favs.some((f: any) => f.animeId === id));
+        const foldersArr = Array.isArray(foldersRes) ? foldersRes : [];
+        setFolders(foldersArr);
+        const watchFolder = foldersArr.find((f: any) => f.name?.toLowerCase() === "assistir depois" || f.name?.toLowerCase() === "watch later");
+        if (watchFolder) {
+          const wl = (Array.isArray(favs) ? favs : []).find((f: any) => f.animeId === id && f.favoriteFolderId === watchFolder.id);
+          if (wl) setIsWatchLater(true);
+          setWatchLaterFolderId(watchFolder.id);
+        }
+        if (historyRes?.episodeId) setLastWatchedEpId(historyRes.episodeId);
+      })();
     }
+
+    return () => abort.abort();
   }, [id, session, loadComments]);
 
   const handleFavorite = async () => {
@@ -184,6 +199,41 @@ export default function AnimePageClient() {
     const data = await res.json();
     setIsFavorited(data.favorited);
     setShowFolderPicker(false);
+  };
+
+  const handleWatchLater = async () => {
+    if (!session) return;
+    setWatchLaterLoading(true);
+    try {
+      let folderId = watchLaterFolderId;
+      if (!folderId) {
+        const resCreate = await fetch("/api/favorites/folders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Assistir depois", isPrivate: true }),
+        });
+        if (resCreate.ok) {
+          const folder = await resCreate.json();
+          folderId = folder.id;
+          setWatchLaterFolderId(folder.id);
+          setFolders((prev) => [...prev, folder]);
+        }
+      }
+
+      const res = await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ animeId: id, folderId: folderId || null }),
+      });
+      const data = await res.json();
+      if (data.favorited) {
+        setIsWatchLater(true);
+      } else {
+        setIsWatchLater(false);
+      }
+    } finally {
+      setWatchLaterLoading(false);
+    }
   };
 
   const handleComment = async (e: React.FormEvent) => {
@@ -255,34 +305,44 @@ export default function AnimePageClient() {
               <img src={anime.coverImage || ""} alt={anime.title} className="w-full h-auto object-cover" />
             </div>
             <div className="pt-6 md:pt-12 flex-1">
-              <div className="flex flex-wrap gap-2 mb-3">
-                {anime.categories.map(c => (
-                  <span key={c.id} className="bg-pink-500/10 text-pink-400 border border-pink-500/20 px-3 py-0.5 rounded-full text-xs font-bold uppercase">{c.name}</span>
-                ))}
-                <span className={`px-3 py-0.5 rounded-full text-xs font-bold border ${anime.status === "completed" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"}`}>
-                  {anime.status === "ongoing" ? "Em Andamento" : "Completo"}
-                </span>
-              </div>
-              <h1 className="text-3xl lg:text-5xl font-black text-white">{anime.title}</h1>
-              <p className="mt-4 text-zinc-300 leading-relaxed max-w-2xl text-sm lg:text-base">{anime.description || "Nenhuma sinopse disponível."}</p>
-              <div className="flex items-center gap-3 mt-6 flex-wrap">
-                {anime.episodes.length > 0 && (() => {
-                  const lastWatchedEp = anime.episodes.find(e => e.id === lastWatchedEpId);
-                  return (
-                    <Link prefetch={true} href={`/watch/${lastWatchedEpId || anime.episodes[0]?.id}`}
-                      className="flex items-center gap-2 bg-white text-black font-black px-6 py-2.5 rounded-xl hover:bg-pink-500 hover:text-white transition shadow-lg hover:shadow-[0_0_20px_rgba(255,0,127,0.4)] text-sm">
-                      <Play fill="currentColor" size={16} /> {lastWatchedEp ? `Continuar Ep ${lastWatchedEp.number}` : "Assistir"}
-                    </Link>
-                  );
-                })()}
-                {session && (
-                  <button onClick={handleFavorite}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition border ${isFavorited ? "bg-pink-500/20 border-pink-500 text-pink-400 hover:bg-pink-500/30" : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:border-pink-500 hover:text-pink-400"}`}>
-                    <Heart size={16} className={isFavorited ? "fill-pink-400" : ""} />
-                    {isFavorited ? "Minha Lista" : "P/ Lista"}
-                  </button>
-                )}
-              </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {anime.categories.map(c => (
+                    <span key={c.id} className="bg-pink-500/10 text-pink-400 border border-pink-500/20 px-3 py-0.5 rounded-full text-xs font-bold uppercase">{c.name}</span>
+                  ))}
+                  <span className={`px-3 py-0.5 rounded-full text-xs font-bold border ${anime.status === "completed" ? "bg-green-500/10 text-green-400 border-green-500/20" : "bg-blue-500/10 text-blue-400 border-blue-500/20"}`}>
+                    {anime.status === "ongoing" ? "Em Andamento" : "Completo"}
+                  </span>
+                </div>
+                <h1 className="text-3xl lg:text-5xl font-black text-white">{anime.title}</h1>
+                <p className="mt-4 text-zinc-300 leading-relaxed max-w-2xl text-sm lg:text-base">{anime.description || "Nenhuma sinopse disponível."}</p>
+                <div className="flex items-center gap-3 mt-6 flex-wrap">
+                  {anime.episodes.length > 0 && (() => {
+                    const lastWatchedEp = anime.episodes.find(e => e.id === lastWatchedEpId);
+                    return (
+                      <Link prefetch={true} href={`/watch/${lastWatchedEpId || anime.episodes[0]?.id}`}
+                        className="flex items-center gap-2 bg-white text-black font-black px-6 py-2.5 rounded-xl hover:bg-pink-500 hover:text-white transition shadow-lg hover:shadow-[0_0_20px_rgba(255,0,127,0.4)] text-sm">
+                        <Play fill="currentColor" size={16} /> {lastWatchedEp ? `Continuar Ep ${lastWatchedEp.number}` : "Assistir"}
+                      </Link>
+                    );
+                  })()}
+                  {session && (
+                    <button onClick={handleFavorite}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition border ${isFavorited ? "bg-pink-500/20 border-pink-500 text-pink-400 hover:bg-pink-500/30" : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:border-pink-500 hover:text-pink-400"}`}>
+                      <Heart size={16} className={isFavorited ? "fill-pink-400" : ""} />
+                      {isFavorited ? "Minha Lista" : "P/ Lista"}
+                    </button>
+                  )}
+                  {session && (
+                    <button
+                      onClick={handleWatchLater}
+                      disabled={watchLaterLoading}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition border ${isWatchLater ? "bg-emerald-500/20 border-emerald-400 text-emerald-200" : "bg-zinc-800/80 border-zinc-700 text-zinc-300 hover:border-emerald-400 hover:text-emerald-200"}`}
+                    >
+                      {watchLaterLoading ? <Loader2 size={16} className="animate-spin" /> : <Clock3 size={16} />}
+                      {isWatchLater ? "Na fila (Assistir depois)" : "Assistir depois"}
+                    </button>
+                  )}
+                </div>
 
               {/* ── Star Rating (Visible a todos; interação só logado) ── */}
               <div className="mt-8 pt-6 border-t border-white/5 w-full max-w-sm">

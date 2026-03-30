@@ -29,6 +29,13 @@ export default function AnimeImportPage() {
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0, status: "" });
   const [msg, setMsg] = useState({ text: "", type: "ok" });
+  const [slug, setSlug] = useState("");
+  const [sugoiSeason, setSugoiSeason] = useState("1");
+  const [sugoiEpisode, setSugoiEpisode] = useState("1");
+  const [sugoiLoading, setSugoiLoading] = useState(false);
+  const [sugoiSources, setSugoiSources] = useState<{ provider: string; url: string; isEmbed: boolean; hasAds: boolean; searchedEndpoint?: string }[]>([]);
+  const [anisBrLoading, setAnisBrLoading] = useState(false);
+  const [combinedResults, setCombinedResults] = useState<(KappaAnime & { source: string })[]>([]);
 
   useEffect(() => {
     // @ts-expect-error role
@@ -47,16 +54,52 @@ export default function AnimeImportPage() {
     if (!query.trim()) return;
     setLoading(true);
     setResults([]);
+    setCombinedResults([]);
     try {
-      const res = await fetch(`/api/admin/proxy?endpoint=search&keyword=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setResults(data || []);
-      if (data.length === 0) showMsg("Nenhum resultado na API externa.", "err");
+      setAnisBrLoading(true);
+      const kappaPromise = fetch(`/api/admin/proxy?endpoint=search&keyword=${encodeURIComponent(query)}`).then(r => r.json());
+      const anisPromise = fetch(`/api/admin/anisbr?name=${encodeURIComponent(query)}`).then(r => r.json()).catch(() => []);
+
+      const [kappaData, anisData] = await Promise.all([kappaPromise, anisPromise]);
+
+      if (kappaData?.error) throw new Error(kappaData.error);
+
+      const kappaList = Array.isArray(kappaData) ? kappaData : [];
+      const kappaClean = kappaList.filter((item) => item?.title && item?.id).map((i: any) => ({ ...i, source: "Kappa" }));
+
+      const anisList = Array.isArray(anisData) ? anisData : [];
+      const anisClean = anisList.filter((item) => item?.title && item?.id).map((i: any) => ({ ...i, source: "AnimesBrasil" }));
+
+      setResults(kappaClean as any);
+      const combined = [...kappaClean, ...anisClean];
+      setCombinedResults(combined);
+
+      if (combined.length === 0) showMsg("Nenhum resultado válido nas fontes externas.", "err");
     } catch (error: any) {
       showMsg(error.message || "Erro ao buscar na API externa.", "err");
     } finally {
       setLoading(false);
+      setAnisBrLoading(false);
+    }
+  };
+
+  const fetchSugoi = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!slug.trim() || !sugoiEpisode.trim()) return;
+    setSugoiLoading(true);
+    setSugoiSources([]);
+    try {
+      const res = await fetch(`/api/admin/sugoi?slug=${encodeURIComponent(slug)}&season=${encodeURIComponent(sugoiSeason)}&episode=${encodeURIComponent(sugoiEpisode)}`);
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Falha na SugoiAPI");
+      const sources = Array.isArray(data.sources) ? data.sources : [];
+      setSugoiSources(sources);
+      showMsg(`Sugoi: ${sources.length} fontes encontradas.`, "ok");
+    } catch (err: any) {
+      setSugoiSources([]);
+      showMsg(err.message || "Erro ao consultar SugoiAPI", "err");
+    } finally {
+      setSugoiLoading(false);
     }
   };
 
@@ -216,10 +259,10 @@ export default function AnimeImportPage() {
           </div>
         )}
 
-        {/* Results Grid */}
+        {/* Results Grid combinado (Kappa + AnimesBrasil) */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {results.map((item) => (
-            <div key={item.id} className="group relative bg-zinc-900/60 border border-zinc-800 rounded-3xl overflow-hidden hover:border-pink-500 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,127,0.15)] hover:-translate-y-1">
+          {combinedResults.map((item) => (
+            <div key={`${item.source}-${item.id}`} className="group relative bg-zinc-900/60 border border-zinc-800 rounded-3xl overflow-hidden hover:border-pink-500 transition-all duration-300 hover:shadow-[0_0_30px_rgba(255,0,127,0.15)] hover:-translate-y-1">
               <div className="aspect-[3/4] relative">
                 <img src={item.image} alt={item.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-110 group-hover:opacity-40" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-60" />
@@ -233,9 +276,11 @@ export default function AnimeImportPage() {
                   >
                     <Download size={16} /> IMPORTAR
                   </button>
-                  <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs text-white/70 hover:text-white transition flex items-center gap-1 font-bold bg-black/40 px-3 py-1.5 rounded-lg backdrop-blur-md">
-                    VER ORIGINAL <ExternalLink size={12} />
-                  </a>
+                  {item.url && (
+                    <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-xs text-white/70 hover:text-white transition flex items-center gap-1 font-bold bg-black/40 px-3 py-1.5 rounded-lg backdrop-blur-md">
+                      VER ORIGINAL <ExternalLink size={12} />
+                    </a>
+                  )}
                 </div>
               </div>
               <div className="p-4">
@@ -254,6 +299,36 @@ export default function AnimeImportPage() {
              <p className="text-zinc-500 font-medium">Digite o nome de um anime para buscar na API.</p>
           </div>
         )}
+
+        {/* SugoiAPI (Slug) */}
+        <section className="bg-zinc-900/40 border border-zinc-800 rounded-3xl p-6 lg:p-8 space-y-4 animate-fadeInUp">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="text-xl font-black text-white flex items-center gap-2">SugoiAPI (slug / temporada / episódio)</h2>
+            <p className="text-xs text-zinc-500">Use quando souber o slug exato (ex: naruto, one-piece)</p>
+          </div>
+          <form onSubmit={fetchSugoi} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="slug (ex: naruto)" className="bg-zinc-950 border border-zinc-800 focus:border-pink-500 rounded-2xl px-4 py-3 text-white" />
+            <input value={sugoiSeason} onChange={(e) => setSugoiSeason(e.target.value)} placeholder="Temporada (default 1)" className="bg-zinc-950 border border-zinc-800 focus:border-pink-500 rounded-2xl px-4 py-3 text-white" />
+            <input value={sugoiEpisode} onChange={(e) => setSugoiEpisode(e.target.value)} placeholder="Episódio" className="bg-zinc-950 border border-zinc-800 focus:border-pink-500 rounded-2xl px-4 py-3 text-white" />
+            <button disabled={sugoiLoading} type="submit" className="bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white font-black px-6 rounded-2xl transition shadow-[0_0_20px_rgba(255,0,127,0.3)] flex items-center justify-center gap-2">
+              {sugoiLoading ? <Loader2 className="animate-spin" size={18} /> : "Consultar"}
+            </button>
+          </form>
+          {sugoiSources.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {sugoiSources.map((src, idx) => (
+                <div key={`${src.provider}-${idx}`} className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-sm text-white space-y-1">
+                  <p className="font-bold text-pink-400">{src.provider}</p>
+                  <p className="text-xs text-zinc-400">{src.isEmbed ? "Embed" : "MP4"} • {src.hasAds ? "Com anúncios" : "Sem anúncios"}</p>
+                  {src.searchedEndpoint && <p className="text-[11px] text-zinc-500 break-all">{src.searchedEndpoint}</p>}
+                  <div className="mt-2">
+                    <a href={src.url} target="_blank" rel="noreferrer" className="text-xs break-all underline text-white">{src.url}</a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </AppLayout>
   );

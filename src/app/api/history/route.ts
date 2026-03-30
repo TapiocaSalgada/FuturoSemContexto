@@ -17,10 +17,17 @@ export async function GET(req: Request) {
     
     const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
     if (!user) return new NextResponse("User not found", { status: 404 });
+    const isAdmin = (session.user as any)?.role === "admin";
 
     if (animeId) {
       const history = await prisma.watchHistory.findFirst({
-        where: { userId: user.id, episode: { animeId } },
+        where: {
+          userId: user.id,
+          episode: {
+            animeId,
+            ...(isAdmin ? {} : { anime: { visibility: "public" } }),
+          },
+        },
         orderBy: { updatedAt: "desc" },
         select: { episodeId: true }
       });

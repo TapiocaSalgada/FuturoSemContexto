@@ -13,6 +13,7 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
+    const isAdmin = (session?.user as any)?.role === "admin";
 
     const anime = await prisma.anime.findUnique({
       where: { id: params.id },
@@ -55,6 +56,10 @@ export async function GET(
       return new NextResponse("Not found", { status: 404 });
     }
 
+    if (!isAdmin && animeData.visibility === "admin_only") {
+      return new NextResponse("Not found", { status: 404 });
+    }
+
     const playlist = (animeData.episodes || []).slice().sort((a, b) => {
       if (a.season !== b.season) return a.season - b.season;
       return a.number - b.number;
@@ -68,10 +73,45 @@ export async function GET(
       currentIndex >= 0 ? playlist[currentIndex + 1] || null : null;
     const prevEpisode =
       currentIndex > 0 ? playlist[currentIndex - 1] || null : null;
-    const sourceType = detectVideoSource(
-      currentEpisode?.videoUrl,
+    let resolvedVideoUrl = currentEpisode?.videoUrl;
+    let resolvedSourceType = detectVideoSource(
+      resolvedVideoUrl,
       currentEpisode?.sourceType,
     );
+    const sources: { label: string; url: string; type: string }[] = [];
+    if (resolvedVideoUrl) {
+      sources.push({ label: "Principal", url: resolvedVideoUrl, type: resolvedSourceType });
+    }
+
+    // Sugoi fallback: se não houver videoUrl e sourceLabel começar com "sugoi:slug[:season]"
+    if (!resolvedVideoUrl && currentEpisode?.sourceLabel?.startsWith("sugoi:")) {
+      const parts = currentEpisode.sourceLabel.split(":");
+      const slug = parts[1];
+      const season = parts[2] || "1";
+      if (slug) {
+        const baseUrl = (process.env.SUGOI_API_BASE || "https://sugoiapi.vercel.app").replace(/\/$/, "");
+        const sugoiUrl = `${baseUrl}/episode/${slug}/${season}/${currentEpisode.number}`;
+        try {
+          const r = await fetch(sugoiUrl, { headers: { accept: "application/json" } });
+          const j = await r.json();
+          const providers = Array.isArray(j?.data) ? j.data : [];
+          const sources = providers.flatMap((provider: any) => {
+            const eps = Array.isArray(provider?.episodes) ? provider.episodes : [];
+            return eps
+              .filter((ep: any) => ep && ep.episode)
+              .map((ep: any) => ({ url: ep.episode as string, isEmbed: !!provider.is_embed }));
+          });
+          const primary = sources.find((s) => !s.isEmbed) || sources[0];
+          if (primary?.url) {
+            resolvedVideoUrl = primary.url;
+            resolvedSourceType = detectVideoSource(primary.url, primary.isEmbed ? "embed" : "direct");
+            sources.push({ label: "Sugoi", url: primary.url, type: resolvedSourceType });
+          }
+        } catch (err) {
+          // fallback silencioso para evitar quebra no watch
+        }
+      }
+    }
 
     let history = null;
     let viewerSettings = normalizeSettings();
@@ -111,22 +151,23 @@ export async function GET(
       anime: animeData,
       episode: currentEpisode,
       episodeId: currentEpisode.id,
-      videoToPlay: currentEpisode.videoUrl || "",
+      videoToPlay: resolvedVideoUrl || "",
       embedUrl: toEmbeddableVideoUrl(
-        currentEpisode.videoUrl,
-        currentEpisode.sourceType,
+        resolvedVideoUrl,
+        resolvedSourceType,
       ),
+      sources,
       epTitle: `Episodio ${currentEpisode.number} - ${currentEpisode.title}`,
       playlist,
       nextEpisode,
       prevEpisode,
       history:
-        viewerSettings.resumePlayback && sourceType === "direct"
+        viewerSettings.resumePlayback && resolvedSourceType === "direct"
           ? history
           : null,
       viewerSettings,
-      sourceType,
-      isDirectSource: sourceType === "direct",
+      sourceType: resolvedSourceType,
+      isDirectSource: resolvedSourceType === "direct",
     });
   } catch (error) {
     return new NextResponse("Internal Error", { status: 500 });

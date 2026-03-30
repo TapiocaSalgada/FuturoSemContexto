@@ -63,15 +63,23 @@ export default async function HomePage() {
   
   if (session?.user && (session.user as any).id) {
     const userId = (session.user as any).id;
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
     recentHistory = await prisma.watchHistory.findMany({
-      where: { userId: userId, progressSec: { gt: 0 } },
+      where: {
+        userId: userId,
+        progressSec: { gt: 0 },
+        updatedAt: { gte: sixtyDaysAgo },
+        ...(isAdmin ? {} : { episode: { anime: { visibility: "public" } } }),
+      },
       orderBy: { updatedAt: "desc" },
       select: {
         id: true,
         progressSec: true,
         updatedAt: true,
         episode: {
-          select: { id: true, number: true, season: true, thumbnailUrl: true, anime: { select: { id: true, title: true, coverImage: true, bannerImage: true } } },
+          select: { id: true, number: true, season: true, thumbnailUrl: true, anime: { select: { id: true, title: true, coverImage: true, bannerImage: true, visibility: true } } },
         },
       },
       take: 24,
@@ -150,7 +158,7 @@ export default async function HomePage() {
     <AppLayout>
       <div className="pb-24">
         {featured ? (
-          <section className="relative w-full min-h-[75vh] lg:min-h-[85vh] flex flex-col justify-end p-6 lg:p-14 overflow-hidden">
+          <section className="relative w-full min-h-[65vh] lg:min-h-[85vh] flex flex-col justify-end p-6 lg:p-14 overflow-hidden">
             <div className="absolute inset-0 z-0">
               <Image
                 src={featured.bannerImage || featured.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}

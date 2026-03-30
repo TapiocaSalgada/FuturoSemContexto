@@ -677,13 +677,13 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { value: "pink", label: "Rosa Neon", color: "bg-pink-600" },
-                      {
-                        value: "galactic",
-                        label: "Roxo Galactic",
-                        color: "bg-purple-600",
-                      },
+                      { value: "galactic", label: "Roxo Galactic", color: "bg-purple-600" },
                       { value: "ocean", label: "Azul Oceano", color: "bg-sky-600" },
                       { value: "matrix", label: "Verde Matrix", color: "bg-green-600" },
+                      { value: "sunset", label: "Sunset Laranja", color: "bg-orange-500" },
+                      { value: "midnight", label: "Midnight Blue", color: "bg-indigo-700" },
+                      { value: "mint", label: "Mint Fresh", color: "bg-emerald-500" },
+                      { value: "carbon", label: "Carbono", color: "bg-zinc-700" },
                     ].map((theme) => (
                       <button
                         key={theme.value}

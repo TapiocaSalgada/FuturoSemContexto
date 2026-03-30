@@ -51,6 +51,7 @@ type WatchPayload = {
   };
   sourceType: string;
   isDirectSource: boolean;
+  sources?: { label?: string; url: string; type: string }[];
 };
 
 function formatSeasonLabel(episode: EpisodeItem) {
@@ -89,6 +90,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [showSkipOutro, setShowSkipOutro] = useState(false);
   const [autoplayCountdown, setAutoplayCountdown] = useState<number | null>(null);
+  const [pipSupported, setPipSupported] = useState(false);
+  const [prefetchedNext, setPrefetchedNext] = useState(false);
+  const [currentSource, setCurrentSource] = useState<{ url: string; type: string }>({ url: "", type: "direct" });
   const AUTOPLAY_SECONDS = 10;
 
   useEffect(() => {
@@ -99,10 +103,15 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     setShowSkipOutro(false);
     clearInterval(autoplayTimeout.current);
 
+    setPipSupported(typeof document !== "undefined" && !!(document as any).pictureInPictureEnabled);
+
     fetch(`/api/watch/${params.id}`)
       .then((r) => r.json())
       .then((payload) => {
         setData(payload);
+        if (payload?.videoToPlay) {
+          setCurrentSource({ url: payload.videoToPlay, type: payload.sourceType });
+        }
         setLoading(false);
 
         // --- HACK PARA IFRAMES (GOOGLE DRIVE, ETC) ---
@@ -121,6 +130,32 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
     return () => clearInterval(autoplayTimeout.current);
   }, [params.id]);
+
+  useEffect(() => {
+    if (data?.videoToPlay) {
+      setCurrentSource({ url: data.videoToPlay, type: data.sourceType });
+    }
+  }, [data?.videoToPlay, data?.sourceType]);
+
+  // Prefetch next episode source when available and direct
+  useEffect(() => {
+    if (!data?.nextEpisode || prefetchedNext) return;
+    // Simple prefetch: create link rel=prefetch for next watch page (server will load video)
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.href = `/watch/${data.nextEpisode.id}`;
+    document.head.appendChild(link);
+    setPrefetchedNext(true);
+    return () => {
+      document.head.removeChild(link);
+    };
+  }, [data?.nextEpisode, prefetchedNext]);
+
+  useEffect(() => {
+    if (data?.videoToPlay) {
+      setCurrentSource({ url: data.videoToPlay, type: data.sourceType });
+    }
+  }, [data?.videoToPlay, data?.sourceType]);
 
   // ── Playback speed ──
   useEffect(() => {
@@ -279,6 +314,19 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     }, 1000);
   };
 
+   const handleEnterPip = async () => {
+     try {
+       if (videoRef.current && (document as any).pictureInPictureEnabled) {
+         if ((document as any).pictureInPictureElement) {
+           await (document as any).exitPictureInPicture();
+         }
+         await (videoRef.current as any).requestPictureInPicture();
+       }
+     } catch (e) {
+       console.warn("PIP error", e);
+     }
+   };
+
   const cancelAutoplay = () => {
     clearInterval(autoplayTimeout.current);
     setAutoplayCountdown(null);
@@ -286,8 +334,11 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex justify-center items-center text-pink-500">
-        Carregando player...
+      <div className="min-h-screen bg-black flex flex-col gap-4 justify-center items-center text-pink-500 px-6">
+        <div className="w-full max-w-3xl aspect-video rounded-3xl bg-zinc-900 animate-pulse" />
+        <div className="w-full max-w-2xl h-4 rounded bg-zinc-900 animate-pulse" />
+        <div className="w-full max-w-xl h-4 rounded bg-zinc-900 animate-pulse" />
+        <p className="text-sm text-zinc-400">Preparando o player...</p>
       </div>
     );
   }
@@ -330,7 +381,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
             {/* ── Player ── */}
             <div ref={playerWrapRef} className="relative rounded-none lg:rounded-[28px] overflow-hidden border-0 lg:border lg:border-white/10 bg-black shadow-2xl">
               <div className="aspect-video relative">
-                {data.isDirectSource ? (
+                {currentSource.type === "direct" ? (
                   <video
                     ref={videoRef}
                     controls
@@ -340,13 +391,13 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     className="w-full h-full outline-none"
                     poster={data.anime.bannerImage || data.anime.coverImage || ""}
                   >
-                    <source src={data.videoToPlay} type="video/mp4" />
+                    <source src={currentSource.url} type="video/mp4" />
                     Seu navegador nao suporta este formato de video.
                   </video>
                 ) : (
                   <>
                     <iframe
-                      src={data.embedUrl}
+                      src={currentSource.url || data.embedUrl}
                       className="w-full h-full outline-none"
                       allow="autoplay; fullscreen"
                       allowFullScreen
@@ -428,15 +479,36 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   </div>
                 )}
               </div>
+              {/* Fonte manual (desktop) */}
+              {data.sources && data.sources.length > 1 && (
+                <div className="hidden md:flex absolute left-4 top-4 z-30 bg-black/70 backdrop-blur-md text-white text-xs rounded-full border border-white/10 px-3 py-1.5 items-center gap-2">
+                  <span className="text-zinc-300">Fonte:</span>
+                  <select
+                    className="bg-transparent text-white text-xs outline-none"
+                    value={`${currentSource.type}:${currentSource.url}`}
+                    onChange={(e) => {
+                      const [type, ...rest] = e.target.value.split(":");
+                      const url = rest.join(":");
+                      setCurrentSource({ url, type });
+                    }}
+                  >
+                    {data.sources.map((s: any, idx: number) => (
+                      <option key={`${s.url}-${idx}`} value={`${s.type}:${s.url}`}>
+                        {s.label || `Fonte ${idx + 1}`} ({s.type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* ── Previous / Next Buttons (Below Player) ── */}
             {(data.prevEpisode || data.nextEpisode) && (
-              <div className="flex items-center gap-3 w-full px-4 md:px-0 mt-4 md:mt-0 overflow-hidden">
+              <div className="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-3 w-full px-4 md:px-0 mt-4 md:mt-0 overflow-hidden">
                 {data.prevEpisode && (
                   <Link prefetch={true}
                     href={`/watch/${data.prevEpisode.id}`}
-                    className="flex-1 flex items-center justify-center gap-2 py-4 px-4 rounded-[20px] bg-zinc-900/60 backdrop-blur-md border border-zinc-800 text-white font-bold hover:bg-zinc-800 transition group text-sm"
+                    className="flex-1 flex items-center justify-center gap-2 h-12 rounded-2xl bg-zinc-900/70 backdrop-blur-md border border-zinc-800 text-white font-bold hover:bg-zinc-800 transition group text-sm"
                   >
                     <SkipForward size={18} className="rotate-180 text-zinc-400 group-hover:text-white transition" />
                     <span className="hidden sm:inline">Ep</span> Anterior
@@ -446,9 +518,8 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 {data.nextEpisode && (
                   <Link prefetch={true}
                     href={`/watch/${data.nextEpisode.id}`}
-                    className="flex-[2] flex items-center justify-center gap-2 py-4 px-4 rounded-[20px] bg-gradient-to-r from-pink-600 to-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.4)] text-white font-black transition-all hover:scale-[1.02] active:scale-95 group text-sm md:text-base relative overflow-hidden"
+                    className="flex-1 flex items-center justify-center gap-2 h-12 rounded-2xl bg-pink-600 text-white font-black transition hover:bg-pink-500 active:scale-95 group text-sm md:text-base"
                   >
-                    <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 transition" />
                     Próximo <span className="hidden sm:inline">Episódio</span>
                     <SkipForward size={18} className="text-white fill-white/80" />
                   </Link>
@@ -471,6 +542,34 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-300">
                   Fonte: {data.episode.sourceLabel || data.sourceType.replace("_", " ")}
                 </span>
+                {pipSupported && data.isDirectSource && (
+                  <button
+                    onClick={handleEnterPip}
+                    className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-300 hover:bg-pink-600 hover:text-white transition"
+                  >
+                    Picture-in-Picture
+                  </button>
+                )}
+                {data.sources && data.sources.length > 1 && (
+                  <div className="flex items-center gap-2 text-xs text-zinc-300">
+                    <span>Fonte atual:</span>
+                    <select
+                      className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-white"
+                      value={`${currentSource.type}:${currentSource.url}`}
+                      onChange={(e) => {
+                        const [type, ...rest] = e.target.value.split(":");
+                        const url = rest.join(":");
+                        setCurrentSource({ url, type });
+                      }}
+                    >
+                      {data.sources.map((s: any, idx: number) => (
+                        <option key={`${s.url}-${idx}`} value={`${s.type}:${s.url}`}>
+                          {s.label || `Fonte ${idx + 1}`} ({s.type})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {data.history?.progressSec ? (
                   <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-300 inline-flex items-center gap-1">
                     <Clock3 size={14} /> Retomando de {Math.floor(data.history.progressSec / 60)}m

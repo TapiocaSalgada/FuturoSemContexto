@@ -91,7 +91,7 @@ export default function Sidebar() {
       {/* Settings at bottom */}
       <div className="mt-auto pt-4 border-t border-white/5 space-y-1">
         <a
-          href="https://discord.gg/futurosemcontexto"
+          href="https://discord.gg/z2DRmZSHNy"
           target="_blank"
           rel="noopener noreferrer"
           className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 min-h-[44px] text-zinc-400 hover:text-[#5865F2] hover:bg-[#5865F2]/10`}

@@ -163,10 +163,17 @@ export default function ProfilePage() {
   };
 
   const loadFollowers = async (type: "followers" | "following") => {
-    const r = await fetch(`/api/follows/list?userId=${targetId}&type=${type}`);
-    const d = await r.json();
-    setFollowList(d);
-    setShowFollowUsers(type);
+    try {
+      const r = await fetch(`/api/follows/list?userId=${targetId}&type=${type}`);
+      if (!r.ok) throw new Error("Erro ao carregar");
+      const d = await r.json();
+      setFollowList(Array.isArray(d) ? d : []);
+    } catch (err) {
+      console.error("Followers modal error", err);
+      setFollowList([]);
+    } finally {
+      setShowFollowUsers(type);
+    }
   };
 
   if (!profile) {
