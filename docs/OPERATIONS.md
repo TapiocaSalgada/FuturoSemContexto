@@ -40,3 +40,4 @@
 - Novos episodios devem ser cadastrados com URL externa valida.
 - Favoritos, follows e notificacoes devem ser testados com pelo menos duas contas.
 - Settings devem refletir no backend; nao aceitar regressao para client-only.
+- Ao surgir alerta de seguranca no Supabase Advisor, executar `docs/supabase-security-hardening.sql`.

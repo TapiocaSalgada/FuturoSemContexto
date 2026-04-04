@@ -44,9 +44,15 @@ function scanDir(dir: string, base: string = ""): FileEntry[] {
 
 export async function GET(req: Request) {
   try {
+    // On Vercel/serverless the filesystem is read-only under /var/task.
+    // Short-circuit to an empty list to avoid runtime errors.
+    if (process.env.VERCEL === "1") {
+      return NextResponse.json({ files: [], folders: [], note: "local-files disabled on Vercel" });
+    }
+
     const videosDir = path.join(process.cwd(), "public", "videos");
 
-    // Create folder if it doesn't exist
+    // Create folder if it doesn't exist (only in writable environments)
     if (!fs.existsSync(videosDir)) {
       fs.mkdirSync(videosDir, { recursive: true });
     }

@@ -10,19 +10,27 @@ export async function GET(req: NextRequest) {
   const limitParam = Number(new URL(req.url).searchParams.get("limit") || "20");
   const take = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
 
-  const [notifications, unreadCount] = await Promise.all([
-    prisma.notification.findMany({
-      where: { userId: user.id, type: { not: "ad" } },
-      include: {
-        actor: { select: { id: true, name: true, avatarUrl: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take,
-    }),
-    prisma.notification.count({
-      where: { userId: user.id, isRead: false, type: { not: "ad" } },
-    }),
-  ]);
+  let notifications: any[] = [];
+  let unreadCount = 0;
+
+  try {
+    [notifications, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where: { userId: user.id, type: { not: "ad" } },
+        include: {
+          actor: { select: { id: true, name: true, avatarUrl: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take,
+      }),
+      prisma.notification.count({
+        where: { userId: user.id, isRead: false, type: { not: "ad" } },
+      }),
+    ]);
+  } catch {
+    notifications = [];
+    unreadCount = 0;
+  }
 
   return NextResponse.json({ notifications, unreadCount });
 }

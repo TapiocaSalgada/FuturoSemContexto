@@ -25,6 +25,10 @@ const nextConfig = {
       { protocol: "https", hostname: "cdn.discordapp.com" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
       { protocol: "https", hostname: "api.dicebear.com" },
+      { protocol: "https", hostname: "cdn.myanimelist.net" },
+      { protocol: "https", hostname: "myanimelist.net" },
+      { protocol: "https", hostname: "uploads.mangadex.org" },
+      { protocol: "https", hostname: "image.tmdb.org" },
     ],
   },
   async headers() {

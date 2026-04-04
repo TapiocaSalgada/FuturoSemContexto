@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Heart, User, Mail, Lock, Loader2 } from "lucide-react";
 
@@ -39,26 +38,26 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#060606]">
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[var(--background)]">
       {/* Animated bg */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-t from-[#060606] via-[#060606]/90 to-[#060606]/60 z-10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/90 to-[var(--background)]/60 z-10" />
         <img
           src="https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"
-          className="w-full h-full object-cover opacity-20"
+          className="w-full h-full object-cover opacity-24"
           alt="bg"
         />
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse delay-700" />
+        <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse" style={{ backgroundColor: "color-mix(in srgb, var(--accent) 18%, transparent)" }} />
+        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl animate-pulse delay-700" />
       </div>
 
-      <div className="relative z-20 w-full max-w-md p-8 mx-4 bg-[#0d0d0d]/90 backdrop-blur-2xl border border-pink-500/20 rounded-3xl shadow-[0_0_60px_rgba(255,0,127,0.15)] animate-fadeInUp">
+      <div className="relative z-20 w-full max-w-md p-8 mx-4 glass-surface-heavy rounded-3xl shadow-2xl animate-fadeInUp" style={{ boxShadow: "0 0 60px color-mix(in srgb, var(--accent) 18%, transparent)" }}>
         <div className="flex flex-col items-center gap-2 mb-8">
-          <Heart className="text-pink-500 w-14 h-14 fill-pink-500 drop-shadow-[0_0_20px_rgba(255,0,127,0.8)]" />
-          <h1 className="text-xl font-black tracking-tighter text-pink-500 leading-none text-center mt-2">
+          <Heart className="w-14 h-14 fill-current drop-shadow-lg" style={{ color: "var(--accent)" }} />
+          <h1 className="text-xl font-black tracking-tighter leading-none text-center mt-2" style={{ color: "var(--accent)" }}>
             FUTURO SEM <br /><span className="text-white uppercase">Contexto</span>
           </h1>
-          <p className="text-zinc-500 text-xs mt-1">Crie sua conta gratuitamente</p>
+          <p className="text-[var(--text-muted)] text-xs mt-1">Crie sua conta gratuitamente</p>
         </div>
 
         {error && (
@@ -71,13 +70,13 @@ export default function RegisterPage() {
           <div>
             <label className="text-xs font-bold text-zinc-400 mb-1.5 block">Como seus amigos te chamam?</label>
             <div className="relative">
-              <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full pl-9 pr-4 py-3 bg-zinc-900/70 border border-zinc-800 rounded-xl focus:outline-none focus:border-pink-500 transition text-white text-sm"
+                className="kdr-input w-full pl-9 pr-4 py-3 rounded-xl text-sm"
                 placeholder="Seu apelido"
               />
             </div>
@@ -85,13 +84,13 @@ export default function RegisterPage() {
           <div>
             <label className="text-xs font-bold text-zinc-400 mb-1.5 block">E-mail</label>
             <div className="relative">
-              <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-4 py-3 bg-zinc-900/70 border border-zinc-800 rounded-xl focus:outline-none focus:border-pink-500 transition text-white text-sm"
+                className="kdr-input w-full pl-9 pr-4 py-3 rounded-xl text-sm"
                 placeholder="seu@email.com"
               />
             </div>
@@ -99,13 +98,13 @@ export default function RegisterPage() {
           <div>
             <label className="text-xs font-bold text-zinc-400 mb-1.5 block">Senha (mínimo 6 caracteres)</label>
             <div className="relative">
-              <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-4 py-3 bg-zinc-900/70 border border-zinc-800 rounded-xl focus:outline-none focus:border-pink-500 transition text-white text-sm"
+                className="kdr-input w-full pl-9 pr-4 py-3 rounded-xl text-sm"
                 placeholder="••••••••"
               />
             </div>
@@ -113,7 +112,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 disabled:opacity-60 bg-pink-600 hover:bg-pink-500 text-white font-black py-3.5 rounded-xl shadow-[0_0_20px_rgba(255,0,127,0.4)] hover:shadow-[0_0_30px_rgba(255,0,127,0.6)] transition-all flex items-center justify-center gap-2"
+            className="kdr-btn-primary w-full h-[52px] mt-2 disabled:opacity-60"
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : null}
             {loading ? "CRIANDO CONTA..." : "CRIAR CONTA"}
@@ -124,7 +123,7 @@ export default function RegisterPage() {
 
         <p className="mt-8 text-center text-zinc-500 text-sm">
           Já tem conta?{" "}
-          <Link href="/login" className="text-pink-500 font-bold hover:text-pink-400 transition">
+          <Link href="/login" className="font-bold transition kdr-section-title-accent hover:text-white">
             Entrar
           </Link>
         </p>

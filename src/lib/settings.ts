@@ -1,5 +1,7 @@
+import { normalizeTheme } from "@/lib/theme";
+
 export const DEFAULT_SETTINGS = {
-  theme: "pink",
+  theme: "kandaraku-dark",
   reducedMotion: false,
   neonEffects: true,
   showHistory: true,
@@ -33,9 +35,14 @@ export interface UserSettingsPayload {
 export function normalizeSettings(
   partial?: Partial<UserSettingsPayload> | null,
 ): UserSettingsPayload {
-  return {
+  const merged = {
     ...DEFAULT_SETTINGS,
     ...(partial || {}),
+  };
+
+  return {
+    ...merged,
+    theme: normalizeTheme(merged.theme),
     notifyAnnouncements: true, // Always true (mandatory)
     notifyEpisodes: false, // Disabled feature
   };

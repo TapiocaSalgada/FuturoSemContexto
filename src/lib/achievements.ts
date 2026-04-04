@@ -113,6 +113,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     category: "milestone",
   },
   {
+    id: "elite_marathon",
+    label: "Maratonista de Elite",
+    description: "Concluiu 10 episódios em um unico dia.",
+    emoji: "⚡",
+    category: "milestone",
+  },
+  {
     id: "series_finished",
     label: "Série Concluída",
     description: "Terminou todos os episódios de um anime.",

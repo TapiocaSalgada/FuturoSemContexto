@@ -11,12 +11,12 @@ interface Folder {
   id: string;
   name: string;
   isPrivate: boolean;
-  favorites: { animeId: string; anime: { id: string; title: string; coverImage?: string } }[];
+  favorites: { animeId: string; anime: { id: string; title: string; coverImage?: string; visibility?: string } }[];
 }
 
 interface LooseFavorite {
   animeId: string;
-  anime: { id: string; title: string; coverImage?: string };
+  anime: { id: string; title: string; coverImage?: string; visibility?: string };
   folder?: { id: string; name: string } | null;
 }
 
@@ -35,7 +35,7 @@ function ImageUpload({ onUpload, label }: { onUpload: (url: string) => void; lab
     setUploading(false);
   };
   return (
-    <label className="flex items-center gap-2 cursor-pointer text-xs text-pink-500 hover:text-pink-400 font-bold transition">
+    <label className="flex items-center gap-2 cursor-pointer text-xs kdr-section-title-accent hover:text-white font-bold transition">
       <UploadCloud size={12} /> {uploading ? "Enviando..." : label}
       <input type="file" accept="image/*" className="hidden" onChange={handleFile} disabled={uploading} />
     </label>
@@ -83,31 +83,41 @@ export default function FavoritesPage() {
     loadLooseFavorites();
   };
 
+  const removeFavorite = async (animeId: string) => {
+    await fetch("/api/favorites", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ animeId }),
+    });
+    loadFolders();
+    loadLooseFavorites();
+  };
+
   if (!session) return (
     <AppLayout>
       <div className="flex items-center justify-center h-64">
-        <Link href="/login" className="text-pink-500 hover:underline font-bold">Faça login para ver sua lista</Link>
+        <Link href="/login" className="kdr-section-title-accent hover:underline font-bold">Faça login para ver sua lista</Link>
       </div>
     </AppLayout>
   );
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-10 pb-24 max-w-5xl mx-auto space-y-8">
+      <div className="p-4 sm:p-6 lg:p-10 pb-28 md:pb-24 max-w-6xl mx-auto space-y-8">
         <div>
-          <h1 className="text-3xl font-black">Minha <span className="text-pink-500">Lista</span></h1>
-          <p className="text-zinc-500 text-sm mt-1">Organize seus animes favoritos em pastas personalizadas.</p>
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tight">Minha Lista</h1>
+          <p className="text-zinc-400 text-sm mt-1">Organize seus animes favoritos em pastas personalizadas.</p>
         </div>
 
         {/* Create Folder */}
-        <form onSubmit={createFolder} className="flex items-center gap-3">
+        <form onSubmit={createFolder} className="glass-surface rounded-2xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           <input
             value={newFolderName}
             onChange={e => setNewFolderName(e.target.value)}
             placeholder="Nome da nova pasta..."
-            className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-pink-500 transition"
+            className="flex-1 bg-black/35 border border-white/10 rounded-xl px-4 py-3 sm:py-2.5 text-white text-sm focus:outline-none focus:border-white/30 transition"
           />
-          <button type="submit" className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white font-bold px-5 py-2.5 rounded-lg text-sm transition">
+          <button type="submit" className="flex items-center justify-center gap-2 bg-white hover:bg-zinc-100 text-black font-black px-5 py-3 sm:py-2.5 rounded-full text-sm transition min-h-[44px] shrink-0">
             <Plus size={16} /> Criar Pasta
           </button>
         </form>
@@ -123,10 +133,10 @@ export default function FavoritesPage() {
 
         <div className="space-y-6">
           {looseFavorites.length > 0 && (
-            <div className="bg-zinc-900/40 border border-zinc-800 rounded-2xl overflow-hidden">
+            <div className="glass-card border border-white/10 rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
                 <div className="flex items-center gap-3">
-                  <FolderOpen size={18} className="text-pink-500" />
+                  <FolderOpen size={18} className="kdr-section-title-accent" />
                   <span className="font-bold text-white">Sem pasta</span>
                   <span className="text-xs text-zinc-500">{looseFavorites.length} item{looseFavorites.length !== 1 ? "s" : ""}</span>
                 </div>
@@ -134,44 +144,52 @@ export default function FavoritesPage() {
 
               <div className="p-5">
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                  {looseFavorites.map(fav => (
-                    <AnimeCard
-                      key={fav.animeId}
-                      href={`/anime/${fav.anime.id}`}
-                      title={fav.anime.title}
-                      image={fav.anime.coverImage}
-                      className="w-[100px] sm:w-[130px]"
-                      subTitle={fav.anime.title}
-                    />
+                  {looseFavorites.filter(fav => !fav.anime.visibility || fav.anime.visibility === "public").map(fav => (
+                    <div key={fav.animeId} className="relative">
+                      <AnimeCard
+                        href={`/anime/${fav.anime.id}`}
+                        title={fav.anime.title}
+                        image={fav.anime.coverImage}
+                        className="w-[110px] sm:w-[130px]"
+                        subTitle={fav.anime.title}
+                      />
+                      <button
+                        onClick={() => removeFavorite(fav.animeId)}
+                        className="absolute top-2 right-2 z-20 p-1.5 rounded-lg bg-black/70 text-zinc-300 hover:text-red-400 hover:bg-red-500/20 transition"
+                        title="Remover favorito"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
             </div>
           )}
           {folders.map(folder => (
-            <div key={folder.id} className="bg-zinc-900/40 border border-zinc-800 rounded-2xl overflow-hidden">
+            <div key={folder.id} className="glass-card border border-white/10 rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
                 {editingFolder === folder.id ? (
                   <div className="flex items-center gap-2 flex-1">
-                    <input value={editName} onChange={e => setEditName(e.target.value)} className="bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-1.5 text-white text-sm flex-1 focus:outline-none focus:border-pink-500 transition" />
+                    <input value={editName} onChange={e => setEditName(e.target.value)} className="bg-black/35 border border-white/15 rounded-lg px-3 py-1.5 text-white text-sm flex-1 focus:outline-none focus:border-white/30 transition" />
                     <button onClick={() => saveEdit(folder.id)} className="p-2 bg-green-500/20 text-green-400 rounded-lg hover:bg-green-500/30 transition"><Check size={14} /></button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-3">
-                    <FolderOpen size={18} className="text-pink-500" />
+                    <FolderOpen size={18} className="kdr-section-title-accent" />
                     <span className="font-bold text-white">{folder.name}</span>
                     <span className="text-xs text-zinc-500">{folder.favorites.length} item{folder.favorites.length !== 1 ? "s" : ""}</span>
                     {folder.isPrivate && <span className="text-xs bg-zinc-700 text-zinc-400 px-2 py-0.5 rounded-full flex items-center gap-1"><Lock size={8} /> Privada</span>}
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <button onClick={() => togglePrivate(folder)} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition" title={folder.isPrivate ? "Tornar Pública" : "Tornar Privada"}>
+                  <button onClick={() => togglePrivate(folder)} className="p-2.5 sm:p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 rounded-lg transition min-w-[40px] min-h-[40px] inline-flex items-center justify-center" title={folder.isPrivate ? "Tornar Pública" : "Tornar Privada"}>
                     {folder.isPrivate ? <Unlock size={15} /> : <Lock size={15} />}
                   </button>
-                  <button onClick={() => { setEditingFolder(folder.id); setEditName(folder.name); }} className="p-2 text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 rounded-lg transition">
+                  <button onClick={() => { setEditingFolder(folder.id); setEditName(folder.name); }} className="p-2.5 sm:p-2 text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 rounded-lg transition min-w-[40px] min-h-[40px] inline-flex items-center justify-center">
                     <Edit3 size={15} />
                   </button>
-                  <button onClick={() => deleteFolder(folder.id)} className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition">
+                  <button onClick={() => deleteFolder(folder.id)} className="p-2.5 sm:p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition min-w-[40px] min-h-[40px] inline-flex items-center justify-center">
                     <Trash2 size={15} />
                   </button>
                 </div>
@@ -182,15 +200,23 @@ export default function FavoritesPage() {
                   <p className="text-zinc-600 text-sm text-center py-6">Pasta vazia. Acesse um anime e adicione-o aqui!</p>
                 ) : (
                   <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-                    {folder.favorites.map(fav => (
-                      <AnimeCard
-                        key={fav.animeId}
-                        href={`/anime/${fav.anime.id}`}
-                        title={fav.anime.title}
-                        image={fav.anime.coverImage}
-                        className="w-[100px] sm:w-[130px]"
-                        subTitle={fav.anime.title}
-                      />
+                    {folder.favorites.filter(fav => !fav.anime.visibility || fav.anime.visibility === "public").map(fav => (
+                      <div key={fav.animeId} className="relative">
+                        <AnimeCard
+                          href={`/anime/${fav.anime.id}`}
+                          title={fav.anime.title}
+                          image={fav.anime.coverImage}
+                          className="w-[110px] sm:w-[130px]"
+                          subTitle={fav.anime.title}
+                        />
+                        <button
+                          onClick={() => removeFavorite(fav.animeId)}
+                          className="absolute top-2 right-2 z-20 p-1.5 rounded-lg bg-black/70 text-zinc-300 hover:text-red-400 hover:bg-red-500/20 transition"
+                          title="Remover favorito"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}

@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "Futuro sem Contexto",
+    "slug": "futuro-sem-contexto-mobile",
+    "owner": "tapiocasalgadas-organization",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "scheme": "futurostream",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#07070a"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tapiocasalgadasorganization.futurostream",
+      "buildNumber": "6"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#07070a"
+      },
+      "permissions": [
+        "POST_NOTIFICATIONS"
+      ],
+      "package": "com.tapiocasalgadasorganization.futurostream",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 6
+    },
+    "plugins": [
+      "expo-notifications"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "600b113c-e3bd-40aa-8f62-33b100f8b391"
+      }
+    }
+  }
+}

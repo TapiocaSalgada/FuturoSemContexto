@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isUserOnline } from "@/lib/presence";
 
 // Update profile: name, bio, avatarUrl, bannerUrl
 export async function PATCH(req: NextRequest) {
@@ -32,16 +33,19 @@ export async function GET(req: NextRequest) {
 
   const session = await getServerSession(authOptions);
 
+  const isAdmin = (session?.user as any)?.role === "admin";
+
   const [user, rawHistories] = await Promise.all([
     prisma.user.findUnique({
       where: { id },
       select: {
         id: true, name: true, avatarUrl: true, bannerUrl: true, bio: true, isPrivate: true,
+        lastActiveAt: true,
         settings: { select: { showHistory: true, allowFollow: true } },
         _count: { select: { followers: true, following: true } },
         favorites: {
           include: {
-            anime: { select: { id: true, title: true, coverImage: true } },
+            anime: { select: { id: true, title: true, coverImage: true, visibility: true } },
             folder: { select: { id: true, name: true, isPrivate: true } },
           },
         },
@@ -49,11 +53,14 @@ export async function GET(req: NextRequest) {
       },
     }),
     prisma.watchHistory.findMany({
-      where: { userId: id },
+      where: {
+        userId: id,
+        ...(isAdmin ? {} : { episode: { anime: { visibility: "public" } } }),
+      },
       orderBy: { updatedAt: "desc" },
       take: 50,
       include: {
-        episode: { include: { anime: { select: { id: true, title: true, coverImage: true } } } },
+        episode: { include: { anime: { select: { id: true, title: true, coverImage: true, visibility: true } } } },
       },
     })
   ]);
@@ -69,14 +76,15 @@ export async function GET(req: NextRequest) {
   }
 
   // Deduplicate and process histories (only if allowed)
-  let historiesList: any[] = [];
+  const historiesList: any[] = [];
   const canShowHistory = isOwner || (!user.isPrivate && user.settings?.showHistory !== false);
   
   if (canShowHistory && rawHistories) {
     const seenAnimes = new Set<string>();
     for (const h of rawHistories) {
       const aid = h.episode?.anime?.id;
-      if (aid && !seenAnimes.has(aid)) {
+      const visibility = h.episode?.anime?.visibility;
+      if (aid && !seenAnimes.has(aid) && (visibility === "public" || isAdmin)) {
         seenAnimes.add(aid);
         historiesList.push(h);
         if (historiesList.length >= 10) break;
@@ -84,8 +92,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Hide admin_only favorites for non-admin viewers
+  if (!isAdmin) {
+    (user as any).favorites = (user as any).favorites?.filter((f: any) => f?.anime?.visibility === "public") || [];
+  }
+
   return NextResponse.json({
     ...user,
+    isOnline: isUserOnline(user.lastActiveAt),
     canFollow: user.settings?.allowFollow !== false,
     histories: historiesList,
   });

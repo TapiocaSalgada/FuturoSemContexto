@@ -29,13 +29,45 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(following.map(f => f.following));
     }
 
+    if (type === "friends") {
+      const following = await prisma.follows.findMany({
+        where: { followerId: userId },
+        select: { followingId: true },
+        take: 300,
+      });
+
+      const followingIds = following.map((item) => item.followingId);
+      if (followingIds.length === 0) return NextResponse.json([]);
+
+      const friends = await prisma.follows.findMany({
+        where: {
+          followingId: userId,
+          followerId: { in: followingIds },
+        },
+        include: { follower: { select: { id: true, name: true, avatarUrl: true } } },
+        take: 300,
+      });
+
+      return NextResponse.json(friends.map((item) => item.follower));
+    }
+
     const session = await getServerSession(authOptions);
     const currentUser = session?.user?.email
       ? await prisma.user.findUnique({ where: { email: session.user.email } })
       : null;
-    const [followersCount, followingCount, existingFollow] = await Promise.all([
+    const [followersCount, followingCount, friendsCount, existingFollow] = await Promise.all([
       prisma.follows.count({ where: { followingId: userId } }),
       prisma.follows.count({ where: { followerId: userId } }),
+      prisma.follows.count({
+        where: {
+          followerId: userId,
+          following: {
+            following: {
+              some: { followingId: userId },
+            },
+          },
+        },
+      }),
       currentUser
         ? prisma.follows.findUnique({
             where: {
@@ -51,6 +83,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       followersCount,
       followingCount,
+      friendsCount,
       isFollowing: Boolean(existingFollow),
     });
   } catch (error) {

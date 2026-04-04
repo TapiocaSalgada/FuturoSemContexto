@@ -20,12 +20,37 @@ export async function checkAchievements(userId: string) {
         name: true,
         avatarUrl: true,
         bio: true,
-        createdAt: true,
         settings: true,
-      } as any,
+      },
     }),
-    prisma.watchHistory.findMany({ where: { userId }, include: { episode: { include: { anime: true } } } }),
-    prisma.favorite.findMany({ where: { userId } }),
+    prisma.watchHistory.findMany({
+      where: { userId },
+      include: {
+        episode: {
+          include: {
+            anime: {
+              include: {
+                categories: {
+                  select: { id: true, name: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.favorite.findMany({
+      where: { userId },
+      include: {
+        anime: {
+          include: {
+            categories: {
+              select: { id: true },
+            },
+          },
+        },
+      },
+    }),
     prisma.favoriteFolder.findMany({ where: { userId } }),
     prisma.comment.findMany({ where: { userId } }),
   ]);
@@ -56,12 +81,6 @@ export async function checkAchievements(userId: string) {
 
   // profile_complete
   if (user?.name && user?.avatarUrl && user?.bio) await award(userId, "profile_complete");
-
-  // loyal_user (account older than 30 days)
-  if (user?.createdAt) {
-    const daysSinceCreation = (Date.now() - new Date((user as any).createdAt).getTime()) / (1000 * 60 * 60 * 24);
-    if (daysSinceCreation >= 30) await award(userId, "loyal_user");
-  }
 
   // series_finished — check if all eps of any anime are watched
   const animeGroups: Record<string, { total: number; watched: number }> = {};
@@ -109,4 +128,31 @@ export async function checkAchievements(userId: string) {
   // anime_explorer — visited 5 different animes (any watch history)
   const uniqueAnimes = new Set(histories.map((h) => h.episode?.animeId).filter(Boolean));
   if (uniqueAnimes.size >= 5) await award(userId, "anime_explorer");
+
+  // elite_marathon — 10 episodes watched in one day
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const watchedToday = watchedEps.filter((h) => new Date(h.updatedAt) >= startOfDay);
+  if (watchedToday.length >= 10) await award(userId, "elite_marathon");
+
+  // genre_explorer — watched 5+ categories
+  const watchedCategoryIds = new Set<string>();
+  for (const h of watchedEps) {
+    const categories = h.episode?.anime?.categories || [];
+    for (const category of categories) {
+      watchedCategoryIds.add(category.id);
+    }
+  }
+  if (watchedCategoryIds.size >= 5) await award(userId, "genre_explorer");
+
+  // genre_focused — 10 favoritos no mesmo genero
+  const favoritesByCategory = new Map<string, number>();
+  for (const fav of favorites) {
+    for (const category of fav.anime.categories) {
+      favoritesByCategory.set(category.id, (favoritesByCategory.get(category.id) || 0) + 1);
+    }
+  }
+  if (Array.from(favoritesByCategory.values()).some((count) => count >= 10)) {
+    await award(userId, "genre_focused");
+  }
 }

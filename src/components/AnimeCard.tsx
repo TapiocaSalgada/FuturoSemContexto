@@ -1,5 +1,10 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { Play, Star } from "lucide-react";
+
+import { buildImageCandidates } from "@/lib/image-quality";
 
 interface AnimeCardProps {
   href: string;
@@ -8,6 +13,7 @@ interface AnimeCardProps {
   badgeTopLeft?: React.ReactNode;
   overlayText?: React.ReactNode;
   subTitle?: React.ReactNode;
+  rating?: number | null;
   className?: string;
 }
 
@@ -18,9 +24,18 @@ export default function AnimeCard({
   badgeTopLeft,
   overlayText,
   subTitle,
+  rating,
   className = "",
 }: AnimeCardProps) {
   const hasImage = Boolean(image);
+  const imageCandidates = useMemo(() => buildImageCandidates(image), [image]);
+  const [imageIndex, setImageIndex] = useState(0);
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [image]);
+
+  const currentImage = imageCandidates[Math.min(imageIndex, imageCandidates.length - 1)] || "/logo.png";
 
   return (
     <Link
@@ -28,51 +43,62 @@ export default function AnimeCard({
       href={href}
       className={`block shrink-0 snap-start group ${className}`}
     >
-      <div className="aspect-[2/3] rounded-xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.2)] bg-[radial-gradient(circle_at_30%_20%,rgba(255,0,127,0.15),transparent_45%),radial-gradient(circle_at_80%_0%,rgba(0,255,255,0.12),transparent_35%),#0f0f10]">
+      <div className="aspect-[2/3] rounded-2xl overflow-hidden relative border border-white/[0.06] group-hover:border-white/20 transition-all duration-300 group-hover:shadow-[0_12px_40px_rgba(0,0,0,0.55)] group-active:scale-[0.97] bg-[var(--bg-card)]">
         {hasImage ? (
-          <Image
-            src={
-              image ||
-              "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"
-            }
-            alt={title}
-            fill
-            sizes="(max-width: 768px) 160px, 200px"
-            className="object-cover group-hover:scale-110 transition duration-500"
-            onError={(e) => {
-              const target = e.currentTarget as any;
-              if (target?.src !== "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80") {
-                target.src = "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80";
-              }
-            }}
-          />
+            <img
+              src={currentImage}
+              alt={title}
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500 ease-out"
+              loading="lazy"
+              onError={(event) => {
+                const nextIndex = imageIndex + 1;
+                if (nextIndex < imageCandidates.length) {
+                  setImageIndex(nextIndex);
+                }
+              }}
+            />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-pink-400">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" className="opacity-70">
-              <path d="M12 5.5c-3.038 0-5.5 2.462-5.5 5.5s2.462 5.5 5.5 5.5 5.5-2.462 5.5-5.5-2.462-5.5-5.5-5.5zm0-2c4.142 0 7.5 3.358 7.5 7.5S16.142 18.5 12 18.5 4.5 15.142 4.5 11 7.858 3.5 12 3.5z"/>
-              <path d="M10 9l5 2-5 2z"/>
-            </svg>
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[var(--bg-card)] to-[var(--bg-surface)]">
+            <Play size={36} className="text-[var(--text-accent)] opacity-50" />
           </div>
         )}
-        
+
+        {/* Hover play overlay */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+          <div className="w-11 h-11 rounded-full bg-white/90 flex items-center justify-center shadow-lg shadow-black/30">
+            <Play size={18} className="text-black fill-black ml-0.5" />
+          </div>
+        </div>
+
+        {/* Badge top left */}
         {badgeTopLeft && (
           <div className="absolute top-2 left-2 z-10">
             {badgeTopLeft}
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition duration-300 flex items-end p-3 pointer-events-none">
-          <div className="w-full">
-            <p className="text-white font-bold text-xs truncate drop-shadow-md">
-              {title}
-            </p>
-            {overlayText && <div className="mt-1">{overlayText}</div>}
+        {/* Rating badge top right */}
+        {typeof rating === "number" && rating > 0 && (
+          <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10">
+            <Star size={10} className="text-yellow-400 fill-yellow-400" />
+            <span className="text-[10px] font-bold text-white">{rating.toFixed(1)}</span>
           </div>
+        )}
+
+        {/* Bottom gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
+
+        {/* Bottom text */}
+        <div className="absolute bottom-0 inset-x-0 p-2.5 pointer-events-none">
+          <p className="text-white font-bold text-[11px] sm:text-xs truncate drop-shadow-md leading-tight">
+            {title}
+          </p>
+          {overlayText && <div className="mt-0.5">{overlayText}</div>}
         </div>
       </div>
-      
+
       {subTitle && (
-        <div className="text-xs text-zinc-500 group-hover:text-pink-300 transition mt-2 truncate w-full px-1">
+        <div className="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition mt-1.5 truncate w-full px-0.5">
           {subTitle}
         </div>
       )}

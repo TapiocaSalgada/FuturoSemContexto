@@ -1,126 +1,289 @@
 import { getServerSession } from "next-auth";
-import Link from "next/link";
-import Image from "next/image";
-import { Clock, Heart, Play, TrendingUp } from "lucide-react";
-import { unstable_cache } from "next/cache";
+import { Heart, Layers, Sparkles, TrendingUp } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import AppLayout from "@/components/AppLayout";
-import HomeCTA from "@/components/HomeCTA";
-import SuggestionButton from "@/components/SuggestionButton";
 import AnimeCard from "@/components/AnimeCard";
 import HorizontalCarousel from "@/components/HorizontalCarousel";
+import ContinueWatchingRail from "@/components/ContinueWatchingRail";
+import HomeHeroRotator from "@/components/HomeHeroRotator";
+import { isPublicVisibility } from "@/lib/visibility";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
-const getCachedRecentAnimes = unstable_cache(
-  async () => {
-    return prisma.anime.findMany({
-      where: { visibility: "public" },
-      orderBy: { id: "desc" },
-      take: 5,
-      select: {
-        id: true,
-        title: true,
-        description: true,
-        coverImage: true,
-        bannerImage: true,
-        status: true,
-        visibility: true,
-        episodes: {
-          orderBy: [{ season: "asc" }, { number: "asc" }],
-          take: 1,
-          select: { id: true }
-        },
-        ratings: {
-          select: { rating: true }
-        }
-      },
-    });
-  },
-  ['recent-animes-home'],
-  { revalidate: 60 } // cache 1 minute
-);
+type HomeAnime = {
+  id: string;
+  title: string;
+  description?: string | null;
+  coverImage?: string | null;
+  bannerImage?: string | null;
+  status: string;
+  visibility?: string | null;
+  episodes: { id: string }[];
+  ratings: { rating: number }[];
+  categories: { id: string; name: string; slug: string }[];
+};
 
-const getCachedTrending = unstable_cache(
-  async () => {
-    return prisma.watchHistory.groupBy({
-      by: ["episodeId"],
-      _count: { episodeId: true },
-      orderBy: { _count: { episodeId: "desc" } },
-      take: 30,
-    });
+const ROW_SIZE = 20;
+
+const CATALOG_BLOCK_PRESETS = [
+  {
+    title: "Faixa Abertura",
+    hint: "Abertura do catálogo com escolhas variadas.",
+    borderClass: "border-l-4 border-red-600",
+    iconClass: "text-red-300",
+    chipClass: "bg-red-500/18 text-red-100 border border-red-400/25",
   },
-  ['trending-data-home'],
-  { revalidate: 120 } // cache 2 minutes
-);
+  {
+    title: "Faixa Sessão",
+    hint: "Mais 20 para continuar sem repetição chata.",
+    borderClass: "border-l-4 border-orange-500",
+    iconClass: "text-orange-300",
+    chipClass: "bg-orange-500/18 text-orange-100 border border-orange-400/25",
+  },
+  {
+    title: "Faixa Intermissão",
+    hint: "Mix de títulos para maratona rápida.",
+    borderClass: "border-l-4 border-amber-500",
+    iconClass: "text-amber-300",
+    chipClass: "bg-amber-500/18 text-amber-100 border border-amber-400/25",
+  },
+  {
+    title: "Faixa Madrugada",
+    hint: "Pacote extra com corte fresco do catálogo.",
+    borderClass: "border-l-4 border-rose-600",
+    iconClass: "text-rose-300",
+    chipClass: "bg-rose-500/18 text-rose-100 border border-rose-400/25",
+  },
+  {
+    title: "Faixa Arquivo",
+    hint: "Continuação aleatória para achar anime escondido.",
+    borderClass: "border-l-4 border-zinc-500",
+    iconClass: "text-zinc-300",
+    chipClass: "bg-zinc-700/60 text-zinc-100 border border-zinc-500/40",
+  },
+];
+
+function dedupeById<T extends { id: string }>(items: T[]) {
+  const seen = new Set<string>();
+  const output: T[] = [];
+  for (const item of items) {
+    if (!item?.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    output.push(item);
+  }
+  return output;
+}
+
+function shuffle<T>(items: T[]) {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+function chunkItems<T>(items: T[], size: number) {
+  if (size <= 0) return [items];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function franchiseKey(title: string) {
+  return title
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\b(season|temporada|part|parte|ova|movie|filme)\b/g, "")
+    .replace(/\b\d+\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function pickDiverseHeroes(pool: HomeAnime[], count = 4) {
+  const picked: HomeAnime[] = [];
+  const usedFranchises = new Set<string>();
+
+  for (const anime of shuffle(pool)) {
+    const key = franchiseKey(anime.title) || anime.id;
+    if (usedFranchises.has(key)) continue;
+    usedFranchises.add(key);
+    picked.push(anime);
+    if (picked.length >= count) break;
+  }
+
+  if (picked.length < count) {
+    for (const anime of shuffle(pool)) {
+      if (picked.some((item) => item.id === anime.id)) continue;
+      picked.push(anime);
+      if (picked.length >= count) break;
+    }
+  }
+
+  return picked;
+}
+
+function CardRow({
+  items,
+  subtitle,
+}: {
+  items: Pick<HomeAnime, "id" | "title" | "coverImage">[];
+  subtitle?: (item: Pick<HomeAnime, "id" | "title" | "coverImage">) => ReactNode;
+}) {
+  return (
+    <HorizontalCarousel>
+      {items.map((anime) => (
+        <div key={anime.id} className="snap-start shrink-0">
+          <AnimeCard
+            href={`/anime/${anime.id}`}
+            title={anime.title || "Sem titulo"}
+            image={anime.coverImage}
+            className="w-[140px] sm:w-[150px] md:w-[165px]"
+            subTitle={subtitle ? subtitle(anime) : undefined}
+          />
+        </div>
+      ))}
+    </HorizontalCarousel>
+  );
+}
+
+function SectionHeader({
+  icon,
+  title,
+  subtitle,
+  highlight,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle?: string;
+  highlight?: string;
+}) {
+  return (
+    <div className="mb-5 flex items-end justify-between gap-4">
+      <div className="min-w-0">
+        <h2 className="kdr-section-title">
+          {icon}
+          <span className="truncate">{title}</span>
+          {highlight ? <span className="kdr-section-title-accent">{highlight}</span> : null}
+        </h2>
+        {subtitle ? <p className="text-[11px] text-[var(--text-muted)] mt-1.5">{subtitle}</p> : null}
+      </div>
+    </div>
+  );
+}
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
   const isAdmin = (session?.user as any)?.role === "admin";
-  let recentHistory: any[] = [];
-  
-  if (session?.user && (session.user as any).id) {
-    const userId = (session.user as any).id;
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+  const userId = (session?.user as any)?.id as string | undefined;
 
-    recentHistory = await prisma.watchHistory.findMany({
-      where: {
-        userId: userId,
-        progressSec: { gt: 0 },
-        updatedAt: { gte: sixtyDaysAgo },
-        ...(isAdmin ? {} : { episode: { anime: { visibility: "public" } } }),
-      },
-      orderBy: { updatedAt: "desc" },
-      select: {
-        id: true,
-        progressSec: true,
-        updatedAt: true,
-        episode: {
-          select: { id: true, number: true, season: true, thumbnailUrl: true, anime: { select: { id: true, title: true, coverImage: true, bannerImage: true, visibility: true } } },
+  const sixtyDaysAgo = new Date();
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+  let allAnimes: HomeAnime[] = [];
+  let trendingData: any[] = [];
+  let recentHistory: any[] = [];
+  let watchedForRec: any[] = [];
+
+  try {
+    [allAnimes, trendingData, recentHistory, watchedForRec] = await Promise.all([
+      prisma.anime.findMany({
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          coverImage: true,
+          bannerImage: true,
+          status: true,
+          visibility: true,
+          categories: { select: { id: true, name: true, slug: true } },
+          episodes: {
+            orderBy: [{ season: "asc" }, { number: "asc" }],
+            take: 1,
+            select: { id: true },
+          },
+          ratings: { select: { rating: true } },
         },
-      },
-      take: 24,
-    });
+      }),
+      prisma.watchHistory.groupBy({
+        by: ["episodeId"],
+        _count: { episodeId: true },
+        orderBy: { _count: { episodeId: "desc" } },
+        take: 40,
+      }),
+      userId
+        ? prisma.watchHistory.findMany({
+            where: {
+              userId,
+              progressSec: { gt: 0 },
+              updatedAt: { gte: sixtyDaysAgo },
+            },
+            orderBy: { updatedAt: "desc" },
+            select: {
+              id: true,
+              progressSec: true,
+              updatedAt: true,
+              episode: {
+                select: {
+                  id: true,
+                  number: true,
+                  season: true,
+                  thumbnailUrl: true,
+                  anime: {
+                    select: {
+                      id: true,
+                      title: true,
+                      coverImage: true,
+                      bannerImage: true,
+                      visibility: true,
+                    },
+                  },
+                },
+              },
+            },
+            take: 30,
+          })
+        : Promise.resolve([]),
+      userId
+        ? prisma.watchHistory.findMany({
+            where: {
+              userId,
+              watched: true,
+            },
+            orderBy: { updatedAt: "desc" },
+            take: 140,
+            select: {
+              episode: {
+                select: {
+                  anime: {
+                    select: {
+                      id: true,
+                      title: true,
+                      visibility: true,
+                      categories: { select: { id: true, name: true } },
+                    },
+                  },
+                },
+              },
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+  } catch (error) {
+    console.error("home-data-load-error", error);
   }
 
-  const [recentAnimes, trendingData] = await Promise.all([
-    getCachedRecentAnimes(),
-    getCachedTrending(),
-  ]);
+  const visibleAnimes = isAdmin
+    ? (allAnimes as HomeAnime[])
+    : (allAnimes as HomeAnime[]).filter((anime) => isPublicVisibility(anime.visibility));
 
-  const trendingEpisodeIds = trendingData.map((item) => item.episodeId);
-  const trendingEpisodes =
-    trendingEpisodeIds.length > 0
-      ? await prisma.episode.findMany({
-          where: {
-            id: { in: trendingEpisodeIds },
-            anime: { visibility: "public" },
-          },
-          select: {
-            id: true,
-            animeId: true,
-            number: true,
-            season: true,
-            anime: { select: { id: true, title: true, coverImage: true } },
-          },
-        })
-      : [];
+  const validAnimes = dedupeById(visibleAnimes.filter((a) => a?.id && a?.title));
 
-  const trendingAnimes = trendingEpisodeIds
-    .map((episodeId) =>
-      trendingEpisodes.find((episode) => episodeId === episode.id),
-    )
-    .filter(Boolean)
-    .reduce<typeof trendingEpisodes>((items, episode) => {
-      if (!episode) return items;
-      if (items.some((item) => item.animeId === episode.animeId)) return items;
-      items.push(episode);
-      return items;
-    }, [])
-    .slice(0, 8);
+  const heroItems = pickDiverseHeroes(validAnimes, 8).map((anime) => ({
+    ...anime,
+    watchHref: anime.episodes[0]?.id ? `/watch/${anime.episodes[0].id}` : `/anime/${anime.id}`,
+  }));
 
   const continueWatching = recentHistory
     .reduce((items: typeof recentHistory, history) => {
@@ -129,181 +292,170 @@ export default async function HomePage() {
       if (items.some((item) => item.episode?.anime?.id === animeId)) return items;
       return [...items, history];
     }, [] as typeof recentHistory)
-    .filter((item) => {
-      const visibility = item.episode?.anime?.visibility;
-      return visibility === "public" || isAdmin;
-    })
-    .slice(0, 5)
-    .map((item) => {
-      if (!item || !item.episode) return item;
-      return {
-        ...item,
-        episode: {
-          ...(item.episode || {}),
-          thumbnailUrl:
-            item.episode?.thumbnailUrl ||
-            item.episode?.anime?.bannerImage ||
-            item.episode?.anime?.coverImage ||
-            "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80",
-        },
-      };
-    });
+      .filter((item) => isAdmin || isPublicVisibility(item.episode?.anime?.visibility))
+      .slice(0, 8)
+    .map((item) => ({
+      ...item,
+      episode: {
+        ...(item.episode || {}),
+        thumbnailUrl:
+          item.episode?.thumbnailUrl ||
+          item.episode?.anime?.bannerImage ||
+          item.episode?.anime?.coverImage ||
+          "/logo.png",
+      },
+    }));
 
-  // -- Resilience: Filter out broken/empty animes --
-  const validAnimes = recentAnimes.filter(a => a.title && a.id);
-  const featured = validAnimes[0];
-  
-  let featuredRelevance = 98;
-  if (featured && (featured as any).ratings && (featured as any).ratings.length > 0) {
-    const rArray = (featured as any).ratings;
-    const avg = rArray.reduce((acc: number, r: { rating: number }) => acc + r.rating, 0) / rArray.length;
-    featuredRelevance = Math.max(10, Math.round((avg / 5) * 100));
-  } else if (featured?.title) {
-    featuredRelevance = 80 + (featured.title.length % 20);
+  const trendingEpisodeIds = trendingData.map((item) => item.episodeId);
+  let trendingEpisodes: any[] = [];
+  if (trendingEpisodeIds.length > 0) {
+    try {
+      trendingEpisodes = await prisma.episode.findMany({
+        where: { id: { in: trendingEpisodeIds } },
+        select: {
+          id: true,
+          animeId: true,
+          number: true,
+          season: true,
+          anime: { select: { id: true, title: true, coverImage: true, visibility: true } },
+        },
+      });
+    } catch (error) {
+      console.error("home-trending-load-error", error);
+      trendingEpisodes = [];
+    }
   }
 
-  const featuredHref = featured?.episodes?.[0]
-    ? `/watch/${featured.episodes[0].id}`
-    : featured
-      ? `/anime/${featured.id}`
-      : "/";
+  const trendingVisibleEpisodes = isAdmin
+    ? trendingEpisodes
+    : trendingEpisodes.filter((episode) => isPublicVisibility(episode?.anime?.visibility));
+
+  const trendingAnimes = trendingEpisodeIds
+    .map((episodeId) => trendingVisibleEpisodes.find((episode) => episodeId === episode.id))
+    .filter(Boolean)
+    .reduce<typeof trendingEpisodes>((items, episode) => {
+      if (!episode) return items;
+      if (items.some((item) => item.animeId === episode.animeId)) return items;
+      items.push(episode);
+      return items;
+    }, [])
+    .slice(0, ROW_SIZE);
+
+  const mostLiked = [...validAnimes]
+    .map((anime) => ({
+      ...anime,
+      avg: anime.ratings.length
+        ? anime.ratings.reduce((acc, item) => acc + item.rating, 0) / anime.ratings.length
+        : 0,
+    }))
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, ROW_SIZE);
+
+  const ongoing = validAnimes.filter((anime) => anime.status === "ongoing");
+  const completed = validAnimes.filter((anime) => anime.status === "completed");
+
+  const watchedAnime = watchedForRec
+    .map((item) => item.episode?.anime)
+    .filter((anime) => Boolean(anime) && (isAdmin || isPublicVisibility((anime as any)?.visibility))) as {
+      id: string;
+      title: string;
+      visibility?: string | null;
+      categories: { id: string; name: string }[];
+    }[];
+  const watchedAnimeIds = new Set(watchedAnime.map((item) => item.id));
+
+  const categoryCounter = new Map<string, { id: string; name: string; count: number }>();
+  for (const anime of watchedAnime) {
+    for (const category of anime.categories) {
+      const prev = categoryCounter.get(category.id);
+      categoryCounter.set(category.id, {
+        id: category.id,
+        name: category.name,
+        count: (prev?.count || 0) + 1,
+      });
+    }
+  }
+  const topCategory = Array.from(categoryCounter.values()).sort((a, b) => b.count - a.count)[0];
+
+  const becauseWatchedAnime = topCategory
+    ? watchedAnime.find((anime) => anime.categories.some((category) => category.id === topCategory.id))
+    : null;
+
+  const genreRecommended = dedupeById(
+    validAnimes.filter((anime) => {
+      if (!topCategory) return false;
+      return anime.categories.some((category) => category.id === topCategory.id) && !watchedAnimeIds.has(anime.id);
+    }),
+  );
+  const fallbackRecommended = dedupeById(
+    shuffle(validAnimes).filter((anime) => !watchedAnimeIds.has(anime.id)),
+  );
+  const recommended = dedupeById([...genreRecommended, ...fallbackRecommended]).slice(0, 16);
+  const recommendedTop = recommended.slice(0, ROW_SIZE);
+
+  const categorySections = (() => {
+    const buckets = new Map<string, { name: string; items: HomeAnime[] }>();
+    for (const anime of validAnimes) {
+      for (const category of anime.categories) {
+        if (!buckets.has(category.id)) {
+          buckets.set(category.id, { name: category.name, items: [] });
+        }
+        buckets.get(category.id)!.items.push(anime);
+      }
+    }
+
+    return Array.from(buckets.values())
+      .map((section) => ({
+        ...section,
+        items: dedupeById(shuffle(section.items)),
+      }))
+      .filter((section) => section.items.length >= 6)
+      .sort((a, b) => b.items.length - a.items.length)
+      .slice(0, 10);
+  })();
+
+  const catalogGroups = chunkItems(shuffle(validAnimes), ROW_SIZE);
 
   return (
     <AppLayout>
-      <div className="pb-24">
-        {featured ? (
-          <section className="relative w-full min-h-[65vh] lg:min-h-[85vh] flex flex-col justify-end p-6 lg:p-14 overflow-hidden">
-            <div className="absolute inset-0 z-0">
-              <Image
-                src={featured.bannerImage || featured.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
-                fill
-                priority
-                className="hidden md:block object-cover opacity-60 scale-105 transition-transform duration-700"
-                alt={featured.title || "Destaque"}
-              />
-              {/* Mobile Banner Fallback */}
-              <div className="absolute inset-0 z-0 block md:hidden">
-                <Image
-                  src={featured.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
-                  fill
-                  priority
-                  className="object-cover opacity-60"
-                  alt={featured.title || "Destaque"}
-                />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-[#060606] via-[#060606]/70 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#060606] via-[#060606]/40 to-transparent" />
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(6,6,6,0.88)_100%)]" />
-            </div>
-            <div className="relative z-10 max-w-2xl space-y-4 animate-fadeInUp">
-              <div className="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-black/35 backdrop-blur-sm border border-white/10">
-                <Image src="/logo.png" alt="Futuro sem Contexto" width={24} height={24} className="rounded-lg object-cover" />
-                <span className="text-pink-400 font-black tracking-[0.2em] text-[11px] uppercase">
-                  Futuro em destaque
-                </span>
-              </div>
-              <h1 className="text-4xl lg:text-7xl font-black uppercase tracking-tight text-white drop-shadow-md leading-none">
-                {featured.title}
-              </h1>
-              <p className="text-zinc-300 text-sm lg:text-base line-clamp-3 max-w-xl">
-                {featured.description || "Seu proximo anime ja esta pronto para entrar em tela cheia."}
-              </p>
-              <div className="flex items-center gap-4 text-sm font-bold mt-2 text-zinc-400">
-                {/* Info strip intentionally minimal */}
-              </div>
-              <div className="flex items-center gap-3 pt-2 w-full md:w-auto">
-                <Link prefetch={true}
-                  href={featuredHref}
-                  className="flex-1 md:flex-none justify-center bg-white text-black px-7 py-3 rounded-xl font-black flex items-center gap-2 hover:bg-white/90 hover:scale-105 transition-all text-sm"
-                >
-                  <Play fill="currentColor" size={16} /> Assistir
-                </Link>
-                <Link prefetch={true}
-                  href={`/anime/${featured.id}`}
-                  className="flex-1 md:flex-none justify-center bg-zinc-800/80 backdrop-blur-md text-white px-7 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-zinc-700 hover:scale-105 transition-all text-sm"
-                >
-                  Detalhes
-                </Link>
-              </div>
-            </div>
-          </section>
+      <div className="pb-28 md:pb-24">
+        {heroItems.length > 0 ? (
+          <HomeHeroRotator items={heroItems} />
         ) : (
-          <div className="h-[40vh] flex items-center justify-center text-zinc-500 flex-col gap-3">
-            <Image src="/logo.png" alt="Futuro sem Contexto" width={56} height={56} className="rounded-2xl object-cover opacity-70" />
-            <p className="text-lg font-bold">Catalogo vazio.</p>
-            <HomeCTA />
+          <div className="h-[40vh] flex items-center justify-center text-[var(--text-muted)]">
+            <div className="text-center space-y-2">
+              <Sparkles size={32} className="mx-auto text-[var(--text-accent)] opacity-50" />
+              <p className="text-sm font-bold">Catálogo vazio</p>
+            </div>
           </div>
         )}
 
-        <div className="px-6 lg:px-14 mt-[-20px] relative z-20 space-y-12">
-          {continueWatching.length > 0 && (
-            <section className="animate-fadeInUp">
-              <h2 className="text-lg font-black flex items-center gap-2 mb-5 border-l-4 border-pink-500 pl-4">
-                <Play size={18} className="text-pink-500" /> Continue Assistindo
-              </h2>
-              <HorizontalCarousel>
-                {continueWatching.map((history) => {
-                  const anime = history.episode?.anime;
-                  if (!anime || !history.episode) return null;
-                  return (
-                    <Link prefetch={true}
-                      key={history.id}
-                      href={`/watch/${history.episode.id}`}
-                      className="w-[170px] lg:w-[210px] shrink-0 snap-start group"
-                    >
-                      <div className="aspect-video rounded-2xl overflow-hidden relative border border-zinc-800 group-hover:border-pink-500 transition-all duration-300 bg-zinc-900 group-hover:shadow-[0_0_20px_rgba(255,0,127,0.3)]">
-                 <Image
-                  src={history.episode?.thumbnailUrl || history.episode?.anime?.bannerImage || anime.coverImage || "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"}
-                  fill
-                  sizes="(max-width: 768px) 170px, 210px"
-                  className="object-cover opacity-70 group-hover:scale-105 transition duration-500"
-                  alt={anime.title}
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).src = "https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"; }}
-                />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                          <div className="w-10 h-10 rounded-full bg-pink-600/90 text-white flex items-center justify-center shadow-[0_0_15px_rgba(255,0,127,0.6)] transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                            <Play size={18} className="ml-1" fill="currentColor" />
-                          </div>
-                        </div>
-                        <div className="absolute inset-x-0 bottom-0 h-1.5 bg-white/20">
-                          <div
-                            className="h-full bg-pink-500 relative"
-                            style={{
-                              width: `${Math.max(
-                                12,
-                                Math.min(
-                                  98,
-                                  Math.round(
-                                    (history.progressSec /
-                                      Math.max(history.progressSec + 300, 900)) *
-                                      100,
-                                  ),
-                                ),
-                              )}%`,
-                            }}
-                          >
-                             <div className="absolute right-0 top-1/2 -translate-y-1/2 hidden group-hover:block w-2.5 h-2.5 bg-white rounded-full shadow-[0_0_5px_rgba(255,255,255,0.8)]" />
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-sm text-white font-bold mt-2 truncate">
-                        {anime.title}
-                      </p>
-                      <p className="text-xs text-zinc-500 truncate">
-                        T{history.episode.season} Ep {history.episode.number}
-                      </p>
-                    </Link>
-                  );
-                })}
-              </HorizontalCarousel>
-            </section>
-          )}
+        <div className="px-4 sm:px-6 lg:px-10 mt-8 relative z-20 space-y-10 lg:space-y-12">
+          <section className="rounded-3xl border border-white/12 bg-black/35 backdrop-blur-md p-4 sm:p-5 grid grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
+              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Catálogo total</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-1">{validAnimes.length}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
+              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Continue vendo</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-1">{continueWatching.length}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
+              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Faixas por gênero</p>
+              <p className="text-xl sm:text-2xl font-black text-white mt-1">{categorySections.length}</p>
+            </div>
+          </section>
+
+          <ContinueWatchingRail items={continueWatching as any} />
 
           {trendingAnimes.length > 0 && (
-            <section className="animate-fadeInUp">
-              <h2 className="text-lg font-black flex items-center gap-2 mb-5 border-l-4 border-pink-500 pl-4">
-                <TrendingUp size={18} className="text-pink-500" /> Em Alta
-              </h2>
+            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+              <SectionHeader
+                icon={<TrendingUp size={16} className="kdr-section-title-accent" />}
+                title="Em alta"
+                highlight="Agora"
+                subtitle="Episódios com maior giro recente na plataforma."
+              />
               <HorizontalCarousel>
                 {trendingAnimes.map((episode, index) => (
                   <div key={episode.animeId} className="snap-start shrink-0">
@@ -311,17 +463,16 @@ export default async function HomePage() {
                       href={`/anime/${episode.animeId}`}
                       title={episode.anime?.title || ""}
                       image={episode.anime?.coverImage}
-                      className="w-[140px] lg:w-[170px]"
+                      className="w-[140px] sm:w-[155px] md:w-[170px]"
                       badgeTopLeft={
-                        <div className="w-7 h-7 bg-pink-600 rounded-lg flex items-center justify-center text-xs font-black shadow-[0_0_10px_rgba(255,0,127,0.5)]">
+                        <div
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-white border border-white/15"
+                          style={{ background: "linear-gradient(135deg, var(--accent), #7f1d1d)", boxShadow: `0 4px 12px var(--accent-glow)` }}
+                        >
                           {index + 1}
                         </div>
                       }
-                      overlayText={
-                        <p className="text-[11px] text-zinc-300">
-                          T{episode.season} Ep {episode.number}
-                        </p>
-                      }
+                      overlayText={<p className="text-[10px] text-[var(--text-secondary)]">T{episode.season} Ep {episode.number}</p>}
                     />
                   </div>
                 ))}
@@ -329,42 +480,104 @@ export default async function HomePage() {
             </section>
           )}
 
-          {/* Seção Recentes */}
-          {validAnimes.length > 0 && (
-            <section className="animate-fadeInUp delay-200">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-1.5 h-8 bg-pink-500 rounded-full shadow-[0_0_15px_rgba(255,0,127,0.5)]" />
-                  <h3 className="text-2xl font-black italic tracking-tighter text-white uppercase">
-                    Adicionados recentemente
-                  </h3>
-                </div>
-              </div>
-
-              <HorizontalCarousel>
-                {validAnimes.slice(0, 18).map((anime) => (
-                  <div key={anime.id} className="snap-start shrink-0">
-                    <AnimeCard
-                      href={`/anime/${anime.id}`}
-                      title={anime.title || "Título Indisponível"}
-                      image={anime.coverImage}
-                      className="w-[140px] sm:w-[160px] md:w-[180px]"
-                      subTitle={
-                        <span className="flex items-center gap-2">
-                           {anime.status === "ongoing" ? "Em Lançamento" : "Finalizado"}
-                        </span>
-                      }
-                    />
-                  </div>
-                ))}
-              </HorizontalCarousel>
+          {recommendedTop.length > 0 && (
+            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+              <SectionHeader
+                icon={<Sparkles size={16} className="kdr-section-title-accent" />}
+                title={becauseWatchedAnime?.title
+                  ? `Porque você assistiu ${becauseWatchedAnime.title}`
+                  : "Recomendados para você"}
+                subtitle="Curadoria automática baseada no que você já terminou."
+              />
+              <CardRow
+                items={recommendedTop}
+                subtitle={() => (
+                  <span className="text-[11px] text-[var(--text-accent)]">
+                    {topCategory ? `Baseado em ${topCategory.name}` : "Sugestão personalizada"}
+                  </span>
+                )}
+              />
             </section>
           )}
 
-          <HomeCTA />
+          {mostLiked.length > 0 && (
+            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+              <SectionHeader
+                icon={<Heart size={16} className="kdr-section-title-accent" />}
+                title="Mais curtidos"
+                subtitle="Notas mais altas da comunidade, em ordem de impacto."
+              />
+              <CardRow
+                items={mostLiked}
+                subtitle={(anime) => {
+                  const found = mostLiked.find((item) => item.id === anime.id);
+                  return (
+                    <span className="flex items-center gap-1 text-[11px] text-yellow-400">
+                      ★ {found?.avg?.toFixed(1) || "0.0"}
+                    </span>
+                  );
+                }}
+              />
+            </section>
+          )}
+
+          {ongoing.length > 0 && (
+            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+              <SectionHeader
+                icon={<Layers size={16} className="kdr-section-title-accent" />}
+                title="Em lançamento"
+                subtitle="Séries quentes que ainda estão ganhando episódio."
+              />
+              <CardRow items={ongoing.slice(0, ROW_SIZE)} subtitle={() => <span className="text-[11px] kdr-badge kdr-badge-accent">Novos episódios</span>} />
+            </section>
+          )}
+
+          {completed.length > 0 && (
+            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+              <SectionHeader
+                icon={<Layers size={16} className="kdr-section-title-accent" />}
+                title="Finalizados"
+                subtitle="Perfeitos para maratonar do começo ao fim."
+              />
+              <CardRow items={completed.slice(0, ROW_SIZE)} subtitle={() => <span className="text-[11px] kdr-badge kdr-badge-info">Pronto para maratona</span>} />
+            </section>
+          )}
+
+          {categorySections.map((section) => (
+            <section key={section.name} className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+              <SectionHeader
+                icon={<Sparkles size={16} className="kdr-section-title-accent" />}
+                title={section.name}
+                subtitle="Recorte por categoria com rotações frequentes."
+              />
+              <CardRow items={section.items.slice(0, ROW_SIZE)} />
+            </section>
+          ))}
+
+          {catalogGroups.map((group, groupIndex) => (
+            <section key={`catalog-group-${groupIndex}`} className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+              {(() => {
+                const preset = CATALOG_BLOCK_PRESETS[groupIndex % CATALOG_BLOCK_PRESETS.length];
+                return (
+                  <div className={`mb-4 pl-4 ${preset.borderClass} rounded-r-lg`}>
+                    <h2 className="text-lg font-black flex items-center gap-2">
+                      <Layers size={18} className={preset.iconClass} />
+                      {preset.title}
+                      <span className={`ml-1 text-[10px] font-black px-2 py-0.5 rounded-full ${preset.chipClass}`}>
+                        {groupIndex + 1}/{catalogGroups.length}
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                      {preset.hint} • {ROW_SIZE} por faixa • total {validAnimes.length}
+                    </p>
+                  </div>
+                );
+              })()}
+              <CardRow items={group} />
+            </section>
+          ))}
         </div>
 
-        <SuggestionButton />
       </div>
     </AppLayout>
   );

@@ -33,13 +33,32 @@ export async function GET() {
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  const isAdmin = (session.user as any)?.role === "admin";
 
   const favorites = await prisma.favorite.findMany({
-    where: { userId: user.id },
+    where: {
+      userId: user.id,
+      ...(isAdmin ? {} : { anime: { visibility: "public" } }),
+    },
     include: {
-      anime: { select: { id: true, title: true, coverImage: true } },
+      anime: { select: { id: true, title: true, coverImage: true, visibility: true } },
       folder: { select: { id: true, name: true } },
     },
   });
+
   return NextResponse.json(favorites);
+}
+
+// Delete favorite explicitly by animeId (for UI remove buttons)
+export async function DELETE(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
+  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  const { animeId } = await req.json();
+  if (!animeId) return NextResponse.json({ error: "animeId required" }, { status: 400 });
+
+  await prisma.favorite.deleteMany({ where: { userId: user.id, animeId } });
+  return NextResponse.json({ ok: true });
 }

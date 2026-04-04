@@ -10,7 +10,7 @@ export default function HomeCTA() {
     <div className="px-6 lg:px-14 py-4">
       <Link
         href="/admin"
-        className="inline-flex items-center gap-2 text-xs text-zinc-500 hover:text-pink-500 transition border border-zinc-800 hover:border-pink-500/30 rounded-lg px-3 py-2"
+        className="inline-flex items-center gap-2 text-xs text-[var(--text-muted)] hover:text-white transition border border-[var(--border-subtle)] hover:border-[var(--border-strong)] rounded-lg px-3 py-2"
       >
         ⚙️ Painel Admin
       </Link>

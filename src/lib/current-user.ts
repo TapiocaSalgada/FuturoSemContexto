@@ -8,16 +8,20 @@ export async function getCurrentUser() {
   if (!session?.user?.email) return null;
 
   const userId = (session.user as any)?.id as string | undefined;
-  if (userId) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
+  try {
+    if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { settings: true },
+      });
+      if (user) return user;
+    }
+
+    return await prisma.user.findUnique({
+      where: { email: session.user.email },
       include: { settings: true },
     });
-    if (user) return user;
+  } catch {
+    return null;
   }
-
-  return prisma.user.findUnique({
-    where: { email: session.user.email },
-    include: { settings: true },
-  });
 }

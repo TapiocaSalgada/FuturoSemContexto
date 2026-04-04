@@ -19,6 +19,7 @@ model User {
   role                  String             @default("user") // admin, user
   isPrivate             Boolean            @default(false)
   isTimedOut            DateTime?
+  lastActiveAt          DateTime?
   lastReadAnnouncements DateTime?
   
   histories             WatchHistory[]
@@ -31,6 +32,8 @@ model User {
   achievements          UserAchievement[]
   notifications         Notification[]     @relation("notificationRecipient")
   notificationActor     Notification[]     @relation("notificationActor")
+  mobilePushTokens      MobilePushToken[]
+  bugReports            BugReport[]
   
   // Follows relations
   followers             Follows[]          @relation("following")
@@ -51,6 +54,7 @@ model Category {
   name  String 
   slug  String @unique
   animes Anime[]
+  mangas Manga[]
 }
 
 model Anime {
@@ -67,6 +71,49 @@ model Anime {
   favorites   Favorite[]
   comments    Comment[]
   ratings     AnimeRating[]
+  bugReports  BugReport[]
+}
+
+model Manga {
+  id           String        @id @default(uuid())
+  title        String
+  description  String?
+  coverImage   String?
+  bannerImage  String?
+  malId        Int?
+  malUrl       String?
+  status       String        @default("ongoing")
+  visibility   String        @default("public") // public, admin_only
+  source       String?
+  sourceId     String?
+  sourceUrl    String?
+  language     String?
+  chapters     MangaChapter[]
+  categories   Category[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([title])
+  @@index([malId])
+}
+
+model MangaChapter {
+  id             String   @id @default(uuid())
+  mangaId        String
+  manga          Manga    @relation(fields: [mangaId], references: [id], onDelete: Cascade)
+  chapterNumber  Float?
+  volumeNumber   Int?
+  title          String?
+  language       String?
+  externalId     String?
+  externalUrl    String?
+  pages          Int?
+  scanlationTeam String?
+  publishedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  @@index([mangaId, chapterNumber])
+  @@unique([mangaId, externalId])
 }
 
 model AnimeRating {
@@ -99,6 +146,28 @@ model Episode {
   outroEndSec   Int?
   thumbnailUrl  String?
   histories     WatchHistory[]
+  bugReports    BugReport[]
+}
+
+model BugReport {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  animeId     String?
+  anime       Anime?   @relation(fields: [animeId], references: [id], onDelete: SetNull)
+  episodeId   String?
+  episode     Episode? @relation(fields: [episodeId], references: [id], onDelete: SetNull)
+  title       String
+  description String
+  status      String   @default("open") // open, investigating, resolved, closed
+  pagePath    String?
+  sourceUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([animeId, createdAt])
+  @@index([userId, createdAt])
 }
 
 model WatchHistory {
@@ -200,6 +269,21 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, isRead, createdAt])
+}
+
+model MobilePushToken {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  platform   String?
+  deviceName String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId, isActive])
 }
 
 // Achievements system

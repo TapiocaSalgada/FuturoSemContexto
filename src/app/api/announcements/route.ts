@@ -3,9 +3,17 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createNotificationsForUsers } from "@/lib/notifications";
+import { isSystemAnnouncementTitle } from "@/lib/maintenance";
 
 export async function GET() {
   const announcements = await prisma.announcement.findMany({
+    where: {
+      NOT: {
+        title: {
+          startsWith: "__system:",
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take: 10,
   });
@@ -48,6 +56,10 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const { id } = await req.json();
+  const existing = await prisma.announcement.findUnique({ where: { id }, select: { title: true } });
+  if (isSystemAnnouncementTitle(existing?.title)) {
+    return NextResponse.json({ error: "Registro de sistema nao pode ser removido aqui." }, { status: 400 });
+  }
   await prisma.announcement.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { sendPushToUsers } from "@/lib/expo-push";
 
 export type NotificationType =
   | "announcement"
@@ -16,7 +17,7 @@ type NotificationInput = {
 };
 
 export async function createNotification(input: NotificationInput) {
-  return prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: {
       userId: input.userId,
       actorId: input.actorId || null,
@@ -26,6 +27,20 @@ export async function createNotification(input: NotificationInput) {
       link: input.link || null,
     },
   });
+
+  void sendPushToUsers([input.userId], {
+    title: input.title,
+    body: input.body || null,
+    link: input.link || null,
+    data: {
+      notificationId: notification.id,
+      type: input.type,
+    },
+  }).catch(() => {
+    // ignore push failures
+  });
+
+  return notification;
 }
 
 export async function createNotificationsForUsers(
@@ -44,5 +59,16 @@ export async function createNotificationsForUsers(
       body: input.body || null,
       link: input.link || null,
     })),
+  });
+
+  void sendPushToUsers(uniqueUserIds, {
+    title: input.title,
+    body: input.body || null,
+    link: input.link || null,
+    data: {
+      type: input.type,
+    },
+  }).catch(() => {
+    // ignore push failures
   });
 }

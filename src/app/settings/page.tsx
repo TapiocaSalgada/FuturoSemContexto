@@ -1,8 +1,10 @@
 "use client";
 
 import AppLayout from "@/components/AppLayout";
+import SuggestionButton from "@/components/SuggestionButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Check,
@@ -16,12 +18,14 @@ import {
   LogOut,
   MessageCircle,
 } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 
 import { DEFAULT_SETTINGS, type UserSettingsPayload } from "@/lib/settings";
 import { useThemeStore } from "@/lib/theme-store";
+import { normalizeTheme } from "@/lib/theme";
+import { readSavedAccounts } from "@/lib/saved-accounts";
 
-type Section = "conta" | "notifications" | "appearance" | "privacy" | "playback";
+type Section = "conta" | "notifications" | "appearance" | "privacy" | "playback" | "feedback";
 
 const sectionIcons: Record<Section, React.ElementType> = {
   conta: UserCircle,
@@ -29,6 +33,7 @@ const sectionIcons: Record<Section, React.ElementType> = {
   appearance: Palette,
   privacy: Eye,
   playback: Settings,
+  feedback: MessageCircle,
 };
 
 const sectionLabels: Record<Section, string> = {
@@ -37,11 +42,12 @@ const sectionLabels: Record<Section, string> = {
   appearance: "Aparencia",
   privacy: "Privacidade",
   playback: "Reproducao",
+  feedback: "Feedback",
 };
 
 function applyTheme(theme: string) {
   const html = document.documentElement;
-  html.setAttribute("data-theme", theme);
+  html.setAttribute("data-theme", normalizeTheme(theme));
 }
 
 function applyReducedMotion(enabled: boolean) {
@@ -60,6 +66,7 @@ function applyVisualSettings(settings: UserSettingsPayload) {
 
 export default function SettingsPage() {
   const { data: session, update: updateSession } = useSession();
+  const router = useRouter();
   const [section, setSection] = useState<Section>("conta");
   const [settings, setSettings] = useState<UserSettingsPayload>(DEFAULT_SETTINGS);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -78,15 +85,21 @@ export default function SettingsPage() {
   const [showPw, setShowPw] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [showAccountsModal, setShowAccountsModal] = useState(false);
-  const [savedAccounts, setSavedAccounts] = useState<{email: string; name: string; avatar: string}[]>([]);
+  const [savedAccounts, setSavedAccounts] = useState<{email: string; name: string; avatar: string; handoffHash?: string}[]>([]);
+  const [switchingAccount, setSwitchingAccount] = useState<string | null>(null);
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     if (showAccountsModal) {
-      try {
-        const saved = JSON.parse(localStorage.getItem('savedAccounts') || '[]');
-        setSavedAccounts(saved);
-      } catch (e) {}
+      const saved = readSavedAccounts(8).map((item) => ({
+        email: item.email,
+        name: item.name,
+        avatar:
+          item.avatar ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || item.email)}&background=1f2937&color=fff`,
+        handoffHash: item.handoffHash,
+      }));
+      setSavedAccounts(saved);
     }
   }, [showAccountsModal]);
 
@@ -118,7 +131,7 @@ export default function SettingsPage() {
         const next = { ...DEFAULT_SETTINGS, ...data };
         setSettings(next);
         applyVisualSettings(next);
-        setTheme(next.theme || "pink");
+        setTheme(normalizeTheme(next.theme));
       });
   }, []);
 
@@ -156,8 +169,9 @@ export default function SettingsPage() {
   const toggle = (key: keyof UserSettingsPayload) =>
     persistSettings({ ...settings, [key]: !settings[key] });
   const select = (key: keyof UserSettingsPayload, value: string) => {
-    persistSettings({ ...settings, [key]: value });
-    if (key === "theme") setTheme(value);
+    const normalizedValue = key === "theme" ? normalizeTheme(value) : value;
+    persistSettings({ ...settings, [key]: normalizedValue });
+    if (key === "theme") setTheme(normalizedValue);
   };
 
   const handleSaveProfile = async () => {
@@ -258,6 +272,33 @@ export default function SettingsPage() {
     setTimeout(() => setEmailMsg(""), 4000);
   };
 
+  const handleSwitchAccount = async (account: { email: string; handoffHash?: string }) => {
+    if (!account.email) return;
+    setSwitchingAccount(account.email);
+
+    try {
+      if (account.handoffHash) {
+        const quick = await signIn("credentials", {
+          email: account.email,
+          password: account.handoffHash,
+          isQuick: "true",
+          redirect: false,
+        });
+
+        if (!quick?.error) {
+          setShowAccountsModal(false);
+          router.push("/");
+          router.refresh();
+          return;
+        }
+      }
+
+      await signOut({ callbackUrl: `/login?email=${encodeURIComponent(account.email)}` });
+    } finally {
+      setSwitchingAccount(null);
+    }
+  };
+
   function Toggle({
     label,
     desc,
@@ -277,11 +318,12 @@ export default function SettingsPage() {
         <button
           onClick={() => toggle(settingKey)}
           className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
-            on ? "bg-pink-500" : "bg-zinc-700"
+            on ? "bg-zinc-200" : "bg-zinc-700"
           }`}
+          style={on ? { boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent), 0 0 18px color-mix(in srgb, var(--accent) 24%, transparent)" } : undefined}
         >
           <span
-            className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+            className={`absolute top-0.5 left-0.5 w-5 h-5 ${on ? "bg-black" : "bg-white"} rounded-full shadow transition-transform duration-200 ${
               on ? "translate-x-5" : ""
             }`}
           />
@@ -305,7 +347,7 @@ export default function SettingsPage() {
         <select
           value={settings[settingKey] as string}
           onChange={(event) => select(settingKey, event.target.value)}
-          className="bg-zinc-800 border border-zinc-700 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-pink-500 transition"
+          className="bg-black/35 border border-white/12 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-white/30 transition"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -340,7 +382,7 @@ export default function SettingsPage() {
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
-          className="w-full bg-zinc-800/70 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-pink-500 transition"
+          className="w-full bg-black/35 border border-white/12 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/30 transition"
         />
       </div>
     );
@@ -352,10 +394,10 @@ export default function SettingsPage() {
 
   return (
     <AppLayout>
-      <div className="p-4 lg:p-10 pb-24 max-w-5xl mx-auto animate-fadeInUp">
+      <div className="p-4 lg:p-10 pb-24 max-w-6xl mx-auto animate-fadeInUp">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl lg:text-3xl font-black flex items-center gap-3">
-            <Settings size={26} className="text-pink-500" /> Configuracoes
+          <h1 className="text-3xl lg:text-5xl font-black tracking-tight flex items-center gap-3">
+            <Settings size={28} className="kdr-section-title-accent" /> Configuracoes
           </h1>
           {saveState !== "idle" && (
             <span
@@ -385,10 +427,10 @@ export default function SettingsPage() {
                   <button
                     key={key}
                     onClick={() => setSection(key)}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition whitespace-nowrap min-h-[44px] ${
+                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold transition whitespace-nowrap min-h-[44px] border ${
                       section === key
-                        ? "bg-pink-600 text-white shadow-[0_0_15px_rgba(255,0,127,0.3)]"
-                        : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                        ? "text-white border-white/35 bg-white/12"
+                        : "text-zinc-400 border-transparent hover:text-white hover:bg-white/8"
                     }`}
                   >
                     <Icon size={16} className="shrink-0" />
@@ -399,7 +441,7 @@ export default function SettingsPage() {
             </nav>
           </aside>
 
-          <main className="flex-1 bg-zinc-900/40 border border-zinc-800 rounded-2xl p-5 lg:p-6">
+          <main className="flex-1 glass-surface border border-white/10 rounded-2xl p-5 lg:p-6">
             <h2 className="text-lg font-bold text-white mb-1">
               {sectionLabels[section]}
             </h2>
@@ -415,7 +457,7 @@ export default function SettingsPage() {
                 {/* Ações Globais */}
                 <div className="flex gap-3 flex-wrap">
                   <button onClick={() => setShowAccountsModal(true)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 border border-zinc-700 hover:border-red-500/50 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
+                    className="flex-1 flex items-center justify-center gap-2 bg-black/35 hover:bg-red-500/20 hover:text-red-300 border border-white/12 hover:border-red-500/50 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
                     <LogOut size={18} /> Trocar de Conta
                   </button>
                 </div>
@@ -424,28 +466,34 @@ export default function SettingsPage() {
                 {showAccountsModal && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowAccountsModal(false)} />
-                    <div className="relative bg-[#1a1a1a] border border-zinc-700 rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-fadeInUp">
+                    <div className="relative glass-surface-heavy border border-white/12 rounded-3xl p-6 w-full max-w-sm shadow-2xl animate-fadeInUp">
                       <h3 className="font-bold text-xl text-white mb-6 text-center">Trocar de Conta</h3>
                       
                       <div className="space-y-3 max-h-60 overflow-y-auto pr-1 mb-6">
                         {savedAccounts.filter(a => a.email !== session?.user?.email).map(acc => (
-                          <button key={acc.email} onClick={() => signOut({ callbackUrl: `/login?email=${acc.email}` })}
-                            className="w-full flex items-center gap-4 p-3 bg-zinc-900/60 border border-zinc-800 hover:border-pink-500 rounded-2xl transition group text-left"
+                          <button
+                            key={acc.email}
+                            onClick={() => handleSwitchAccount(acc)}
+                            disabled={switchingAccount === acc.email}
+                            className="w-full flex items-center gap-4 p-3 bg-black/35 border border-white/12 hover:border-white/35 rounded-2xl transition group text-left disabled:opacity-60 disabled:cursor-wait"
                           >
-                            <img src={acc.avatar} className="w-10 h-10 rounded-full object-cover border-2 border-zinc-800 group-hover:border-pink-500 transition" alt="avatar" />
+                            <img src={acc.avatar} className="w-10 h-10 rounded-full object-cover border-2 border-zinc-800 group-hover:border-white/45 transition" alt="avatar" />
                             <div className="flex-1 min-w-0">
                                 <p className="font-bold text-white text-sm truncate">{acc.name}</p>
                                 <p className="text-[10px] text-zinc-500 truncate">{acc.email}</p>
                             </div>
+                            {switchingAccount === acc.email && (
+                              <span className="text-[10px] font-bold kdr-section-title-accent uppercase">Entrando...</span>
+                            )}
                           </button>
                         ))}
                         <button onClick={() => signOut({ callbackUrl: '/login' })}
-                          className="w-full flex items-center gap-4 p-3 bg-zinc-900/40 border border-zinc-800 border-dashed hover:border-pink-500 rounded-2xl transition group text-left"
+                          className="w-full flex items-center gap-4 p-3 bg-black/20 border border-white/12 border-dashed hover:border-white/35 rounded-2xl transition group text-left"
                         >
-                          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-pink-500 group-hover:bg-pink-500/10 transition">
+                          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-500 group-hover:text-white group-hover:bg-white/10 transition">
                             <LogOut size={18} />
                           </div>
-                          <p className="font-bold text-zinc-400 group-hover:text-pink-500 text-sm transition">Nova Conta</p>
+                          <p className="font-bold text-zinc-400 group-hover:text-white text-sm transition">Nova Conta</p>
                         </button>
                       </div>
 
@@ -462,7 +510,7 @@ export default function SettingsPage() {
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <label className="group cursor-pointer">
-                      <div className="w-full aspect-video rounded-xl overflow-hidden border border-zinc-700 group-hover:border-pink-500 transition relative bg-zinc-800">
+                      <div className="w-full aspect-video rounded-xl overflow-hidden border border-zinc-700 group-hover:border-white/45 transition relative bg-zinc-800">
                         {profileForm.bannerUrl ? (
                           <img
                             src={profileForm.bannerUrl}
@@ -487,7 +535,7 @@ export default function SettingsPage() {
                     </label>
                     <div className="flex flex-col items-center gap-3">
                       <label className="group cursor-pointer flex items-center justify-center">
-                        <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-zinc-700 group-hover:border-pink-500 transition relative bg-zinc-800">
+                      <div className="w-28 h-28 rounded-full overflow-hidden border-4 border-zinc-700 group-hover:border-white/45 transition relative bg-zinc-800">
                           <img
                             src={
                               profileForm.avatarUrl ||
@@ -543,7 +591,7 @@ export default function SettingsPage() {
                         }))
                       }
                       placeholder="Sua bio..."
-                      className="w-full bg-zinc-800/70 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-pink-500 transition min-h-[80px] resize-none"
+                      className="w-full bg-black/35 border border-white/12 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/30 transition min-h-[80px] resize-none"
                     />
                   </div>
                   {profileMsg && (
@@ -552,7 +600,7 @@ export default function SettingsPage() {
                   <button
                     onClick={handleSaveProfile}
                     disabled={profileLoading}
-                    className="flex items-center gap-2 bg-pink-600 hover:bg-pink-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition disabled:opacity-50 min-h-[44px]"
+                    className="flex items-center gap-2 bg-white hover:bg-zinc-100 text-black font-black px-5 py-2.5 rounded-full text-sm transition disabled:opacity-50 min-h-[44px]"
                   >
                     <Check size={15} />{" "}
                     {profileLoading ? "Salvando..." : "Salvar Perfil"}
@@ -595,7 +643,7 @@ export default function SettingsPage() {
                             newPw: event.target.value,
                           }))
                         }
-                        className="w-full bg-zinc-800/70 border border-zinc-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-pink-500 transition pr-10"
+                        className="w-full bg-black/35 border border-white/12 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white/30 transition pr-10"
                       />
                       <button
                         type="button"
@@ -617,7 +665,7 @@ export default function SettingsPage() {
                   {pwMsg && <p className="text-sm font-bold text-zinc-300">{pwMsg}</p>}
                   <button
                     onClick={handleChangePassword}
-                    className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition min-h-[44px]"
+                    className="flex items-center gap-2 bg-black/35 hover:bg-white/10 border border-white/12 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition min-h-[44px]"
                   >
                     Alterar Senha
                   </button>
@@ -649,7 +697,7 @@ export default function SettingsPage() {
                   )}
                   <button
                     onClick={handleChangeEmail}
-                    className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition min-h-[44px]"
+                    className="flex items-center gap-2 bg-black/35 hover:bg-white/10 border border-white/12 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition min-h-[44px]"
                   >
                     Atualizar E-mail
                   </button>
@@ -679,24 +727,18 @@ export default function SettingsPage() {
                     <p className="font-semibold text-white text-sm mb-3">
                       Tema de cores
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2">
                       {[
-                        { value: "pink", label: "Rosa Neon", color: "bg-pink-600" },
-                        { value: "galactic", label: "Roxo Galactic", color: "bg-purple-600" },
-                        { value: "ocean", label: "Azul Oceano", color: "bg-sky-600" },
-                        { value: "matrix", label: "Verde Matrix", color: "bg-green-600" },
-                        { value: "sunset", label: "Sunset Laranja", color: "bg-orange-500" },
-                        { value: "midnight", label: "Midnight Blue", color: "bg-indigo-700" },
-                        { value: "mint", label: "Mint Fresh", color: "bg-emerald-500" },
-                        { value: "carbon", label: "Carbono", color: "bg-zinc-700" },
+                        { value: "kandaraku-dark", label: "Cinema Escuro", color: "bg-zinc-900" },
+                        { value: "kandaraku-light", label: "Luz Suave", color: "bg-amber-100 border border-zinc-300" },
                       ].map((t) => (
                         <button
                           key={t.value}
                           onClick={() => { select("theme", t.value); setTheme(t.value); }}
                           className={`flex items-center gap-2 p-3 rounded-xl border text-sm font-bold transition ${
-                            (settings.theme || theme) === t.value
-                              ? "border-white bg-zinc-800"
-                              : "border-zinc-700 hover:border-zinc-600 hover:bg-zinc-800/50"
+                            normalizeTheme(settings.theme || theme) === t.value
+                              ? "border-white/40 bg-white/10"
+                              : "border-white/10 hover:border-white/25 hover:bg-white/6"
                           }`}
                         >
                           <span
@@ -729,8 +771,8 @@ export default function SettingsPage() {
                   settingKey="publicProfile"
                 />
                 <Toggle
-                  label="Mostrar historico"
-                  desc="Exibe seu historico recente para outros usuarios."
+                  label="Participar do social"
+                  desc="Mostra suas atividades para amigos no feed social. Vem ligado por padrao."
                   settingKey="showHistory"
                 />
                 <Toggle
@@ -744,8 +786,8 @@ export default function SettingsPage() {
             {section === "playback" && (
               <div>
                 <Toggle
-                  label="Reproducao automatica"
-                  desc="Inicia o proximo episodio automaticamente quando existir."
+                  label="Auto proximo episodio"
+                  desc="Quando um episodio termina, inicia o proximo sozinho."
                   settingKey="autoplay"
                 />
                 <SelectField
@@ -760,6 +802,22 @@ export default function SettingsPage() {
                     { label: "2x", value: "2x" },
                   ]}
                 />
+              </div>
+            )}
+
+            {section === "feedback" && (
+              <div className="space-y-4">
+                <p className="text-sm text-zinc-400">
+                  Envie sugestões de anime e reporte bugs do site sem precisar usar botão flutuante.
+                </p>
+                <SuggestionButton
+                  variant="sidebar"
+                  mobileSidebar={true}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-white/15 bg-white/5 text-white font-semibold hover:bg-white/10 transition"
+                />
+                <p className="text-xs text-zinc-500">
+                  Para bug específico de player, use também o botão &quot;Reportar bug&quot; dentro da tela de episódio.
+                </p>
               </div>
             )}
           </main>

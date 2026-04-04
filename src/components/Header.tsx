@@ -1,21 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
+  Clock3,
+  Heart,
   LogOut,
   Play,
   Search,
+  Settings2,
   UserCircle,
   UserPlus,
   X,
 } from "lucide-react";
 
+import { readSavedAccounts, writeSavedAccounts } from "@/lib/saved-accounts";
+
 interface SearchResult {
   animes: { id: string; title: string; coverImage?: string }[];
+  mangas: { id: string; title: string; coverImage?: string }[];
   users: { id: string; name: string; avatarUrl?: string }[];
 }
 
@@ -30,6 +37,11 @@ interface NotificationItem {
   actor?: { id: string; name: string; avatarUrl?: string } | null;
 }
 
+type NavigationState = {
+  canAccessAnimeTab?: boolean;
+  canAccessMangaTab?: boolean;
+};
+
 function formatNotificationDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
@@ -41,11 +53,13 @@ function formatNotificationDate(value: string) {
 
 function NotificationGlyph({ type }: { type: NotificationItem["type"] }) {
   if (type === "follow") return <UserPlus size={14} className="text-sky-400" />;
-  if (type === "new_episode") return <Play size={14} className="text-green-400" />;
-  return <Bell size={14} className="text-pink-400" />;
+  if (type === "new_episode") return <Play size={14} className="text-emerald-400" />;
+  return <Bell size={14} className="text-[var(--text-accent)]" />;
 }
 
-export default function Header() {
+export default function Header({ cinematic = false }: { cinematic?: boolean }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const { data: session } = useSession();
   const [isImageLoading, setIsImageLoading] = useState(true);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -55,58 +69,208 @@ export default function Header() {
   const [query, setQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  const [switchingEmail, setSwitchingEmail] = useState<string | null>(null);
+  const [navigation, setNavigation] = useState<NavigationState>({});
+  const [savedAccounts, setSavedAccounts] = useState<
+    { email: string; name: string; avatar?: string; handoffHash?: string }[]
+  >([]);
+
   const notificationRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
 
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/system/navigation", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!alive || !data) return;
+        setNavigation({
+          canAccessAnimeTab: Boolean(data.canAccessAnimeTab),
+          canAccessMangaTab: Boolean(data.canAccessMangaTab),
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const loadNotifications = useCallback(async () => {
-    const res = await fetch("/api/notifications?limit=20");
-    if (!res.ok) return;
-    const data = await res.json();
-    const filtered = (data.notifications || []).filter((n: any) => n.type !== "ad");
-    setNotifications(filtered);
-    setUnreadCount(data.unreadCount || 0);
+    try {
+      const res = await fetch("/api/notifications?limit=20");
+      if (!res.ok) return;
+      const data = await res.json();
+      const filtered = (data.notifications || []).filter((n: any) => n.type !== "ad");
+      setNotifications(filtered);
+      setUnreadCount(data.unreadCount || 0);
+    } catch {
+      // Silently fail
+    }
   }, []);
 
   useEffect(() => {
     if (!session) return;
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 45000);
-    return () => clearInterval(interval);
+    let alive = true;
+
+    const connection = (navigator as any)?.connection;
+    const saveData = Boolean(connection?.saveData);
+    const effectiveType = String(connection?.effectiveType || "").toLowerCase();
+    const isConstrainedNetwork =
+      saveData ||
+      effectiveType.includes("slow-2g") ||
+      effectiveType.includes("2g") ||
+      effectiveType.includes("3g");
+    const pollMs = isConstrainedNetwork ? 120000 : 75000;
+
+    const safeLoad = async () => {
+      if (!alive) return;
+      if (document.hidden) return;
+      await loadNotifications();
+    };
+
+    safeLoad();
+    const interval = setInterval(safeLoad, pollMs);
+    const onFocus = () => {
+      void safeLoad();
+    };
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      alive = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [session, loadNotifications]);
 
   const handleSearch = useCallback((nextQuery: string) => {
     setQuery(nextQuery);
-    clearTimeout(searchTimeout.current);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
 
     if (!nextQuery.trim()) {
       setSearchResults(null);
       setSearchOpen(false);
+      setSearching(false);
       return;
     }
 
+    setSearching(true);
     searchTimeout.current = setTimeout(async () => {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(nextQuery)}`);
-      const data = await res.json();
-      setSearchResults(data);
-      setSearchOpen(true);
-    }, 250);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(nextQuery)}`);
+        if (!res.ok) throw new Error("Erro");
+        const data = await res.json();
+        setSearchResults({
+          animes: Array.isArray(data?.animes) ? data.animes : [],
+          mangas: Array.isArray(data?.mangas) ? data.mangas : [],
+          users: Array.isArray(data?.users) ? data.users : [],
+        });
+        setSearchOpen(true);
+      } catch (e) {
+        setSearchResults({ animes: [], mangas: [], users: [] });
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
   }, []);
 
   const handleOpenNotifications = async () => {
     const willOpen = !showNotifications;
     setShowNotifications(willOpen);
+    setShowProfile(false);
     if (willOpen && unreadCount > 0) {
       setUnreadCount(0);
       setNotifications((current) =>
         current.map((notification) => ({ ...notification, isRead: true })),
       );
-      await fetch("/api/notifications", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markAllRead: true }),
-      });
+      try {
+        await fetch("/api/notifications", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markAllRead: true }),
+        });
+      } catch {
+        // Silently fail
+      }
+    }
+  };
+
+  const loadSavedAccounts = useCallback(() => {
+    const currentEmail = String(session?.user?.email || "").trim().toLowerCase();
+    const saved = readSavedAccounts(8);
+
+    setSavedAccounts(
+      saved
+        .filter((item) => item.email !== currentEmail)
+        .map((item) => ({
+          email: item.email,
+          name: item.name || item.email,
+          avatar: item.avatar,
+          handoffHash: item.handoffHash,
+        })),
+    );
+  }, [session?.user?.email]);
+
+  const handleOpenAccountSwitcher = () => {
+    loadSavedAccounts();
+    setShowProfile(false);
+    setShowAccountSwitcher(true);
+  };
+
+  const handleQuickSwitchAccount = async (account: {
+    email: string;
+    handoffHash?: string;
+  }) => {
+    if (!account.email) return;
+    setSwitchingEmail(account.email);
+
+    try {
+      if (account.handoffHash) {
+        const quick = await signIn("credentials", {
+          email: account.email,
+          password: account.handoffHash,
+          isQuick: "true",
+          redirect: false,
+        });
+
+        if (!quick?.error) {
+          setShowAccountSwitcher(false);
+          router.push("/");
+          router.refresh();
+          return;
+        }
+
+        const sanitized = writeSavedAccounts(
+          readSavedAccounts(8).map((item) =>
+            item.email === account.email
+              ? { ...item, handoffHash: undefined }
+              : item,
+          ),
+          8,
+        );
+
+        const currentEmail = String(session?.user?.email || "").trim().toLowerCase();
+        setSavedAccounts(
+          sanitized
+            .filter((item) => item.email !== currentEmail)
+            .map((item) => ({
+              email: item.email,
+              name: item.name || item.email,
+              avatar: item.avatar,
+              handoffHash: item.handoffHash,
+            })),
+        );
+      }
+
+      await signOut({ callbackUrl: `/login?email=${encodeURIComponent(account.email)}` });
+    } finally {
+      setSwitchingEmail(null);
     }
   };
 
@@ -123,11 +287,28 @@ export default function Header() {
       }
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setSearchOpen(false);
+        if (window.innerWidth < 768) {
+          setSearchExpanded(false);
+        }
       }
     }
 
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSearchOpen(false);
+      setSearchExpanded(false);
+      setShowNotifications(false);
+      setShowProfile(false);
+      setShowAccountSwitcher(false);
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
   }, []);
 
   if (!session) return null;
@@ -136,276 +317,520 @@ export default function Header() {
     session?.user?.image ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(
       session?.user?.name || "U",
-    )}&background=ff007f&color=fff`;
+    )}&background=7f1d1d&color=fff`;
+
+  const canAccessAnimeTab = navigation.canAccessAnimeTab ?? true;
+  const canAccessMangaTab = navigation.canAccessMangaTab ?? false;
+  const navLinks = [
+    ...(canAccessAnimeTab ? [{ href: "/", label: "Explorar" }] : []),
+    ...(canAccessMangaTab ? [{ href: "/mangas", label: "Mangás" }] : []),
+    { href: "/social", label: "Social" },
+    { href: "/favorites", label: "Favoritos" },
+    { href: "/settings", label: "Configurações" },
+    ...((session?.user as any)?.role === "admin" ? [{ href: "/admin", label: "Painel" }] : []),
+  ];
 
   return (
-    <header className="fixed top-0 left-0 md:left-16 lg:left-60 right-0 h-14 z-30 flex items-center px-3 md:px-5 bg-[#0d0d0d]/95 backdrop-blur-md border-b border-white/5">
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <div className="md:hidden w-11 shrink-0" />
+    <header
+      className="fixed inset-x-0 top-0 z-40 px-2 sm:px-4 lg:px-6"
+      style={{
+        paddingTop: `calc(env(safe-area-inset-top, 0px) + ${cinematic ? "4px" : "6px"})`,
+      }}
+    >
+      <div className={`kdr-topbar pointer-events-auto mx-auto flex ${cinematic ? "h-[50px]" : "h-[56px]"} max-w-[1580px] items-center gap-2 rounded-2xl ${cinematic ? "px-2 sm:px-2.5 md:px-3" : "px-2.5 sm:px-3 md:px-4"}`}>
+        {/* Logo */}
+        <div className="hidden md:flex items-center gap-2 mr-1">
+          <Link prefetch={true} href="/" className="inline-flex items-center gap-2 rounded-full px-2 py-1 hover:bg-white/5 transition">
+            <Image src="/logo.png" alt="Futuro sem Contexto" width={24} height={24} className="rounded-md object-cover" />
+            <span className={`font-black tracking-tight text-white ${cinematic ? "text-xs lg:text-sm" : "text-sm"} hidden lg:inline`}>Futuro</span>
+          </Link>
+        </div>
 
-        <div className="flex-1 max-w-xs sm:max-w-sm relative" ref={searchRef}>
-          <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 hover:border-zinc-600 focus-within:border-pink-500/70 rounded-xl px-3 py-2 transition">
-            <Search size={14} className="text-zinc-500 shrink-0" />
-            <input
-              value={query}
-              onChange={(event) => handleSearch(event.target.value)}
-              onFocus={() => query && setSearchOpen(true)}
-              placeholder="Buscar anime ou perfil..."
-              className="bg-transparent text-white text-sm flex-1 focus:outline-none placeholder:text-zinc-600 min-w-0 w-full"
-            />
-            {query && (
-              <button
-                onClick={() => {
-                  setQuery("");
-                  setSearchResults(null);
-                  setSearchOpen(false);
-                }}
+        {/* Nav Links — Desktop */}
+        <nav className={`${cinematic ? "hidden md:flex" : "hidden lg:flex"} items-center gap-0.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50 px-1 py-0.5`}>
+          {navLinks.map((item) => {
+            const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+            return (
+              <Link
+                prefetch={true}
+                key={item.href}
+                href={item.href}
+                className={`kdr-nav-link ${active ? "kdr-nav-link-active" : ""}`}
               >
-                <X size={12} className="text-zinc-500 hover:text-white transition" />
-              </button>
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className={`${cinematic ? "hidden md:block" : "hidden lg:block"} kdr-topbar-divider`} />
+
+        {/* Search + Right actions */}
+        <div className={`flex items-center gap-2 flex-1 min-w-0 ${cinematic ? "justify-end" : "justify-end lg:justify-start"}`}>
+          {/* Search */}
+          <div className="flex-1 max-w-full sm:max-w-md relative" ref={searchRef}>
+            {/* Mobile: icon button */}
+            <button
+              className={`md:hidden w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/8 transition ${searchExpanded ? "hidden" : ""}`}
+              onClick={() => {
+                setSearchExpanded(true);
+                setTimeout(() => searchInputRef.current?.focus(), 100);
+              }}
+            >
+              <Search size={19} />
+            </button>
+
+            {/* Search bar */}
+            <div className={`${searchExpanded ? "flex absolute inset-x-0 top-0 z-30 h-10 px-2.5 bg-black/85 border border-white/18 backdrop-blur-xl" : "hidden"} md:relative md:z-auto md:h-auto md:px-3.5 md:bg-black/45 md:border-white/12 md:border md:flex items-center gap-2 hover:border-white/22 focus-within:border-[var(--accent-border)] rounded-full py-2.5 md:py-2 transition`}>
+              <Search size={15} className={searching ? "text-[var(--text-accent)] animate-pulse" : "text-[var(--text-muted)]"} />
+              <input
+                ref={searchInputRef}
+                value={query}
+                onChange={(event) => handleSearch(event.target.value)}
+                onFocus={() => query && setSearchOpen(true)}
+                placeholder="Buscar anime, manga ou perfil..."
+                className="bg-transparent text-white text-[15px] md:text-sm flex-1 focus:outline-none placeholder:text-[var(--text-muted)] min-w-0 w-full"
+              />
+              {(query || searchExpanded) && (
+                <button
+                  className="w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-white/10"
+                  onClick={() => {
+                    setQuery("");
+                    setSearchResults(null);
+                    setSearchOpen(false);
+                    setSearching(false);
+                    setSearchExpanded(false);
+                  }}
+                >
+                  <X size={12} className="text-[var(--text-muted)] hover:text-white transition" />
+                </button>
+              )}
+            </div>
+
+            {/* Search results dropdown */}
+            {searchOpen && (
+                <div className="absolute top-full left-0 right-0 mt-2 glass-surface-heavy border border-white/12 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto animate-scaleIn">
+                {searching ? (
+                  <div className="p-8 flex flex-col items-center justify-center gap-3">
+                    <div className="kdr-spinner" />
+                    <p className="text-xs text-[var(--text-muted)] font-bold uppercase tracking-widest">Buscando...</p>
+                  </div>
+                ) :
+                  !searchResults ||
+                  (searchResults.animes.length === 0 &&
+                    searchResults.mangas.length === 0 &&
+                    searchResults.users.length === 0) ? (
+                  <p className="text-[var(--text-muted)] text-sm p-6 text-center">
+                    Nenhum resultado encontrado.
+                  </p>
+                ) : (
+                  <>
+                    {searchResults.animes.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider px-4 py-2.5 border-b border-[var(--border-subtle)]">
+                          Animes
+                        </p>
+                        {searchResults.animes.map((anime) => (
+                          <Link
+                            prefetch={true}
+                            key={anime.id}
+                            href={`/anime/${anime.id}`}
+                            onClick={() => {
+                              setSearchOpen(false);
+                              setQuery("");
+                              setSearchExpanded(false);
+                            }}
+                            className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.05] transition"
+                          >
+                            <div className="w-9 h-12 rounded-lg overflow-hidden shrink-0 bg-[var(--bg-card)] relative border border-[var(--border-subtle)]">
+                              {anime.coverImage && (
+                                <Image
+                                  src={anime.coverImage}
+                                  fill
+                                  className="object-cover"
+                                  alt=""
+                                />
+                              )}
+                            </div>
+                            <p className="text-sm text-white font-semibold truncate">
+                              {anime.title}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+
+                    {searchResults.mangas.length > 0 && (
+                      <div className={searchResults.animes.length > 0 ? "border-t border-[var(--border-subtle)]" : ""}>
+                        <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider px-4 py-2.5 border-b border-[var(--border-subtle)]">
+                          Mangás
+                        </p>
+                        {searchResults.mangas.map((manga) => (
+                          <Link
+                            prefetch={true}
+                            key={manga.id}
+                            href={`/mangas/${manga.id}`}
+                            onClick={() => {
+                              setSearchOpen(false);
+                              setQuery("");
+                              setSearchExpanded(false);
+                            }}
+                            className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.05] transition"
+                          >
+                            <div className="w-9 h-12 rounded-lg overflow-hidden shrink-0 bg-[var(--bg-card)] relative border border-[var(--border-subtle)]">
+                              {manga.coverImage && (
+                                <Image
+                                  src={manga.coverImage}
+                                  fill
+                                  className="object-cover"
+                                  alt=""
+                                />
+                              )}
+                            </div>
+                            <p className="text-sm text-white font-semibold truncate">
+                              {manga.title}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+
+                    {searchResults.users.length > 0 && (
+                      <div className={searchResults.animes.length > 0 || searchResults.mangas.length > 0 ? "border-t border-[var(--border-subtle)]" : ""}>
+                        <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider px-4 py-2.5 border-b border-[var(--border-subtle)]">
+                          Perfis
+                        </p>
+                        {searchResults.users.map((user) => (
+                          <Link
+                            prefetch={true}
+                            key={user.id}
+                            href={`/profile/${user.id}`}
+                            onClick={() => {
+                              setSearchOpen(false);
+                              setQuery("");
+                              setSearchExpanded(false);
+                            }}
+                            className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.05] transition"
+                          >
+                            <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0">
+                              <Image
+                                src={
+                                  user.avatarUrl ||
+                                  `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                    user.name,
+                                  )}&background=333&color=fff`
+                                }
+                                fill
+                                className="object-cover"
+                                alt={user.name}
+                              />
+                            </div>
+                            <p className="text-sm text-white font-semibold">
+                              {user.name}
+                            </p>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right side actions */}
+        <div className={`flex items-center gap-1 shrink-0 pl-1 rounded-full border border-white/12 bg-black/40 backdrop-blur-md px-1.5 py-1 ${searchExpanded ? "hidden md:flex" : "flex"}`}>
+          {/* Notifications */}
+          <div className="relative" ref={notificationRef}>
+            <button
+              onClick={handleOpenNotifications}
+              className="relative w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/10 transition"
+              title="Notificações"
+            >
+              <Bell size={17} />
+              {unreadCount > 0 && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full text-[9px] font-black text-white flex items-center justify-center"
+                  style={{ backgroundColor: "var(--accent)", boxShadow: `0 0 8px var(--accent-glow)` }}
+                >
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notifications panel */}
+            {showNotifications && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black/60 z-40 md:hidden"
+                  onClick={() => setShowNotifications(false)}
+                />
+                <div className="fixed inset-x-0 bottom-0 z-50 md:absolute md:inset-auto md:right-0 md:top-12 md:w-[min(22rem,calc(100vw-1rem))] glass-surface-heavy border border-white/12 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden animate-slideUpSheet md:animate-scaleIn max-h-[75vh]">
+                  <div className="md:hidden flex justify-center py-2">
+                    <span className="kdr-sheet-handle" />
+                  </div>
+                  <div className="flex items-center justify-between px-5 py-4 md:px-4 md:py-3 border-b border-[var(--border-subtle)]">
+                    <h3 className="font-black text-base md:text-sm text-white">Central</h3>
+                    <button
+                      onClick={() => setShowNotifications(false)}
+                      className="text-[var(--text-muted)] hover:text-white transition p-1"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="max-h-[60vh] overflow-y-auto" style={{ paddingBottom: "env(safe-area-inset-bottom, 16px)" }}>
+                    {notifications.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-10 gap-2">
+                        <Bell size={28} className="text-[var(--text-muted)]" />
+                        <p className="text-[var(--text-muted)] text-sm font-medium">
+                          Nenhuma notificação ainda.
+                        </p>
+                      </div>
+                    ) : (
+                      notifications.map((notification) => {
+                        const content = (
+                          <div
+                            className={`px-5 md:px-4 py-3.5 md:py-3 border-b border-[var(--border-subtle)] last:border-0 transition ${
+                              notification.isRead ? "bg-transparent" : "bg-[var(--accent-soft)]"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="w-9 h-9 md:w-8 md:h-8 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] flex items-center justify-center shrink-0 relative overflow-hidden">
+                                {notification.actor?.avatarUrl ? (
+                                  <Image
+                                    src={notification.actor.avatarUrl}
+                                    alt={notification.actor.name}
+                                    fill
+                                    className="object-cover rounded-full"
+                                  />
+                                ) : (
+                                  <NotificationGlyph type={notification.type} />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-white leading-tight break-words">
+                                  {notification.title}
+                                </p>
+                                {notification.body && (
+                                  <p className="text-xs text-[var(--text-secondary)] mt-1 leading-relaxed break-words">
+                                    {notification.body}
+                                  </p>
+                                )}
+                                <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                                  {formatNotificationDate(notification.createdAt)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+
+                        if (notification.link) {
+                          return (
+                            <Link
+                              prefetch={true}
+                              key={notification.id}
+                              href={notification.link}
+                              onClick={() => setShowNotifications(false)}
+                            >
+                              {content}
+                            </Link>
+                          );
+                        }
+
+                        return <div key={notification.id}>{content}</div>;
+                      })
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
-          {searchOpen && searchResults && (
-            <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#1a1a1a] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto">
-              {searchResults.animes.length === 0 &&
-              searchResults.users.length === 0 ? (
-                <p className="text-zinc-500 text-sm p-4 text-center">
-                  Nenhum resultado.
-                </p>
-              ) : (
-                <>
-                  {searchResults.animes.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-wider px-4 py-2 border-b border-zinc-800">
-                        Animes
-                      </p>
-                      {searchResults.animes.map((anime) => (
-                        <Link
-                          prefetch={true}
-                          key={anime.id}
-                          href={`/anime/${anime.id}`}
-                          onClick={() => {
-                            setSearchOpen(false);
-                            setQuery("");
-                          }}
-                          className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition"
-                        >
-                          <div className="w-8 h-11 rounded overflow-hidden shrink-0 bg-zinc-800">
-                            {anime.coverImage && (
-                              <Image
-                                src={anime.coverImage}
-                                fill
-                                className="object-cover"
-                                alt=""
-                              />
-                            )}
-                          </div>
-                          <p className="text-sm text-white font-semibold truncate">
-                            {anime.title}
-                          </p>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
+          <a
+            href="https://discord.gg/z2DRmZSHNy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[#5865F2] hover:bg-[#5865F2]/10 transition"
+            title="Discord"
+            aria-label="Abrir Discord"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" viewBox="0 0 127.14 96.36" aria-hidden="true"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 109.27 109.27 0 0 0-29.08 0 72.37 72.37 0 0 0-3.37-6.83 105.43 105.43 0 0 0-26.23 8.09C2.04 33.84-2.69 58.85.92 83.46a105.73 105.73 0 0 0 32.14 16.14 77.7 77.7 0 0 0 6.89-11.11 72.17 72.17 0 0 1-10.82-5.18c.9-.66 1.8-1.35 2.66-2a75.34 75.34 0 0 0 64.32 0c.87.68 1.76 1.34 2.66 2a72.55 72.55 0 0 1-10.85 5.18 78 78 0 0 0 6.89 11.1 105.35 105.35 0 0 0 32.19-16.14c3.9-27.42-4.14-51.48-19.3-75.38zm-51.06 65.6c-6.17 0-11.3-5.63-11.3-12.54 0-6.9 4.96-12.54 11.3-12.54 6.34 0 11.45 5.68 11.3 12.54 0 6.91-4.96 12.54-11.3 12.54zm33.85 0c-6.17 0-11.3-5.63-11.3-12.54 0-6.9 4.96-12.54 11.3-12.54 6.34 0 11.45 5.68 11.3 12.54 0 6.91-4.96 12.54-11.3 12.54z"/></svg>
+          </a>
 
-                  {searchResults.users.length > 0 && (
-                    <div
-                      className={
-                        searchResults.animes.length > 0
-                          ? "border-t border-zinc-800"
-                          : ""
-                      }
+          <div className="kdr-topbar-divider" />
+
+          {/* Profile */}
+          <div className="relative" ref={profileRef}>
+            <button
+              onClick={() => { setShowProfile((val) => !val); setShowNotifications(false); }}
+              className="flex items-center gap-1.5 hover:opacity-90 transition"
+              title="Perfil"
+            >
+              <div
+                className="w-9 h-9 md:w-8 md:h-8 rounded-full overflow-hidden border-2 transition shadow-sm relative bg-[var(--bg-card)]"
+                style={{ borderColor: "color-mix(in srgb, var(--accent) 55%, transparent)", boxShadow: `0 0 10px var(--accent-glow)` }}
+              >
+                {isImageLoading && <div className="absolute inset-0 kdr-skeleton z-0 rounded-full" />}
+                <Image
+                  src={displayAvatar}
+                  fill
+                  className={`object-cover relative z-10 transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+                  alt="avatar"
+                  key={displayAvatar}
+                  onLoad={() => setIsImageLoading(false)}
+                  unoptimized={displayAvatar.startsWith('http') ? false : true}
+                />
+              </div>
+            </button>
+
+            {/* Profile dropdown */}
+            {showProfile && (
+              <>
+                <div
+                  className="fixed inset-0 bg-black/60 z-40 md:hidden"
+                  onClick={() => setShowProfile(false)}
+                />
+                <div className="fixed inset-x-0 bottom-0 z-50 md:absolute md:inset-auto md:right-0 md:top-12 md:w-56 glass-surface-heavy border border-white/12 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden animate-slideUpSheet md:animate-scaleIn">
+                  <div className="md:hidden flex justify-center py-2">
+                    <span className="kdr-sheet-handle" />
+                  </div>
+                  <div className="px-5 md:px-4 py-4 md:py-3 border-b border-[var(--border-subtle)]">
+                    <p className="font-bold text-white text-base md:text-sm truncate">
+                      {session.user?.name}
+                    </p>
+                    <p className="text-[var(--text-muted)] text-xs truncate">
+                      {session.user?.email}
+                    </p>
+                  </div>
+                  <div className="py-1" style={{ paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
+                    <Link
+                      prefetch={true}
+                      href={`/profile/${(session.user as any)?.id || ""}`}
+                      onClick={() => setShowProfile(false)}
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
                     >
-                      <p className="text-[10px] font-black text-zinc-500 uppercase tracking-wider px-4 py-2 border-b border-zinc-800">
-                        Perfis
-                      </p>
-                      {searchResults.users.map((user) => (
-                        <Link
-                          prefetch={true}
-                          key={user.id}
-                          href={`/profile/${user.id}`}
-                          onClick={() => {
-                            setSearchOpen(false);
-                            setQuery("");
-                          }}
-                          className="flex items-center gap-3 px-4 py-2.5 hover:bg-zinc-800 transition"
-                        >
-                          <div className="relative w-7 h-7 rounded-full overflow-hidden shrink-0">
-                            <Image
-                              src={
-                                user.avatarUrl ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                  user.name,
-                                )}&background=333&color=fff`
-                              }
-                              fill
-                              className="object-cover"
-                              alt={user.name}
-                            />
-                          </div>
-                          <p className="text-sm text-white font-semibold">
-                            {user.name}
-                          </p>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                      <UserCircle size={17} className="text-[var(--text-accent)]" /> Meu Perfil
+                    </Link>
+                    <Link
+                      prefetch={true}
+                      href="/favorites"
+                      onClick={() => setShowProfile(false)}
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                    >
+                      <Heart size={17} className="text-[var(--text-accent)]" /> Favoritos
+                    </Link>
+                    <Link
+                      prefetch={true}
+                      href="/history"
+                      onClick={() => setShowProfile(false)}
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                    >
+                      <Clock3 size={17} className="text-[var(--text-accent)]" /> Histórico
+                    </Link>
+                    <Link
+                      prefetch={true}
+                      href="/settings"
+                      onClick={() => setShowProfile(false)}
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                    >
+                      <Settings2 size={17} className="text-[var(--text-accent)]" /> Configurações
+                    </Link>
+                    <div className="border-t border-[var(--border-subtle)] my-0.5" />
+                    <button
+                      onClick={handleOpenAccountSwitcher}
+                      className="w-full flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                    >
+                      <UserPlus size={17} className="text-[var(--text-accent)]" /> Trocar de conta
+                    </button>
+                    <button
+                      onClick={() => signOut()}
+                      className="w-full flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 transition min-h-[44px]"
+                    >
+                      <LogOut size={17} /> Sair da Conta
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0 pl-3">
-        <div className="relative" ref={notificationRef}>
-          <button
-            onClick={handleOpenNotifications}
-            className="relative w-9 h-9 rounded-xl flex items-center justify-center text-zinc-400 hover:text-pink-400 hover:bg-zinc-800/80 transition"
-            title="Notificacoes"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 rounded-full border-2 border-[#0d0d0d] text-[10px] font-black text-white flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </button>
-
-          {showNotifications && (
-            <div className="absolute right-0 top-11 w-80 bg-[#1a1a1a] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-                <h3 className="font-bold text-sm text-white">Central</h3>
-                <button
-                  onClick={() => setShowNotifications(false)}
-                  className="text-zinc-500 hover:text-white transition"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="max-h-80 overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <p className="text-zinc-500 text-sm p-4 text-center">
-                    Nenhuma notificacao ainda.
-                  </p>
-                ) : (
-                  notifications.map((notification) => {
-                    const content = (
-                      <div
-                        className={`px-4 py-3 border-b border-zinc-800/50 last:border-0 transition ${
-                          notification.isRead ? "bg-transparent" : "bg-white/[0.03]"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
-                            {notification.actor?.avatarUrl ? (
-                              <Image
-                                src={notification.actor.avatarUrl}
-                                alt={notification.actor.name}
-                                fill
-                                className="object-cover rounded-full"
-                              />
-                            ) : (
-                              <NotificationGlyph type={notification.type} />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-bold text-white leading-tight">
-                              {notification.title}
-                            </p>
-                            {notification.body && (
-                              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                                {notification.body}
-                              </p>
-                            )}
-                            <p className="text-[11px] text-zinc-600 mt-1">
-                              {formatNotificationDate(notification.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-
-                    if (notification.link) {
-                      return (
-                        <Link
-                          prefetch={true}
-                          key={notification.id}
-                          href={notification.link}
-                          onClick={() => setShowNotifications(false)}
-                        >
-                          {content}
-                        </Link>
-                      );
-                    }
-
-                    return <div key={notification.id}>{content}</div>;
-                  })
-                )}
-              </div>
+      {/* Account Switcher Modal */}
+      {showAccountSwitcher && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 pointer-events-auto">
+          <div
+            className="kdr-modal-backdrop"
+            onClick={() => setShowAccountSwitcher(false)}
+          />
+          <div className="relative z-10 w-full max-w-md kdr-modal-panel rounded-t-3xl sm:rounded-2xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-5 space-y-4 animate-slideUpSheet sm:animate-scaleIn">
+            <div className="sm:hidden flex justify-center -mt-1 mb-1">
+              <span className="kdr-sheet-handle" />
             </div>
-          )}
-        </div>
-
-        <div className="relative" ref={profileRef}>
-          <button
-            onClick={() => setShowProfile((value) => !value)}
-            className="flex items-center gap-1.5 hover:opacity-90 transition pl-1"
-            title="Perfil"
-          >
-            <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-pink-500/60 hover:border-pink-400 transition shadow-[0_0_8px_rgba(255,0,127,0.25)] relative bg-zinc-900">
-              {isImageLoading && <div className="absolute inset-0 bg-zinc-800 animate-pulse z-0" />}
-              <Image
-                src={displayAvatar}
-                fill
-                className={`object-cover relative z-10 transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
-                alt="avatar"
-                key={displayAvatar}
-                onLoad={() => setIsImageLoading(false)}
-                unoptimized={displayAvatar.startsWith('http') ? false : true}
-              />
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-black text-xl sm:text-lg">Trocar de conta</h3>
+              <button
+                onClick={() => setShowAccountSwitcher(false)}
+                className="text-[var(--text-muted)] hover:text-white transition p-1"
+              >
+                <X size={16} />
+              </button>
             </div>
-          </button>
 
-          {showProfile && (
-            <div className="absolute right-0 top-11 w-52 bg-[#1a1a1a] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50">
-              <div className="px-4 py-3 border-b border-zinc-800">
-                <p className="font-bold text-white text-sm truncate">
-                  {session.user?.name}
-                </p>
-                <p className="text-zinc-500 text-xs truncate">
-                  {session.user?.email}
-                </p>
-              </div>
-              <div className="py-1">
-                <Link
-                  prefetch={true}
-                  href={`/profile/${(session.user as any)?.id || ""}`}
-                  onClick={() => setShowProfile(false)}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
-                >
-                  <UserCircle size={15} className="text-pink-500" /> Meu Perfil
-                </Link>
-              </div>
-              <div className="border-t border-zinc-800 py-1">
+            {savedAccounts.length === 0 ? (
+              <div className="space-y-3">
+                <p className="text-[var(--text-muted)] text-sm">Nenhuma conta salva neste dispositivo.</p>
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-zinc-800 transition"
+                  className="w-full text-sm font-bold rounded-xl border border-[var(--border-default)] px-3 py-3 text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.06] transition min-h-[44px]"
                 >
-                  <UserPlus size={15} className="text-pink-500" /> Trocar de conta
-                </button>
-                <button
-                  onClick={() => signOut()}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-zinc-300 hover:text-red-400 hover:bg-red-500/10 transition"
-                >
-                  <LogOut size={15} /> Sair da Conta
+                  Adicionar outra conta
                 </button>
               </div>
+            ) : (
+              <div className="space-y-2 max-h-[52vh] overflow-y-auto pr-1">
+                {savedAccounts.map((account) => (
+                  <button
+                    key={account.email}
+                    onClick={() => handleQuickSwitchAccount(account)}
+                    disabled={switchingEmail !== null}
+                    className="w-full flex items-center gap-3 px-3.5 py-3 min-h-[56px] rounded-xl border border-[var(--border-default)] bg-[var(--bg-card)]/50 hover:bg-white/[0.06] text-left transition disabled:opacity-50"
+                  >
+                    <div className="relative w-10 h-10 rounded-full overflow-hidden bg-[var(--bg-card)]">
+                      <Image
+                        src={
+                          account.avatar ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(account.name)}&background=333&color=fff`
+                        }
+                        fill
+                        className="object-cover"
+                        alt={account.name}
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[15px] sm:text-sm text-white font-semibold truncate">{account.name}</p>
+                      <p className="text-xs text-[var(--text-muted)] truncate">{account.email}</p>
+                    </div>
+                    <span className="text-sm sm:text-xs font-bold text-[var(--text-accent)]">
+                      {switchingEmail === account.email ? "Entrando..." : "Entrar"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-[var(--border-subtle)]">
+              <button
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                className="w-full text-sm font-bold rounded-xl border border-[var(--border-default)] px-3 py-3 text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.06] transition min-h-[44px]"
+              >
+                Usar outra conta manualmente
+              </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 }
