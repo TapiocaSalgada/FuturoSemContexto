@@ -10,6 +10,7 @@ import {
   Clock3,
   Heart,
   LogOut,
+  MessageCircle,
   Play,
   Search,
   Settings2,
@@ -327,7 +328,6 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
     { href: "/social", label: "Social" },
     { href: "/favorites", label: "Favoritos" },
     { href: "/settings", label: "Configurações" },
-    ...((session?.user as any)?.role === "admin" ? [{ href: "/admin", label: "Painel" }] : []),
   ];
 
   return (
@@ -735,6 +735,14 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
                     >
                       <Settings2 size={17} className="text-[var(--text-accent)]" /> Configurações
+                    </Link>
+                    <Link
+                      prefetch={true}
+                      href="/settings?section=feedback"
+                      onClick={() => setShowProfile(false)}
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                    >
+                      <MessageCircle size={17} className="text-[var(--text-accent)]" /> Feedback
                     </Link>
                     <div className="border-t border-[var(--border-subtle)] my-0.5" />
                     <button

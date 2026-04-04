@@ -4,7 +4,8 @@ import AppLayout from "@/components/AppLayout";
 import SuggestionButton from "@/components/SuggestionButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   Bell,
   Check,
@@ -17,6 +18,7 @@ import {
   UserCircle,
   LogOut,
   MessageCircle,
+  Shield,
 } from "lucide-react";
 import { signIn, signOut } from "next-auth/react";
 
@@ -67,6 +69,7 @@ function applyVisualSettings(settings: UserSettingsPayload) {
 export default function SettingsPage() {
   const { data: session, update: updateSession } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [section, setSection] = useState<Section>("conta");
   const [settings, setSettings] = useState<UserSettingsPayload>(DEFAULT_SETTINGS);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -88,6 +91,13 @@ export default function SettingsPage() {
   const [savedAccounts, setSavedAccounts] = useState<{email: string; name: string; avatar: string; handoffHash?: string}[]>([]);
   const [switchingAccount, setSwitchingAccount] = useState<string | null>(null);
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    const targetSection = String(searchParams.get("section") || "").trim().toLowerCase();
+    if (targetSection && targetSection in sectionLabels) {
+      setSection(targetSection as Section);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (showAccountsModal) {
@@ -389,6 +399,7 @@ export default function SettingsPage() {
   }
 
   const userEmail = session?.user?.email || "";
+  const isAdmin = (session?.user as any)?.role === "admin";
   const [localPart, domain] = userEmail.split("@");
   const censoredEmail = localPart ? `${localPart.substring(0, Math.ceil(localPart.length / 2))}***@${domain || ""}` : "";
 
@@ -460,6 +471,14 @@ export default function SettingsPage() {
                     className="flex-1 flex items-center justify-center gap-2 bg-black/35 hover:bg-red-500/20 hover:text-red-300 border border-white/12 hover:border-red-500/50 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
                     <LogOut size={18} /> Trocar de Conta
                   </button>
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      className="flex-1 flex items-center justify-center gap-2 bg-black/35 hover:bg-white/10 border border-white/12 text-zinc-200 font-bold py-3 rounded-xl transition text-sm"
+                    >
+                      <Shield size={18} /> Painel Admin
+                    </Link>
+                  )}
                 </div>
 
                 {/* Switch Account Modal */}
@@ -808,7 +827,7 @@ export default function SettingsPage() {
             {section === "feedback" && (
               <div className="space-y-4">
                 <p className="text-sm text-zinc-400">
-                  Envie sugestões de anime e reporte bugs do site sem precisar usar botão flutuante.
+                  Envie sugestoes de anime e reporte bugs do site. Voce tambem encontra esse atalho no menu ao tocar na foto de perfil.
                 </p>
                 <SuggestionButton
                   variant="sidebar"

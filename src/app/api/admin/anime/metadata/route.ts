@@ -12,24 +12,22 @@ export async function GET(req: NextRequest) {
   }
 
   const query = String(req.nextUrl.searchParams.get("q") || "").trim();
-  const limit = Math.max(1, Math.min(12, Number(req.nextUrl.searchParams.get("limit") || 8)));
+  const limit = Math.max(1, Math.min(20, Number(req.nextUrl.searchParams.get("limit") || 12)));
+
   if (query.length < 2) {
     return NextResponse.json({ error: "Query obrigatoria (minimo 2 caracteres)." }, { status: 400 });
   }
 
   try {
     const options = await searchAnimeMetadataOptions(query, limit);
-    if (!options.length) {
-      return NextResponse.json({ ok: true, found: false, media: null, options: [] });
-    }
 
     return NextResponse.json({
       ok: true,
-      found: true,
-      media: options[0],
+      found: options.length > 0,
+      media: options[0] || null,
       options,
     });
   } catch {
-    return NextResponse.json({ error: "Falha ao buscar midia para o anime." }, { status: 500 });
+    return NextResponse.json({ error: "Falha ao buscar metadados do anime." }, { status: 500 });
   }
 }

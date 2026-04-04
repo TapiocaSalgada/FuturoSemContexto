@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { revalidateTag } from "next/cache";
-import { findMalMetadataByTitle } from "@/lib/mal";
+import { searchAnimeMetadataOptions } from "@/lib/anime-metadata";
 
 function isAdmin(session: any) {
   return session?.user?.role === "admin";
@@ -27,6 +27,30 @@ function normalizeVisibility(value: unknown): "public" | "admin_only" {
 
 function toVisibilityForClient(value: unknown): "public" | "admin_only" {
   return String(value || "").trim().toLowerCase() === "public" ? "public" : "admin_only";
+}
+
+function normalizeText(value: unknown) {
+  return String(value || "").trim();
+}
+
+function normalizeImage(value: unknown) {
+  const current = normalizeText(value);
+  if (!current) return "";
+  if (current.startsWith("http://")) {
+    return `https://${current.slice(7)}`;
+  }
+  return current;
+}
+
+function resolveArtworkPair(coverInput: unknown, bannerInput: unknown) {
+  let coverImage = normalizeImage(coverInput);
+  let bannerImage = normalizeImage(bannerInput);
+  const fallback = bannerImage || coverImage;
+
+  if (!coverImage) coverImage = fallback;
+  if (!bannerImage) bannerImage = fallback;
+
+  return { coverImage, bannerImage };
 }
 
 async function resolveCategoryIds(categoryNames: string[]) {
@@ -92,34 +116,35 @@ export async function POST(req: Request) {
       ? categoryNames.map((name) => String(name).trim()).filter(Boolean)
       : [];
     let resolvedDescription = typeof description === "string" ? description.trim() : "";
-    let resolvedCoverImage = typeof coverImage === "string" ? coverImage.trim() : "";
-    let resolvedBannerImage = typeof bannerImage === "string" ? bannerImage.trim() : "";
+    let resolvedCoverImage = typeof coverImage === "string" ? normalizeImage(coverImage) : "";
+    let resolvedBannerImage = typeof bannerImage === "string" ? normalizeImage(bannerImage) : "";
 
     if (autoMedia !== false && (!resolvedCoverImage || !resolvedBannerImage || !resolvedDescription || resolvedCategoryNames.length === 0)) {
-      const media = await findMalMetadataByTitle(String(title));
+      const [media] = await searchAnimeMetadataOptions(String(title), 1);
       if (media) {
-        if (media.imageUrl) {
+        if (media.coverImage) {
           if (!resolvedCoverImage) {
-            resolvedCoverImage = media.imageUrl;
+            resolvedCoverImage = normalizeImage(media.coverImage);
           }
           if (!resolvedBannerImage) {
-            resolvedBannerImage = media.imageUrl;
+            resolvedBannerImage = normalizeImage(media.bannerImage || media.coverImage);
           }
         }
-        if (!resolvedDescription && media.synopsis) {
-          resolvedDescription = media.synopsis.trim();
+        if (!resolvedDescription && media.description) {
+          resolvedDescription = media.description.trim();
         }
         if (resolvedCategoryNames.length === 0) {
-          resolvedCategoryNames = Array.from(
-            new Set([
-              ...(media.genres || []),
-              ...(media.themes || []),
-              ...(media.demographics || []),
-            ].map((name) => String(name).trim()).filter(Boolean)),
-          );
+          resolvedCategoryNames = Array.isArray(media.categories)
+            ? media.categories.map((name) => String(name).trim()).filter(Boolean)
+            : [];
         }
       }
     }
+
+    const { coverImage: compatibleCover, bannerImage: compatibleBanner } = resolveArtworkPair(
+      resolvedCoverImage,
+      resolvedBannerImage,
+    );
 
     const categoryIds = await resolveCategoryIds(resolvedCategoryNames);
 
@@ -127,8 +152,8 @@ export async function POST(req: Request) {
       data: {
         title,
         description: resolvedDescription || null,
-        coverImage: resolvedCoverImage || null,
-        bannerImage: resolvedBannerImage || null,
+        coverImage: compatibleCover || null,
+        bannerImage: compatibleBanner || null,
         status: status || "ongoing",
         visibility: normalizeVisibility(visibility),
         ...(categoryIds.length > 0
@@ -162,6 +187,16 @@ export async function PUT(req: NextRequest) {
     const data: Record<string, unknown> = {};
     if (title !== undefined) data.title = title;
 
+    const currentAnime = await prisma.anime.findUnique({
+      where: { id },
+      select: {
+        title: true,
+        coverImage: true,
+        bannerImage: true,
+        description: true,
+      },
+    });
+
     let resolvedDescription = description;
     let resolvedCategoryNames = categoryNames;
     let resolvedCoverImage = coverImage;
@@ -177,39 +212,25 @@ export async function PUT(req: NextRequest) {
       const missingCategories = categoryNames !== undefined && parsedCategoryNames.length === 0;
 
       if (missingCover || missingBanner || missingDescription || missingCategories) {
-        const currentAnime = await prisma.anime.findUnique({
-          where: { id },
-          select: {
-            title: true,
-            coverImage: true,
-            bannerImage: true,
-            description: true,
-          },
-        });
-
         const titleForMedia = String(title || currentAnime?.title || "").trim();
         if (titleForMedia) {
-          const media = await findMalMetadataByTitle(titleForMedia);
+          const [media] = await searchAnimeMetadataOptions(titleForMedia, 1);
           if (media) {
-            if (media.imageUrl) {
+            if (media.coverImage) {
               if (missingCover && !currentAnime?.coverImage) {
-                resolvedCoverImage = media.imageUrl;
+                resolvedCoverImage = media.coverImage;
               }
               if (missingBanner && !currentAnime?.bannerImage) {
-                resolvedBannerImage = media.imageUrl;
+                resolvedBannerImage = media.bannerImage || media.coverImage;
               }
             }
-            if (missingDescription && !currentAnime?.description && media.synopsis) {
-              resolvedDescription = media.synopsis;
+            if (missingDescription && !currentAnime?.description && media.description) {
+              resolvedDescription = media.description;
             }
             if (missingCategories) {
-              const generatedCategories = Array.from(
-                new Set([
-                  ...(media.genres || []),
-                  ...(media.themes || []),
-                  ...(media.demographics || []),
-                ].map((name) => String(name).trim()).filter(Boolean)),
-              );
+              const generatedCategories = Array.isArray(media.categories)
+                ? media.categories.map((name) => String(name).trim()).filter(Boolean)
+                : [];
               if (generatedCategories.length > 0) {
                 resolvedCategoryNames = generatedCategories;
               }
@@ -225,8 +246,19 @@ export async function PUT(req: NextRequest) {
           ? resolvedDescription.trim()
           : resolvedDescription;
     }
-    if (coverImage !== undefined || resolvedCoverImage !== undefined) data.coverImage = resolvedCoverImage;
-    if (bannerImage !== undefined || resolvedBannerImage !== undefined) data.bannerImage = resolvedBannerImage;
+    const shouldUpdateArtwork =
+      coverImage !== undefined ||
+      bannerImage !== undefined ||
+      resolvedCoverImage !== undefined ||
+      resolvedBannerImage !== undefined;
+    if (shouldUpdateArtwork) {
+      const { coverImage: compatibleCover, bannerImage: compatibleBanner } = resolveArtworkPair(
+        resolvedCoverImage ?? currentAnime?.coverImage,
+        resolvedBannerImage ?? currentAnime?.bannerImage,
+      );
+      data.coverImage = compatibleCover || null;
+      data.bannerImage = compatibleBanner || null;
+    }
     if (status !== undefined) data.status = status;
     if (visibility !== undefined) data.visibility = normalizeVisibility(visibility);
     if (categoryNames !== undefined || resolvedCategoryNames !== undefined) {
