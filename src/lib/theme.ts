@@ -17,8 +17,8 @@ export function normalizeTheme(input?: string | null): AppTheme {
 
 export function getThemeMetaColor(theme?: string | null): string {
   if (normalizeTheme(theme) === "kandaraku-light") {
-    return "#f5f1ea";
+    return "#f7f8fa";
   }
 
-  return "#08080a";
+  return "#050608";
 }

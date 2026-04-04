@@ -3,7 +3,7 @@ import { normalizeTheme } from "@/lib/theme";
 export const DEFAULT_SETTINGS = {
   theme: "kandaraku-dark",
   reducedMotion: false,
-  neonEffects: true,
+  neonEffects: false,
   showHistory: true,
   autoplay: true,
   resumePlayback: true,

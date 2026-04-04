@@ -318,7 +318,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
     session?.user?.image ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(
       session?.user?.name || "U",
-    )}&background=7f1d1d&color=fff`;
+    )}&background=334155&color=fff`;
 
   const canAccessAnimeTab = navigation.canAccessAnimeTab ?? true;
   const canAccessMangaTab = navigation.canAccessMangaTab ?? false;
@@ -371,7 +371,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
           <div className="flex-1 max-w-full sm:max-w-md relative" ref={searchRef}>
             {/* Mobile: icon button */}
             <button
-              className={`md:hidden w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/8 transition ${searchExpanded ? "hidden" : ""}`}
+              className={`md:hidden w-11 h-11 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/8 transition ${searchExpanded ? "hidden" : ""}`}
               onClick={() => {
                 setSearchExpanded(true);
                 setTimeout(() => searchInputRef.current?.focus(), 100);
@@ -447,6 +447,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                                 <Image
                                   src={anime.coverImage}
                                   fill
+                                  sizes="36px"
                                   className="object-cover"
                                   alt=""
                                 />
@@ -482,6 +483,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                                 <Image
                                   src={manga.coverImage}
                                   fill
+                                  sizes="36px"
                                   className="object-cover"
                                   alt=""
                                 />
@@ -513,17 +515,18 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                             className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.05] transition"
                           >
                             <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0">
-                              <Image
-                                src={
-                                  user.avatarUrl ||
-                                  `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                                    user.name,
-                                  )}&background=333&color=fff`
-                                }
-                                fill
-                                className="object-cover"
-                                alt={user.name}
-                              />
+                                <Image
+                                  src={
+                                    user.avatarUrl ||
+                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                                      user.name,
+                                    )}&background=333&color=fff`
+                                  }
+                                  fill
+                                  sizes="32px"
+                                  className="object-cover"
+                                  alt={user.name}
+                                />
                             </div>
                             <p className="text-sm text-white font-semibold">
                               {user.name}
@@ -545,7 +548,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
           <div className="relative" ref={notificationRef}>
             <button
               onClick={handleOpenNotifications}
-              className="relative w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/10 transition"
+              className="relative w-11 h-11 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/10 transition"
               title="Notificações"
             >
               <Bell size={17} />
@@ -602,6 +605,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                                     src={notification.actor.avatarUrl}
                                     alt={notification.actor.name}
                                     fill
+                                    sizes="36px"
                                     className="object-cover rounded-full"
                                   />
                                 ) : (
@@ -651,7 +655,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
             href="https://discord.gg/z2DRmZSHNy"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[#5865F2] hover:bg-[#5865F2]/10 transition"
+            className="w-11 h-11 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/10 transition"
             title="Discord"
             aria-label="Abrir Discord"
           >
@@ -664,7 +668,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => { setShowProfile((val) => !val); setShowNotifications(false); }}
-              className="flex items-center gap-1.5 hover:opacity-90 transition"
+              className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:opacity-90 transition"
               title="Perfil"
             >
               <div
@@ -675,6 +679,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                 <Image
                   src={displayAvatar}
                   fill
+                  sizes="36px"
                   className={`object-cover relative z-10 transition-opacity duration-300 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
                   alt="avatar"
                   key={displayAvatar}
@@ -753,7 +758,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                     </button>
                     <button
                       onClick={() => signOut()}
-                      className="w-full flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 transition min-h-[44px]"
+                      className="w-full flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.08] transition min-h-[44px]"
                     >
                       <LogOut size={17} /> Sair da Conta
                     </button>
@@ -812,6 +817,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                           `https://ui-avatars.com/api/?name=${encodeURIComponent(account.name)}&background=333&color=fff`
                         }
                         fill
+                        sizes="40px"
                         className="object-cover"
                         alt={account.name}
                       />

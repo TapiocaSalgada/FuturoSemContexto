@@ -47,16 +47,16 @@ function formatLastSeen(lastActiveAt?: string | null): string {
 }
 
 const PROFESSIONAL_AVATARS = [
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=ff007f",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=111827",
   "https://api.dicebear.com/7.x/notionists/svg?seed=Aidan&backgroundColor=333333",
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Aneka&backgroundColor=5865F2",
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Brooklynn&backgroundColor=ff007f",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Aneka&backgroundColor=334155",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Brooklynn&backgroundColor=111827",
   "https://api.dicebear.com/7.x/notionists/svg?seed=Jude&backgroundColor=333333",
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Ryan&backgroundColor=5865F2",
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Sara&backgroundColor=ff007f",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Ryan&backgroundColor=334155",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Sara&backgroundColor=111827",
   "https://api.dicebear.com/7.x/notionists/svg?seed=Destiny&backgroundColor=333333",
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Emery&backgroundColor=5865F2",
-  "https://api.dicebear.com/7.x/notionists/svg?seed=Mia&backgroundColor=ff007f",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Emery&backgroundColor=334155",
+  "https://api.dicebear.com/7.x/notionists/svg?seed=Mia&backgroundColor=111827",
 ];
 
 function AvatarPickerModal({ onClose, onSelect, currentUrl }: { onClose: () => void, onSelect: (url: string) => void, currentUrl: string }) {
@@ -97,7 +97,7 @@ function AvatarPickerModal({ onClose, onSelect, currentUrl }: { onClose: () => v
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
             {PROFESSIONAL_AVATARS.map(url => (
                <button key={url} onClick={() => { onSelect(url); onClose(); }} className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition ${currentUrl === url ? "border-white/60 scale-105" : "border-transparent hover:border-zinc-500 opacity-70 hover:opacity-100"}`} style={currentUrl === url ? { boxShadow: "0 0 15px color-mix(in srgb, var(--accent) 35%, transparent)" } : undefined}>
-                 <Image src={url} alt="" fill className="object-cover" />
+                 <Image src={url} alt="" fill sizes="(max-width: 640px) 22vw, 96px" className="object-cover" />
                </button>
             ))}
           </div>
@@ -239,7 +239,7 @@ export default function ProfilePage() {
               <div className="flex flex-col sm:flex-row items-start gap-6">
                 <div className="relative group shrink-0">
                   <div className="w-28 h-28 rounded-full border-4 border-[var(--background)] overflow-hidden bg-[var(--bg-card)] shadow-2xl relative">
-                    <Image src={session.user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.name || "U")}&background=ff007f&color=fff`} fill className="object-cover" alt="" unoptimized={session.user.image?.startsWith('http') ? false : true} />
+                    <Image src={session.user.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user.name || "U")}&background=111827&color=fff`} fill sizes="128px" className="object-cover" alt="" unoptimized={session.user.image?.startsWith('http') ? false : true} />
                   </div>
                 </div>
                 <div className="flex-1 pt-4">
@@ -306,7 +306,7 @@ export default function ProfilePage() {
       <div className="pb-28 md:pb-24">
         {/* Banner */}
         <div className="relative w-full h-[36vh] sm:h-[44vh] lg:h-[52vh] overflow-hidden rounded-none lg:rounded-[30px] border-0 lg:border lg:border-[var(--border-subtle)]">
-          <div className={`absolute inset-0 ${profile.bannerUrl ? "" : "bg-gradient-to-br from-red-950/50 via-[var(--bg-card)] to-orange-950/35"}`}>
+          <div className={`absolute inset-0 ${profile.bannerUrl ? "" : "bg-gradient-to-br from-black/55 via-[var(--bg-card)] to-slate-900/40"}`}>
             {profile.bannerUrl && <img src={profile.bannerUrl} className="w-full h-full object-cover [filter:saturate(1.1)_brightness(0.8)]" alt="Banner" />}
             <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/50 to-transparent" />
             <div className="absolute inset-0 bg-gradient-to-r from-[var(--background)]/75 via-transparent to-[var(--background)]/35" />
@@ -328,8 +328,9 @@ export default function ProfilePage() {
                 {avatarLoading && <div className="absolute inset-0 kdr-skeleton z-10" />}
                 <Image 
                   onLoad={() => setAvatarLoading(false)}
-                  src={isEditing && editForm.avatarUrl ? editForm.avatarUrl : (profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=ff007f&color=fff`)} 
+                  src={isEditing && editForm.avatarUrl ? editForm.avatarUrl : (profile.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile.name)}&background=111827&color=fff`)} 
                   fill
+                  sizes="(max-width: 640px) 112px, 128px"
                   className={`object-cover transition duration-300 ${avatarLoading ? "opacity-0" : "opacity-100"}`} 
                   alt={profile.name} 
                   unoptimized={isEditing && editForm.avatarUrl?.startsWith('blob') ? true : false}
@@ -375,7 +376,7 @@ export default function ProfilePage() {
                     )}
                     {!isOwnProfile && session && profile.canFollow !== false && (
                       <button onClick={handleFollow}
-                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition min-h-[40px] border ${followData.isFollowing ? "bg-[var(--bg-card)] border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/30" : "kdr-btn-primary"}`}
+                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition min-h-[40px] border ${followData.isFollowing ? "bg-[var(--bg-card)] border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-white/10 hover:text-white hover:border-white/20" : "kdr-btn-primary"}`}
                       >
                         {followData.isFollowing ? "Seguindo" : "+ Seguir"}
                       </button>
@@ -593,7 +594,7 @@ export default function ProfilePage() {
                 followList.map(u => (
                   <Link key={u.id} href={`/profile/${u.id}`} onClick={() => setShowFollowUsers(null)} className="flex items-center gap-3 p-2.5 hover:bg-white/[0.06] rounded-xl transition group">
                     <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0 border border-[var(--border-subtle)]">
-                      <Image src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=ff007f&color=fff`} fill className="object-cover" alt="" />
+                      <Image src={u.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=111827&color=fff`} fill sizes="40px" className="object-cover" alt="" />
                     </div>
                     <p className="text-sm font-bold text-[var(--text-secondary)] group-hover:text-white transition">{u.name}</p>
                   </Link>

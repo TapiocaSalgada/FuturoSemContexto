@@ -71,7 +71,7 @@ export default function BottomNav() {
                 prefetch={true}
                 key={href}
                 href={href}
-                className={`relative flex-1 flex flex-col items-center justify-center gap-1 py-2.5 px-1 min-h-[56px] transition-all duration-200 ${
+                className={`relative flex-1 flex flex-col items-center justify-center gap-1 py-2.5 px-1 min-h-[56px] rounded-xl transition-all duration-200 active:scale-[0.98] ${
                   active ? "text-white" : "text-[var(--text-muted)] active:text-[var(--text-secondary)]"
                 }`}
               >

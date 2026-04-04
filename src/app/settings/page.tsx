@@ -146,11 +146,11 @@ export default function SettingsPage() {
   }, []);
 
   const PRESET_AVATARS = [
-    "https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=ff007f",
-    "https://api.dicebear.com/7.x/notionists/svg?seed=Avery&backgroundColor=9333ea",
-    "https://api.dicebear.com/7.x/bottts/svg?seed=Jasper&backgroundColor=0ea5e9",
-    "https://api.dicebear.com/7.x/avataaars/svg?seed=Luna&backgroundColor=f43f5e",
-    "https://api.dicebear.com/7.x/micah/svg?seed=Oliver&backgroundColor=eab308"
+    "https://api.dicebear.com/7.x/notionists/svg?seed=Felix&backgroundColor=111827",
+    "https://api.dicebear.com/7.x/notionists/svg?seed=Avery&backgroundColor=334155",
+    "https://api.dicebear.com/7.x/bottts/svg?seed=Jasper&backgroundColor=1f2937",
+    "https://api.dicebear.com/7.x/avataaars/svg?seed=Luna&backgroundColor=111827",
+    "https://api.dicebear.com/7.x/micah/svg?seed=Oliver&backgroundColor=374151"
   ];
 
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -414,7 +414,7 @@ export default function SettingsPage() {
             <span
               className={`text-sm font-bold animate-fadeIn ${
                 saveState === "error"
-                  ? "text-red-400"
+                  ? "text-zinc-300"
                   : saveState === "saving"
                     ? "text-zinc-400"
                     : "text-green-400"
@@ -468,7 +468,7 @@ export default function SettingsPage() {
                 {/* Ações Globais */}
                 <div className="flex gap-3 flex-wrap">
                   <button onClick={() => setShowAccountsModal(true)}
-                    className="flex-1 flex items-center justify-center gap-2 bg-black/35 hover:bg-red-500/20 hover:text-red-300 border border-white/12 hover:border-red-500/50 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
+                    className="flex-1 flex items-center justify-center gap-2 bg-black/35 hover:bg-white/10 hover:text-white border border-white/12 hover:border-white/30 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
                     <LogOut size={18} /> Trocar de Conta
                   </button>
                   {isAdmin && (
@@ -560,7 +560,7 @@ export default function SettingsPage() {
                               profileForm.avatarUrl ||
                               `https://ui-avatars.com/api/?name=${encodeURIComponent(
                                 profileForm.name || "U",
-                              )}&background=ff007f&color=fff`
+                              )}&background=111827&color=fff`
                             }
                             className={`w-full h-full object-cover ${avatarUploading ? "opacity-30 blur-sm" : ""}`}
                             alt="Avatar"
@@ -748,8 +748,8 @@ export default function SettingsPage() {
                     </p>
                     <div className="grid grid-cols-1 gap-2">
                       {[
-                        { value: "kandaraku-dark", label: "Cinema Escuro", color: "bg-zinc-900" },
-                        { value: "kandaraku-light", label: "Luz Suave", color: "bg-amber-100 border border-zinc-300" },
+                        { value: "kandaraku-dark", label: "Preto", color: "bg-black" },
+                        { value: "kandaraku-light", label: "Branco", color: "bg-white border border-zinc-300" },
                       ].map((t) => (
                         <button
                           key={t.value}

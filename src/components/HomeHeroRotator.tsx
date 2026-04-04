@@ -167,14 +167,14 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
             <div className="flex items-center gap-3 pt-1">
               <button
                 onClick={() => go("prev")}
-                  className="inline-flex w-10 h-10 rounded-full border border-white/14 bg-black/45 items-center justify-center text-white hover:bg-white/12 transition"
+                  className="inline-flex w-11 h-11 rounded-full border border-white/14 bg-black/45 items-center justify-center text-white hover:bg-white/12 transition"
                 aria-label="Destaque anterior"
               >
                 <ChevronLeft size={18} />
               </button>
               <button
                 onClick={() => go("next")}
-                  className="inline-flex w-10 h-10 rounded-full border border-white/14 bg-black/45 items-center justify-center text-white hover:bg-white/12 transition"
+                  className="inline-flex w-11 h-11 rounded-full border border-white/14 bg-black/45 items-center justify-center text-white hover:bg-white/12 transition"
                 aria-label="Próximo destaque"
               >
                 <ChevronRight size={18} />
@@ -192,7 +192,7 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
                         setIsTransitioning(false);
                       }, 250);
                     }}
-                    className="py-2 -my-2 transition-all"
+                    className="w-11 h-11 inline-flex items-center justify-center transition-all"
                     aria-label={`Destaque ${itemIndex + 1}`}
                   >
                     <span

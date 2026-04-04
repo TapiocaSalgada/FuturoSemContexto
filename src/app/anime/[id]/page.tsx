@@ -29,8 +29,8 @@ function accentFromSeed(seed: string) {
     hash = (hash << 5) - hash + seed.charCodeAt(i);
     hash |= 0;
   }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue} 88% 56%)`;
+  const lightness = 72 + (Math.abs(hash) % 10);
+  return `hsl(220 12% ${lightness}%)`;
 }
 
 function parseImportMeta(description?: string | null) {
@@ -97,7 +97,7 @@ function CommentItem({ comment, animeId, currentUserId, onRefresh }: {
     <div className="space-y-2">
       <div className="flex gap-3 group">
         <div className="relative w-8 h-8 rounded-full overflow-hidden shrink-0 mt-0.5 border border-[var(--border-subtle)]">
-          <Image src={comment.user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.user.name)}&background=333&color=fff`} fill className="object-cover" alt={comment.user.name} />
+          <Image src={comment.user.avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.user.name)}&background=333&color=fff`} fill sizes="34px" className="object-cover" alt={comment.user.name} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -365,7 +365,7 @@ export default function AnimePageClient() {
   const currentUserId = (session?.user as any)?.id;
   const accentColor = anime
     ? accentFromSeed(`${anime.id}-${anime.bannerImage || anime.coverImage || anime.title}`)
-    : "#ff007f";
+    : "#e2e8f0";
   const accentSoft = accentColor.startsWith("hsl(") ? accentColor.replace(")", " / 0.15)") : accentColor;
   const accentBorder = accentColor.startsWith("hsl(") ? accentColor.replace(")", " / 0.35)") : accentColor;
   const accentGlow = accentColor.startsWith("hsl(") ? accentColor.replace(")", " / 0.25)") : accentColor;
@@ -837,7 +837,7 @@ export default function AnimePageClient() {
                 </div>
                 <div className="flex gap-3">
                   <div className="relative w-9 h-9 rounded-full overflow-hidden shrink-0">
-                    <Image src={(session.user as any)?.avatarUrl || session.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user?.name || "U")}&background=ff007f&color=fff`} fill className="object-cover" alt="avatar" />
+                    <Image src={(session.user as any)?.avatarUrl || session.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user?.name || "U")}&background=111827&color=fff`} fill sizes="44px" className="object-cover" alt="avatar" />
                   </div>
                   <div className="flex-1 flex items-center gap-2 bg-[var(--bg-card)]/50 border border-[var(--border-default)] hover:border-[var(--border-strong)] rounded-xl px-4 py-2.5 transition focus-within:border-[var(--accent-border)]">
                     <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Deixe um comentário..."

@@ -33,10 +33,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" data-theme="kandaraku-dark" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#08080a" />
+        <meta name="theme-color" content="#050608" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -44,7 +44,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/logo.png" />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{document.documentElement.setAttribute('data-theme','kandaraku-dark');localStorage.setItem('app-theme','kandaraku-dark');}catch(e){document.documentElement.setAttribute('data-theme','kandaraku-dark');}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('app-theme');var n=(t==='kandaraku-light'||t==='light'||t==='claro')?'kandaraku-light':'kandaraku-dark';document.documentElement.setAttribute('data-theme',n);}catch(e){document.documentElement.setAttribute('data-theme','kandaraku-dark');}})();`,
           }}
         />
       </head>
