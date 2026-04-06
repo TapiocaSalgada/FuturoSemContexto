@@ -2,7 +2,17 @@
 
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import videojs from "video.js";
-import { ArrowLeft, ChevronRight, Pause, Play, SkipForward } from "lucide-react";
+import { ArrowLeft, ChevronRight, Pause, Play, SkipForward, Maximize, Minimize, Volume2, VolumeX, Settings, RotateCcw, RotateCw } from "lucide-react";
+import screenfull from "screenfull";
+
+function formatTime(seconds: number) {
+  if (isNaN(seconds)) return "00:00";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
 
 type TomatoVideoPlayerProps = {
   videoRef: MutableRefObject<HTMLVideoElement | null>;
@@ -24,15 +34,6 @@ type TomatoVideoPlayerProps = {
   outroEndSec?: number | null;
 };
 
-function isControlClick(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
-  return Boolean(
-    target.closest(
-      ".vjs-control-bar, .vjs-control, .vjs-menu, .vjs-modal-dialog, .vjs-big-play-button, .tomato-player__next-episode, .tomato-player__skip-intro, .tomato-player__back",
-    ),
-  );
-}
-
 export default function TomatoVideoPlayer({
   videoRef,
   poster,
@@ -53,373 +54,357 @@ export default function TomatoVideoPlayer({
   outroEndSec,
 }: TomatoVideoPlayerProps) {
   const playerRef = useRef<any>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const internalVideoRef = useRef<HTMLVideoElement | null>(null);
-  const singleTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastTapAtRef = useRef(0);
-  const ignoreClickUntilRef = useRef(0);
-  const callbacksRef = useRef({
-    onTimeUpdate,
-    onEnded,
-    onLoadedData,
-    onError,
-    onSeekBackward,
-    onSeekForward,
-  });
-  const [feedback, setFeedback] = useState<"play" | "pause" | "fwd" | "bwd" | null>(null);
+
   const [uiVisible, setUiVisible] = useState(true);
-  const [isPaused, setIsPaused] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [buffered, setBuffered] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [showSkipOutro, setShowSkipOutro] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-
-  const showTapFeedback = (state: "play" | "pause" | "fwd" | "bwd") => {
-    setFeedback(state);
-    if (feedbackTimeoutRef.current) {
-      clearTimeout(feedbackTimeoutRef.current);
-    }
-    feedbackTimeoutRef.current = setTimeout(() => {
-      setFeedback(null);
-    }, 480);
-  };
-
-  const togglePlayback = () => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    if (player.paused()) {
-      void player.play().catch(() => {});
-      showTapFeedback("play");
-    } else {
-      player.pause();
-      showTapFeedback("pause");
-    }
-  };
-
-  const setVideoNode = (node: HTMLVideoElement | null) => {
-    internalVideoRef.current = node;
-    videoRef.current = node;
-  };
-
-  // Skip intro/outro time tracking
-  useEffect(() => {
-    if (!introStartSec && !introEndSec && !outroStartSec && !outroEndSec) return;
-
-    const checkSkip = () => {
-      const t = currentTime;
-      if (typeof introStartSec === "number" && typeof introEndSec === "number") {
-        setShowSkipIntro(t >= introStartSec && t < introEndSec);
-      }
-      if (typeof outroStartSec === "number" && typeof outroEndSec === "number") {
-        setShowSkipOutro(t >= outroStartSec && t < outroEndSec);
-      }
-    };
-    checkSkip();
-  }, [currentTime, introStartSec, introEndSec, outroStartSec, outroEndSec]);
-
-  const handleSkipIntro = () => {
-    const player = playerRef.current;
-    if (player && typeof introEndSec === "number") {
-      player.currentTime(introEndSec);
-      setShowSkipIntro(false);
-    }
-  };
-
-  const handleSkipOutro = () => {
-    if (onNextEpisode) {
-      onNextEpisode();
-    } else {
-      const player = playerRef.current;
-      if (player && typeof outroEndSec === "number") {
-        player.currentTime(outroEndSec);
-        setShowSkipOutro(false);
-      }
-    }
-  };
-
-  useEffect(() => {
-    callbacksRef.current = {
-      onTimeUpdate,
-      onEnded,
-      onLoadedData,
-      onError,
-      onSeekBackward,
-      onSeekForward,
-    };
-  }, [onEnded, onError, onLoadedData, onSeekBackward, onSeekForward, onTimeUpdate]);
-
-  const showUiActions = uiVisible || isPaused;
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [feedback, setFeedback] = useState<"fwd" | "bwd" | null>(null);
+  
+  const uiTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
 
   useEffect(() => {
     const videoNode = internalVideoRef.current;
     if (!videoNode || playerRef.current) return;
 
     const player = videojs(videoNode, {
-      controls: true,
+      controls: false,
       autoplay: true,
       preload: "metadata",
-      bigPlayButton: false,
       fluid: true,
-      playbackRates: [0.5, 0.75, 1, 1.25, 1.5, 2],
-      controlBar: {
-        remainingTimeDisplay: false,
-        volumePanel: false,
-        pictureInPictureToggle: true,
-      },
-      inactivityTimeout: 2500,
-      userActions: {
-        click: false,
-        doubleClick: false,
-      },
+      html5: {
+        vhs: {
+          overrideNative: true
+        },
+        nativeAudioTracks: false,
+        nativeVideoTracks: false
+      }
     });
 
     playerRef.current = player;
+    if (poster) player.poster(poster);
 
-    if (poster) {
-      player.poster(poster);
-    }
+    const updateTime = () => {
+      setCurrentTime(player.currentTime());
+      setDuration(player.duration() || 0);
 
-    const onUserActive = () => setUiVisible(true);
-    const onUserInactive = () => setUiVisible(false);
-    const onPause = () => setIsPaused(true);
-    const onPlay = () => setIsPaused(false);
-
-    player.on("useractive", onUserActive);
-    player.on("userinactive", onUserInactive);
-    player.on("pause", onPause);
-    player.on("play", onPlay);
-    setIsPaused(player.paused());
-
-    const handleDoubleAction = (clientX: number, width: number) => {
-      if (clientX > width / 2) {
-        showTapFeedback("fwd");
-        callbacksRef.current.onSeekForward?.();
-      } else {
-        showTapFeedback("bwd");
-        callbacksRef.current.onSeekBackward?.();
+      const buf = player.buffered();
+      if (buf && buf.length > 0) {
+        setBuffered(buf.end(buf.length - 1));
       }
+      onTimeUpdate?.();
     };
 
-    const root = player.el();
-    if (root) {
-      const handleClick = (event: MouseEvent) => {
-        if (Date.now() < ignoreClickUntilRef.current) return;
-        if (isControlClick(event.target)) return;
-
-        if (singleTapTimeoutRef.current) {
-          clearTimeout(singleTapTimeoutRef.current);
-        }
-
-        singleTapTimeoutRef.current = setTimeout(() => {
-          togglePlayback();
-        }, 220);
-      };
-
-      const handleDblClick = (event: MouseEvent) => {
-        if (isControlClick(event.target)) return;
-
-        if (singleTapTimeoutRef.current) {
-          clearTimeout(singleTapTimeoutRef.current);
-          singleTapTimeoutRef.current = null;
-        }
-
-        const rect = root.getBoundingClientRect();
-        handleDoubleAction(event.clientX - rect.left, rect.width);
-      };
-
-      const handleTouchEnd = (event: TouchEvent) => {
-        if (isControlClick(event.target)) return;
-        const touch = event.changedTouches?.[0];
-        if (!touch) return;
-
-        ignoreClickUntilRef.current = Date.now() + 320;
-        const now = Date.now();
-        const isDoubleTap = now - lastTapAtRef.current <= 280;
-
-        if (singleTapTimeoutRef.current) {
-          clearTimeout(singleTapTimeoutRef.current);
-        }
-
-        if (isDoubleTap) {
-          lastTapAtRef.current = 0;
-          const rect = root.getBoundingClientRect();
-          handleDoubleAction(touch.clientX - rect.left, rect.width);
-        } else {
-          lastTapAtRef.current = now;
-          singleTapTimeoutRef.current = setTimeout(() => {
-            togglePlayback();
-          }, 220);
-        }
-      };
-
-      root.addEventListener("click", handleClick as EventListener);
-      root.addEventListener("dblclick", handleDblClick as EventListener);
-      root.addEventListener("touchend", handleTouchEnd as EventListener, { passive: true });
-
-      return () => {
-        root.removeEventListener("click", handleClick as EventListener);
-        root.removeEventListener("dblclick", handleDblClick as EventListener);
-        root.removeEventListener("touchend", handleTouchEnd as EventListener);
-        if (singleTapTimeoutRef.current) {
-          clearTimeout(singleTapTimeoutRef.current);
-        }
-        if (feedbackTimeoutRef.current) {
-          clearTimeout(feedbackTimeoutRef.current);
-        }
-        if (playerRef.current) {
-          playerRef.current.off("useractive", onUserActive);
-          playerRef.current.off("userinactive", onUserInactive);
-          playerRef.current.off("pause", onPause);
-          playerRef.current.off("play", onPlay);
-          playerRef.current.dispose();
-          playerRef.current = null;
-        }
-        videoRef.current = null;
-      };
-    }
+    player.on("timeupdate", updateTime);
+    player.on("play", () => setIsPlaying(true));
+    player.on("pause", () => setIsPlaying(false));
+    player.on("ended", () => onEnded?.());
+    player.on("loadeddata", () => {
+      setDuration(player.duration() || 0);
+      onLoadedData?.();
+    });
+    player.on("error", () => onError?.());
+    player.on("volumechange", () => {
+      setVolume(player.volume());
+      setIsMuted(player.muted());
+    });
 
     return () => {
-      if (singleTapTimeoutRef.current) {
-        clearTimeout(singleTapTimeoutRef.current);
-      }
-      if (feedbackTimeoutRef.current) {
-        clearTimeout(feedbackTimeoutRef.current);
-      }
-      if (playerRef.current) {
-        playerRef.current.off("useractive", onUserActive);
-        playerRef.current.off("userinactive", onUserInactive);
-        playerRef.current.off("pause", onPause);
-        playerRef.current.off("play", onPlay);
-        playerRef.current.dispose();
-        playerRef.current = null;
-      }
+      player.dispose();
+      playerRef.current = null;
       videoRef.current = null;
     };
-  }, [videoRef]);
+  }, [videoRef, poster]);
 
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
-    player.poster(poster || "");
-  }, [poster]);
+    if (!introStartSec && !introEndSec && !outroStartSec && !outroEndSec) return;
+    const t = currentTime;
+    if (typeof introStartSec === "number" && typeof introEndSec === "number") {
+      setShowSkipIntro(t >= introStartSec && t < introEndSec);
+    }
+    if (typeof outroStartSec === "number" && typeof outroEndSec === "number") {
+      setShowSkipOutro(t >= outroStartSec && t < outroEndSec);
+    }
+  }, [currentTime, introStartSec, introEndSec, outroStartSec, outroEndSec]);
+
+  const resetUiTimeout = () => {
+    setUiVisible(true);
+    if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
+    if (isPlaying && !isDragging && !showSettings) {
+      uiTimeoutRef.current = setTimeout(() => setUiVisible(false), 3000);
+    }
+  };
 
   useEffect(() => {
-    const videoNode = internalVideoRef.current;
-    if (!videoNode) return;
-
-    const handleTime = () => {
-      setCurrentTime(videoNode.currentTime || 0);
-      callbacksRef.current.onTimeUpdate?.();
-    };
-    const handleEnd = () => callbacksRef.current.onEnded?.();
-    const handleLoaded = () => callbacksRef.current.onLoadedData?.();
-    const handleErr = () => callbacksRef.current.onError?.();
-
-    videoNode.addEventListener("timeupdate", handleTime);
-    videoNode.addEventListener("ended", handleEnd);
-    videoNode.addEventListener("loadeddata", handleLoaded);
-    videoNode.addEventListener("error", handleErr);
-
+    resetUiTimeout();
     return () => {
-      videoNode.removeEventListener("timeupdate", handleTime);
-      videoNode.removeEventListener("ended", handleEnd);
-      videoNode.removeEventListener("loadeddata", handleLoaded);
-      videoNode.removeEventListener("error", handleErr);
+      if (uiTimeoutRef.current) clearTimeout(uiTimeoutRef.current);
     };
+  }, [isPlaying, isDragging, showSettings]);
+
+  useEffect(() => {
+    if (screenfull.isEnabled) {
+      const handleFsChange = () => {
+        const isFs = screenfull.isFullscreen;
+        setIsFullscreen(isFs);
+        if (isFs && screen?.orientation?.lock) {
+           screen.orientation.lock("landscape").catch(() => {});
+        } else if (!isFs && screen?.orientation?.unlock) {
+           screen.orientation.unlock();
+        }
+      };
+      screenfull.on("change", handleFsChange);
+      return () => screenfull.off("change", handleFsChange);
+    }
   }, []);
 
-  const displayTitle = title
-    ? episodeNumber
-      ? `${episodeNumber}. ${title}`
-      : title
-    : "";
+  const togglePlay = (e?: React.MouseEvent | React.TouchEvent) => {
+    e?.stopPropagation();
+    const p = playerRef.current;
+    if (!p) return;
+    if (p.paused()) p.play();
+    else p.pause();
+  };
+
+  const toggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const p = playerRef.current;
+    if (!p) return;
+    p.muted(!p.muted());
+  };
+
+  const toggleFullscreen = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (screenfull.isEnabled && wrapperRef.current) {
+      screenfull.toggle(wrapperRef.current);
+    }
+  };
+
+  const showTapFeedback = (type: "fwd" | "bwd") => {
+    setFeedback(type);
+    if (feedbackTimeoutRef.current) clearTimeout(feedbackTimeoutRef.current);
+    feedbackTimeoutRef.current = setTimeout(() => setFeedback(null), 500);
+  };
+
+  const skipForward = (e?: React.MouseEvent | React.TouchEvent) => {
+    e?.stopPropagation();
+    const p = playerRef.current;
+    if (p) p.currentTime(Math.min(p.currentTime() + 10, duration));
+    showTapFeedback("fwd");
+    onSeekForward?.();
+  };
+
+  const skipBackward = (e?: React.MouseEvent | React.TouchEvent) => {
+    e?.stopPropagation();
+    const p = playerRef.current;
+    if (p) p.currentTime(Math.max(p.currentTime() - 10, 0));
+    showTapFeedback("bwd");
+    onSeekBackward?.();
+  };
+
+  const handlePointerUp = (e: React.MouseEvent | React.TouchEvent) => {
+    const now = Date.now();
+    let clientX = 0;
+    if ("changedTouches" in e) {
+      clientX = e.changedTouches[0].clientX;
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+    }
+
+    if (now - lastTapRef.current.time < 300) {
+      // Double tap detected
+      const width = wrapperRef.current?.offsetWidth || 0;
+      if (clientX > width / 2) {
+        skipForward();
+      } else {
+        skipBackward();
+      }
+      lastTapRef.current = { time: 0, x: 0 };
+    } else {
+      lastTapRef.current = { time: now, x: clientX };
+      // Normal single click: toggle play/pause after verifying it's not a double click
+      setTimeout(() => {
+        if (lastTapRef.current.time === now) {
+          togglePlay();
+          lastTapRef.current = { time: 0, x: 0 };
+        }
+      }, 300);
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    setCurrentTime(time);
+    if (playerRef.current) playerRef.current.currentTime(time);
+  };
 
   return (
-    <div className="tomato-player">
-      <div data-vjs-player className="tomato-player__frame">
-        <video
-          ref={setVideoNode}
-          className="video-js vjs-default-skin vjs-big-play-centered"
-          playsInline
-          preload="metadata"
-        />
+    <div 
+      ref={wrapperRef} 
+      className="relative w-full h-full bg-black flex group select-none touch-none"
+      onMouseMove={resetUiTimeout}
+      onTouchStart={resetUiTimeout}
+      onMouseLeave={() => isPlaying && setUiVisible(false)}
+    >
+      <div data-vjs-player className="w-full h-full absolute inset-0">
+        <video ref={(n) => { internalVideoRef.current = n; videoRef.current = n; }} className="video-js vjs-default-skin w-full h-full object-contain" playsInline />
       </div>
 
-      {/* Top bar with back + title */}
-      {(onBack || displayTitle) && (
-        <div className={`tomato-player__topbar ${showUiActions ? "is-visible" : "is-hidden"}`}>
-          {onBack ? (
-            <button
-              type="button"
-              onClick={onBack}
-              className="tomato-player__back"
-              aria-label="Voltar"
-            >
-              <ArrowLeft size={20} />
-            </button>
-          ) : (
-            <span className="tomato-player__top-spacer" />
-          )}
-          <p className="tomato-player__title">{displayTitle}</p>
-          <span className="tomato-player__top-spacer" />
-        </div>
-      )}
+      <div 
+        className="absolute inset-0 z-10 cursor-pointer" 
+        onClick={handlePointerUp}
+      />
 
-      {/* Skip Intro */}
-      {showSkipIntro && (
-        <button
-          type="button"
-          onClick={handleSkipIntro}
-          className={`tomato-player__skip-intro ${showUiActions ? "is-visible" : "is-visible"}`}
-        >
-          <SkipForward size={14} /> Pular Abertura
-        </button>
-      )}
-
-      {/* Skip Outro */}
-      {showSkipOutro && !showSkipIntro && (
-        <button
-          type="button"
-          onClick={handleSkipOutro}
-          className={`tomato-player__skip-intro ${showUiActions ? "is-visible" : "is-visible"}`}
-          style={{ bottom: showNextEpisodeButton ? "6.5rem" : undefined }}
-        >
-          <SkipForward size={14} /> Pular Encerramento
-        </button>
-      )}
-
-      {/* Next Episode */}
-      {showNextEpisodeButton && onNextEpisode && (
-        <button
-          type="button"
-          onClick={onNextEpisode}
-          className={`tomato-player__next-episode ${showUiActions ? "is-visible" : "is-hidden"}`}
-        >
-          Próximo episódio <ChevronRight size={16} />
-        </button>
-      )}
-
-      {/* Tap feedback */}
-      {feedback && (
-        <div className="tomato-player__tap-feedback" aria-hidden="true">
-          <div className="w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-            {feedback === "pause" && <Pause size={32} />}
-            {feedback === "play" && <Play size={32} className="ml-1" />}
-            {feedback === "fwd" && (
-              <div className="flex items-center gap-0.5">
-                <ChevronRight size={24} />
-                <ChevronRight size={24} className="-ml-3" />
-              </div>
-            )}
-            {feedback === "bwd" && (
-              <div className="flex items-center gap-0.5 rotate-180">
-                <ChevronRight size={24} />
-                <ChevronRight size={24} className="-ml-3" />
-              </div>
-            )}
+      {feedback === "bwd" && (
+        <div className="absolute left-10 inset-y-0 w-1/3 flex items-center justify-start pointer-events-none z-20">
+          <div className="bg-black/40 rounded-full p-4 animate-ping text-white backdrop-blur-md">
+            <RotateCcw size={48} />
           </div>
         </div>
       )}
+      
+      {feedback === "fwd" && (
+        <div className="absolute right-10 inset-y-0 w-1/3 flex items-center justify-end pointer-events-none z-20">
+          <div className="bg-black/40 rounded-full p-4 animate-ping text-white backdrop-blur-md">
+            <RotateCw size={48} />
+          </div>
+        </div>
+      )}
+
+      <div className={`absolute inset-0 z-20 flex flex-col justify-between transition-opacity duration-300 pointer-events-none ${uiVisible || !isPlaying ? "opacity-100" : "opacity-0"}`}>
+        
+        <div className="w-full h-24 bg-gradient-to-b from-black/80 to-transparent flex items-start px-4 sm:px-6 py-4 pointer-events-auto">
+          <button onClick={(e)=>{e.stopPropagation(); onBack?.()}} className="text-white hover:text-[var(--accent)] transition p-2 -ml-2 rounded-full z-30">
+            <ArrowLeft size={24} />
+          </button>
+          <div className="ml-4 mt-1 z-30 flex-1 truncate pr-4">
+            <h1 className="text-white font-bold text-base sm:text-lg drop-shadow-md truncate">{title || "Assistindo"}</h1>
+            {episodeNumber && <p className="text-white/70 text-xs sm:text-sm drop-shadow-md">Episódio {episodeNumber}</p>}
+          </div>
+        </div>
+
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {!isPlaying && uiVisible && (
+            <div className="w-20 h-20 bg-black/40 backdrop-blur border border-white/10 rounded-full flex items-center justify-center text-white shadow-2xl pointer-events-auto cursor-pointer" onClick={togglePlay}>
+              <Play size={36} className="ml-2" fill="currentColor" />
+            </div>
+          )}
+        </div>
+
+        <div className="w-full bg-gradient-to-t from-black/90 via-black/60 to-transparent px-4 sm:px-6 pb-4 sm:pb-6 pt-16 pointer-events-auto">
+          
+          <div className="relative w-full h-2 group cursor-pointer flex items-center mb-4">
+            <input 
+              type="range" 
+              min={0} 
+              max={duration || 100} 
+              value={currentTime} 
+              onChange={handleSeek}
+              onMouseDown={() => setIsDragging(true)}
+              onMouseUp={() => setIsDragging(false)}
+              onTouchStart={() => setIsDragging(true)}
+              onTouchEnd={() => setIsDragging(false)}
+              className="absolute z-30 w-full h-full opacity-0 cursor-pointer"
+            />
+            <div className="absolute w-full h-1.5 bg-white/20 rounded-full overflow-hidden transition-all group-hover:h-2">
+              <div className="absolute top-0 left-0 h-full bg-white/40" style={{ width: `${(buffered / duration) * 100}%` }} />
+              <div className="absolute top-0 left-0 h-full bg-[var(--accent)]" style={{ width: `${(currentTime / duration) * 100}%` }} />
+            </div>
+            <div className="absolute h-3 w-3 sm:h-4 sm:w-4 bg-[var(--accent)] rounded-full -ml-1.5 sm:-ml-2 shadow-lg scale-0 group-hover:scale-100 transition-transform" style={{ left: `${(currentTime / duration) * 100}%` }} />
+          </div>
+
+          <div className="flex items-center justify-between text-white">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <button onClick={togglePlay} className="hover:scale-110 transition p-1 text-white">
+                {isPlaying ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" />}
+              </button>
+              
+              <button onClick={skipBackward} className="hover:scale-110 transition text-white/90 p-1 hidden sm:block">
+                <RotateCcw size={22} />
+              </button>
+              
+              <button onClick={skipForward} className="hover:scale-110 transition text-white/90 p-1 hidden sm:block">
+                <RotateCw size={22} />
+              </button>
+
+              <div className="flex items-center gap-2 group/vol hidden sm:flex">
+                <button onClick={toggleMute} className="hover:scale-110 transition p-1 text-white">
+                  {isMuted || volume === 0 ? <VolumeX size={22} /> : <Volume2 size={22} />}
+                </button>
+                <input 
+                  type="range" min={0} max={1} step={0.05} value={isMuted ? 0 : volume}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setVolume(val);
+                    if (playerRef.current) playerRef.current.volume(val);
+                  }}
+                  className="w-0 group-hover/vol:w-20 transition-all opacity-0 group-hover/vol:opacity-100 duration-300 accent-white h-1 bg-white/30 rounded-full appearance-none"
+                />
+              </div>
+              
+              <div className="text-xs sm:text-sm font-medium tabular-nums ml-2 opacity-90 drop-shadow-md">
+                {formatTime(currentTime)} <span className="opacity-50 mx-1">/</span> {formatTime(duration)}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 sm:gap-6">
+              {showNextEpisodeButton && onNextEpisode && (
+                <button onClick={(e)=>{e.stopPropagation(); onNextEpisode()}} className="hover:scale-110 transition p-1 hidden md:flex items-center gap-1.5 font-bold text-sm" title="Próximo Episódio">
+                  <SkipForward size={22} fill="currentColor" />
+                </button>
+              )}
+
+              <div className="relative">
+                <button onClick={(e)=>{e.stopPropagation(); setShowSettings(!showSettings)}} className="hover:scale-110 transition p-1 text-white">
+                  <Settings size={22} />
+                </button>
+                {showSettings && (
+                  <div className="absolute bottom-[100%] right-0 mb-4 bg-black/80 backdrop-blur-xl rounded-xl p-3 border border-white/10 min-w-[140px] z-50">
+                    <p className="text-[10px] uppercase text-white/50 mb-2 font-bold px-2">Velocidade</p>
+                    {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
+                      <button key={rate} onClick={() => {
+                        setPlaybackRate(rate);
+                        if (playerRef.current) playerRef.current.playbackRate(rate);
+                        setShowSettings(false);
+                      }} className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition ${playbackRate === rate ? "bg-white/20 text-white font-bold" : "text-white/80 hover:bg-white/10"}`}>
+                        {rate}x {rate === 1 && "(Normal)"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button onClick={toggleFullscreen} className="hover:scale-110 transition p-1 text-white">
+                {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {showSkipIntro && (
+          <button onClick={(e) => { e.stopPropagation(); playerRef.current?.currentTime(introEndSec); }} className="absolute bottom-28 sm:bottom-28 right-4 sm:right-8 bg-white hover:bg-gray-200 text-black font-extrabold text-sm px-6 py-3 rounded shadow-2xl transition-all hover:scale-105 pointer-events-auto">
+            Pular Abertura
+          </button>
+        )}
+        {showSkipOutro && !showSkipIntro && (
+          <button onClick={(e) => { e.stopPropagation(); onNextEpisode ? onNextEpisode() : playerRef.current?.currentTime(outroEndSec); }} className="absolute bottom-28 sm:bottom-28 right-4 sm:right-8 bg-white hover:bg-gray-200 text-black font-extrabold text-sm px-6 py-3 rounded shadow-2xl transition-all hover:scale-105 pointer-events-auto">
+            Próximo Episódio
+          </button>
+        )}
+      </div>
     </div>
   );
 }
