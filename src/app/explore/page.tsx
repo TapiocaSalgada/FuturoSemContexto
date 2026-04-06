@@ -98,7 +98,7 @@ export default function ExplorePage() {
         {results.animes.length > 0 && (
           <section className="animate-fadeInUp">
             <h2 className="kdr-section-title mb-5"><Play size={16} className="kdr-section-title-accent" /> Animes</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5">
               {results.animes.map(anime => (
                 <AnimeCard
                   key={anime.id}
@@ -106,6 +106,7 @@ export default function ExplorePage() {
                   title={anime.title}
                   image={anime.coverImage}
                   className="w-full"
+                  subTitle={anime.title}
                 />
               ))}
             </div>
@@ -116,7 +117,7 @@ export default function ExplorePage() {
         {results.mangas.length > 0 && (
           <section className="animate-fadeInUp">
             <h2 className="kdr-section-title mb-5"><BookOpen size={16} className="kdr-section-title-accent" /> Mangás</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3.5">
               {results.mangas.map(manga => (
                 <AnimeCard
                   key={manga.id}
@@ -124,6 +125,7 @@ export default function ExplorePage() {
                   title={manga.title}
                   image={manga.coverImage}
                   className="w-full"
+                  subTitle={manga.title}
                 />
               ))}
             </div>
