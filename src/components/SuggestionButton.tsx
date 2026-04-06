@@ -182,7 +182,7 @@ export default function SuggestionButton({
               title="Sugerir anime ou reportar bug"
             >
             <Bug size={14} />
-            <span>Feedback</span>
+            <span>Reportar</span>
           </button>
         ) : (
           <button
@@ -195,19 +195,19 @@ export default function SuggestionButton({
           >
             <Bug size={20} className="shrink-0" />
             <span className={`font-semibold text-sm ${mobileSidebar ? "block" : "hidden lg:block"}`}>
-              Feedback
+              Reportar bug
             </span>
           </button>
         )
       )}
 
       {open && mounted && createPortal(
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => { setOpen(false); resetForm(); }} />
-          <div className="relative glass-surface-heavy border border-white/12 rounded-2xl shadow-2xl w-full max-w-lg p-5 md:p-6 space-y-4">
+          <div className="relative glass-surface-heavy border border-white/12 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full max-w-lg p-5 md:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-black text-xl flex items-center gap-2">
-                <AlertTriangle size={20} className="kdr-section-title-accent" /> Central de feedback
+                <AlertTriangle size={20} className="kdr-section-title-accent" /> Reportar bug
               </h2>
               <button onClick={() => { setOpen(false); resetForm(); }} className="text-[var(--text-muted)] hover:text-white transition">
                 <X size={20} />

@@ -33,12 +33,11 @@ export async function GET() {
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-  const isAdmin = (session.user as any)?.role === "admin";
 
   const favorites = await prisma.favorite.findMany({
     where: {
       userId: user.id,
-      ...(isAdmin ? {} : { anime: { visibility: "public" } }),
+      anime: { visibility: "public" },
     },
     include: {
       anime: { select: { id: true, title: true, coverImage: true, visibility: true } },

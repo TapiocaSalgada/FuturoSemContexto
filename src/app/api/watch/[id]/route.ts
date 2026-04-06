@@ -543,7 +543,6 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
-    const isAdmin = (session?.user as any)?.role === "admin";
     const user = userEmail
       ? await prisma.user.findUnique({
           where: { email: userEmail },
@@ -630,7 +629,7 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    if (!isAdmin && !isPublicVisibility(animeData.visibility)) {
+    if (!isPublicVisibility(animeData.visibility)) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 

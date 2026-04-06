@@ -44,7 +44,7 @@ const sectionLabels: Record<Section, string> = {
   appearance: "Aparencia",
   privacy: "Privacidade",
   playback: "Reproducao",
-  feedback: "Feedback",
+  feedback: "Reportar bug",
 };
 
 function applyTheme(theme: string) {
@@ -410,23 +410,33 @@ export default function SettingsPage() {
           <h1 className="text-3xl lg:text-5xl font-black tracking-tight flex items-center gap-3">
             <Settings size={28} className="kdr-section-title-accent" /> Configuracoes
           </h1>
-          {saveState !== "idle" && (
-            <span
-              className={`text-sm font-bold animate-fadeIn ${
-                saveState === "error"
-                  ? "text-zinc-300"
-                  : saveState === "saving"
-                    ? "text-zinc-400"
-                    : "text-green-400"
-              }`}
-            >
-              {saveState === "saving"
-                ? "Salvando..."
-                : saveState === "saved"
-                  ? "Salvo"
-                  : "Erro ao salvar"}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/20 bg-white/10 text-[11px] sm:text-xs font-black text-[var(--text-primary)] hover:bg-white/14 transition min-h-[44px]"
+              >
+                <Shield size={14} /> Admin
+              </Link>
+            )}
+            {saveState !== "idle" && (
+              <span
+                className={`text-sm font-bold animate-fadeIn ${
+                  saveState === "error"
+                    ? "text-zinc-300"
+                    : saveState === "saving"
+                      ? "text-zinc-400"
+                      : "text-green-400"
+                }`}
+              >
+                {saveState === "saving"
+                  ? "Salvando..."
+                  : saveState === "saved"
+                    ? "Salvo"
+                    : "Erro ao salvar"}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">

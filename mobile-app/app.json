@@ -4,7 +4,7 @@
     "slug": "futuro-sem-contexto-mobile",
     "owner": "tapiocasalgadas-organization",
     "version": "1.0.1",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "futurostream",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -30,7 +30,7 @@
       "package": "com.tapiocasalgadasorganization.futurostream",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "versionCode": 6
+      "versionCode": 7
     },
     "plugins": [
       "expo-notifications"

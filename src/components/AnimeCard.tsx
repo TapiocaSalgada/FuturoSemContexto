@@ -93,7 +93,6 @@ export default function AnimeCard({
           <p className="text-white font-bold text-[11px] sm:text-xs truncate drop-shadow-md leading-tight">
             {title}
           </p>
-          {overlayText && <div className="mt-0.5">{overlayText}</div>}
         </div>
       </div>
 

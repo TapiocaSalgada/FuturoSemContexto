@@ -114,11 +114,10 @@ function mapAnimeData(item: any): AnimeMediaOption {
     titleJapanese: item.title_japanese || undefined,
     titleEnglish: item.title_english || undefined,
     imageUrl:
-      item.images?.jpg?.large_image_url ||
-      item.images?.jpg?.image_url ||
       item.images?.webp?.large_image_url ||
+      item.images?.jpg?.large_image_url ||
       undefined,
-    synopsis: item.synopsis || undefined,
+    synopsis: item.synopsis ? item.synopsis.replace(/\[Written by MAL Rewrite\]/gi, "").trim() : undefined,
     score: item.score || undefined,
     scoredBy: item.scored_by || undefined,
     episodes: item.episodes || undefined,
@@ -151,11 +150,10 @@ function mapMangaData(item: any): MangaMediaOption {
     titleJapanese: item.title_japanese || undefined,
     titleEnglish: item.title_english || undefined,
     imageUrl:
-      item.images?.jpg?.large_image_url ||
-      item.images?.jpg?.image_url ||
       item.images?.webp?.large_image_url ||
+      item.images?.jpg?.large_image_url ||
       undefined,
-    synopsis: item.synopsis || undefined,
+    synopsis: item.synopsis ? item.synopsis.replace(/\[Written by MAL Rewrite\]/gi, "").trim() : undefined,
     score: item.score || undefined,
     scoredBy: item.scored_by || undefined,
     chapters: item.chapters || undefined,
@@ -293,7 +291,7 @@ export async function getAnimeDetailById(
       recommendations: (item.recommendations || []).slice(0, 8).map((r: any) => ({
         mal_id: r.entry?.mal_id,
         title: r.entry?.title || "Unknown",
-        imageUrl: r.entry?.images?.jpg?.large_image_url || r.entry?.images?.jpg?.image_url || undefined,
+        imageUrl: r.entry?.images?.webp?.large_image_url || r.entry?.images?.jpg?.large_image_url || undefined,
       })),
       streaming: (item.streaming || []).map((s: any) => ({
         name: s.name,

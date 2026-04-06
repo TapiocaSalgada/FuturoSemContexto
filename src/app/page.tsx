@@ -27,6 +27,18 @@ type HomeAnime = {
   categories: { id: string; name: string; slug: string }[];
 };
 
+type HomeRecentEpisode = {
+  id: string;
+  number: number;
+  season: number;
+  anime: {
+    id: string;
+    title: string;
+    coverImage?: string | null;
+    visibility?: string | null;
+  };
+};
+
 const ROW_SIZE = 20;
 
 const CATALOG_BLOCK_PRESETS = [
@@ -185,9 +197,10 @@ export default async function HomePage() {
   let trendingData: any[] = [];
   let recentHistory: any[] = [];
   let watchedForRec: any[] = [];
+  let recentEpisodesData: HomeRecentEpisode[] = [];
 
   try {
-    [allAnimes, trendingData, recentHistory, watchedForRec] = await Promise.all([
+    [allAnimes, trendingData, recentHistory, watchedForRec, recentEpisodesData] = await Promise.all([
       prisma.anime.findMany({
         select: {
           id: true,
@@ -269,6 +282,23 @@ export default async function HomePage() {
             },
           })
         : Promise.resolve([]),
+      prisma.episode.findMany({
+        orderBy: [{ season: "desc" }, { number: "desc" }],
+        take: 120,
+        select: {
+          id: true,
+          number: true,
+          season: true,
+          anime: {
+            select: {
+              id: true,
+              title: true,
+              coverImage: true,
+              visibility: true,
+            },
+          },
+        },
+      }),
     ]);
   } catch (error) {
     console.error("home-data-load-error", error);
@@ -329,6 +359,13 @@ export default async function HomePage() {
   const trendingVisibleEpisodes = isAdmin
     ? trendingEpisodes
     : trendingEpisodes.filter((episode) => isPublicVisibility(episode?.anime?.visibility));
+
+  const recentEpisodes = dedupeById(
+    (isAdmin
+      ? recentEpisodesData
+      : recentEpisodesData.filter((episode) => isPublicVisibility(episode?.anime?.visibility))
+    ).filter((episode) => Boolean(episode?.id && episode?.anime?.id && episode?.anime?.title)),
+  ).slice(0, ROW_SIZE);
 
   const trendingAnimes = trendingEpisodeIds
     .map((episodeId) => trendingVisibleEpisodes.find((episode) => episodeId === episode.id))
@@ -448,6 +485,8 @@ export default async function HomePage() {
 
           <ContinueWatchingRail items={continueWatching as any} />
 
+
+
           {trendingAnimes.length > 0 && (
             <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
               <SectionHeader
@@ -528,7 +567,7 @@ export default async function HomePage() {
                 title="Em lançamento"
                 subtitle="Séries quentes que ainda estão ganhando episódio."
               />
-              <CardRow items={ongoing.slice(0, ROW_SIZE)} subtitle={() => <span className="text-[11px] kdr-badge kdr-badge-accent">Novos episódios</span>} />
+              <CardRow items={ongoing.slice(0, ROW_SIZE)} />
             </section>
           )}
 

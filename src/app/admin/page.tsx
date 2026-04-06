@@ -9,6 +9,7 @@ import {
   BarChart3,
   Bug,
   ExternalLink,
+  Lightbulb,
   Layers,
   Loader2,
   Pencil,
@@ -20,13 +21,14 @@ import {
   Shield,
   Sparkles,
   Trash2,
+  Users,
   Wand2,
 } from "lucide-react";
 
 import AppLayout from "@/components/AppLayout";
 import SuggestionButton from "@/components/SuggestionButton";
 
-type SectionKey = "overview" | "catalog" | "reports" | "system";
+type SectionKey = "overview" | "catalog" | "reports" | "suggestions" | "users" | "system";
 
 type VisibilityType = "public" | "admin_only";
 type StatusType = "ongoing" | "completed";
@@ -68,6 +70,29 @@ type BugReport = {
   episode?: { id: string; number?: number | null; season?: number | null; title?: string | null } | null;
 };
 
+type SuggestionRow = {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: "pending" | "reviewed" | "accepted" | "rejected" | string;
+  createdAt: string;
+  user?: { id: string; name: string; avatarUrl?: string | null } | null;
+};
+
+type AdminUserRow = {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "user" | string;
+  avatarUrl?: string | null;
+  isTimedOut?: string | null;
+  onlineNow?: boolean;
+  _count?: {
+    favorites?: number;
+    histories?: number;
+  };
+};
+
 type CategoryRow = { id: string; name: string };
 
 type MessageState = { type: "ok" | "err"; text: string } | null;
@@ -75,12 +100,45 @@ type MessageState = { type: "ok" | "err"; text: string } | null;
 const sectionConfig: Array<{ key: SectionKey; label: string; icon: React.ElementType }> = [
   { key: "overview", label: "Visao geral", icon: BarChart3 },
   { key: "catalog", label: "Catalogo anime", icon: Layers },
-  { key: "reports", label: "Bug reports", icon: Bug },
+  { key: "reports", label: "Relatos de bug", icon: Bug },
+  { key: "suggestions", label: "Sugestoes", icon: Lightbulb },
+  { key: "users", label: "Usuarios", icon: Users },
   { key: "system", label: "Sistema", icon: Shield },
 ];
 
 const bugStatuses = ["all", "open", "investigating", "resolved", "closed"] as const;
 type BugFilterStatus = (typeof bugStatuses)[number];
+
+const suggestionStatuses = ["all", "pending", "reviewed", "accepted", "rejected"] as const;
+type SuggestionFilterStatus = (typeof suggestionStatuses)[number];
+
+const bugStatusLabels: Record<string, string> = {
+  all: "Todos",
+  open: "Aberto",
+  investigating: "Investigando",
+  resolved: "Resolvido",
+  closed: "Fechado",
+};
+
+const suggestionStatusLabels: Record<string, string> = {
+  all: "Todas",
+  pending: "Pendente",
+  reviewed: "Revisada",
+  accepted: "Aceita",
+  rejected: "Recusada",
+};
+
+function formatAnimeStatus(status: string) {
+  if (status === "ongoing") return "Em lançamento";
+  if (status === "completed") return "Finalizado";
+  return status || "Indefinido";
+}
+
+function formatVisibility(visibility: string) {
+  if (visibility === "public") return "Público";
+  if (visibility === "admin_only") return "Somente admin";
+  return visibility || "Indefinida";
+}
 
 function createEmptyForm() {
   return {
@@ -129,6 +187,10 @@ export default function AdminDashboardPage() {
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [bugReports, setBugReports] = useState<BugReport[]>([]);
   const [bugFilter, setBugFilter] = useState<BugFilterStatus>("open");
+  const [suggestions, setSuggestions] = useState<SuggestionRow[]>([]);
+  const [suggestionFilter, setSuggestionFilter] = useState<SuggestionFilterStatus>("all");
+  const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [onlineUsersCount, setOnlineUsersCount] = useState(0);
   const [animeSearch, setAnimeSearch] = useState("");
 
   const [alerts, setAlerts] = useState({ openBugReportsCount: 0, pendingSuggestionsCount: 0 });
@@ -143,6 +205,7 @@ export default function AdminDashboardPage() {
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [metadataOptions, setMetadataOptions] = useState<MetadataOption[]>([]);
   const [systemSaving, setSystemSaving] = useState(false);
+  const [syncingAnimeId, setSyncingAnimeId] = useState<string | null>(null);
 
   const showMsg = useCallback((text: string, type: "ok" | "err" = "ok") => {
     setMessage({ text, type });
@@ -184,6 +247,30 @@ export default function AdminDashboardPage() {
       setBugReports(Array.isArray(data) ? data : []);
     } catch {
       setBugReports([]);
+    }
+  }, []);
+
+  const loadSuggestions = useCallback(async () => {
+    try {
+      const response = await fetch("/api/suggestions", { cache: "no-store" });
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      setSuggestions(Array.isArray(data) ? data : []);
+    } catch {
+      setSuggestions([]);
+    }
+  }, []);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/users", { cache: "no-store" });
+      if (!response.ok) throw new Error(await response.text());
+      const data = await response.json();
+      setUsers(Array.isArray(data?.users) ? data.users : []);
+      setOnlineUsersCount(Number(data?.onlineCount || 0));
+    } catch {
+      setUsers([]);
+      setOnlineUsersCount(0);
     }
   }, []);
 
@@ -230,11 +317,13 @@ export default function AdminDashboardPage() {
       loadAnimes(),
       loadCategories(),
       loadBugReports(),
+      loadSuggestions(),
+      loadUsers(),
       loadAlerts(),
       loadSystemState(),
     ]);
     setLoading(false);
-  }, [loadAlerts, loadAnimes, loadBugReports, loadCategories, loadSystemState]);
+  }, [loadAlerts, loadAnimes, loadBugReports, loadCategories, loadSuggestions, loadSystemState, loadUsers]);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -416,6 +505,29 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleSyncEpisodes = async (anime: AnimeRow) => {
+    setSyncingAnimeId(anime.id);
+    try {
+      const response = await fetch("/api/admin/anime/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ animeId: anime.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || "Falha ao sincronizar episódios.");
+      }
+
+      const imported = Number(payload?.importedCount || 0);
+      showMsg(imported > 0 ? `Sincronização concluída: ${imported} episódio(s) importado(s).` : "Sincronização concluída sem novos episódios.");
+      await Promise.all([loadAnimes(), loadAlerts()]);
+    } catch (error) {
+      showMsg(error instanceof Error ? error.message : "Falha ao sincronizar episódios.", "err");
+    } finally {
+      setSyncingAnimeId(null);
+    }
+  };
+
   const handleUpdateBugStatus = async (id: string, nextStatus: string) => {
     try {
       const response = await fetch("/api/admin/bug-reports", {
@@ -444,6 +556,75 @@ export default function AdminDashboardPage() {
       showMsg("Bug report removido.");
     } catch {
       showMsg("Erro ao remover bug report.", "err");
+    }
+  };
+
+  const handleUpdateSuggestionStatus = async (id: string, nextStatus: string) => {
+    try {
+      const response = await fetch("/api/suggestions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: nextStatus }),
+      });
+      if (!response.ok) throw new Error("Falha ao atualizar sugestão.");
+      await Promise.all([loadSuggestions(), loadAlerts()]);
+      showMsg("Status da sugestão atualizado.");
+    } catch {
+      showMsg("Não foi possível atualizar a sugestão.", "err");
+    }
+  };
+
+  const handleDeleteSuggestion = async (id: string) => {
+    if (!confirm("Remover esta sugestão?")) return;
+    try {
+      const response = await fetch("/api/suggestions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!response.ok) throw new Error("Falha ao remover sugestão.");
+      await Promise.all([loadSuggestions(), loadAlerts()]);
+      showMsg("Sugestão removida.");
+    } catch {
+      showMsg("Erro ao remover sugestão.", "err");
+    }
+  };
+
+  const handleToggleUserRole = async (user: AdminUserRow) => {
+    const nextRole = user.role === "admin" ? "user" : "admin";
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id, role: nextRole }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || "Falha ao atualizar role.");
+      }
+      await loadUsers();
+      showMsg(`Role atualizada para ${nextRole === "admin" ? "admin" : "usuário"}.`);
+    } catch (error) {
+      showMsg(error instanceof Error ? error.message : "Não foi possível atualizar o usuário.", "err");
+    }
+  };
+
+  const handleDeleteUser = async (user: AdminUserRow) => {
+    if (!confirm(`Remover o usuário ${user.name}?`)) return;
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || "Falha ao remover usuário.");
+      }
+      await loadUsers();
+      showMsg("Usuário removido.");
+    } catch (error) {
+      showMsg(error instanceof Error ? error.message : "Erro ao remover usuário.", "err");
     }
   };
 
@@ -487,6 +668,11 @@ export default function AdminDashboardPage() {
     return bugReports.filter((bug) => bug.status === bugFilter);
   }, [bugFilter, bugReports]);
 
+  const filteredSuggestions = useMemo(() => {
+    if (suggestionFilter === "all") return suggestions;
+    return suggestions.filter((suggestion) => suggestion.status === suggestionFilter);
+  }, [suggestionFilter, suggestions]);
+
   const openBugCount =
     bugReports.length > 0
       ? bugReports.filter((bug) => bug.status === "open").length
@@ -528,11 +714,30 @@ export default function AdminDashboardPage() {
               >
                 <RefreshCw size={15} /> Atualizar tudo
               </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirm("Isso consultará a API para TODOS os animes em andamento. Deseja continuar?")) return;
+                  try {
+                    showMsg("Sincronização em massa iniciada...");
+                    // We call the same sync endpoint without ID or a dedicated one
+                    const res = await fetch("/api/admin/anime/sync", { method: "POST" });
+                    if (!res.ok) throw new Error("Falha na sincronização.");
+                    showMsg("Sincronização em massa concluída com sucesso.");
+                    refreshDashboard();
+                  } catch (e) {
+                    showMsg("Erro ao sincronizar todos os animes.", "err");
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-100 font-bold text-sm transition"
+              >
+                <RefreshCw size={15} /> Sincronizar TODOS
+              </button>
               <Link
                 href="/admin/import"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/20 bg-white/5 hover:bg-white/10 text-white font-bold text-sm transition"
               >
-                <Plus size={15} /> Importar episodios
+                <Plus size={15} /> Importar episódios
               </Link>
             </div>
           </div>
@@ -551,8 +756,8 @@ export default function AdminDashboardPage() {
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-[220px_1fr] gap-4">
-          <aside className="rounded-2xl border border-white/10 bg-black/25 p-2 h-fit">
-            <nav className="space-y-1">
+          <aside className="rounded-2xl border border-white/10 bg-black/25 p-2 h-fit mb-4 xl:mb-0 overflow-x-auto w-full kdr-hide-scrollbar">
+            <nav className="flex xl:flex-col gap-1 w-max xl:w-full">
               {sectionConfig.map((item) => {
                 const Icon = item.icon;
                 const active = section === item.key;
@@ -561,7 +766,7 @@ export default function AdminDashboardPage() {
                     key={item.key}
                     type="button"
                     onClick={() => setSection(item.key)}
-                    className={`w-full flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-bold transition ${
+                    className={`flex items-center gap-2.5 rounded-xl px-4 py-2.5 xl:w-full text-sm font-bold transition whitespace-nowrap ${
                       active
                         ? "bg-white text-black"
                         : "text-zinc-300 hover:text-white hover:bg-white/10"
@@ -577,7 +782,7 @@ export default function AdminDashboardPage() {
 
           <main className="space-y-4">
             {section === "overview" && (
-              <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
                 <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-zinc-500 font-black">Animes no catalogo</p>
                   <p className="text-3xl font-black text-white mt-1">{animes.length}</p>
@@ -590,12 +795,16 @@ export default function AdminDashboardPage() {
                   <p className="text-xs uppercase tracking-[0.16em] text-amber-200 font-black">Sugestoes pendentes</p>
                   <p className="text-3xl font-black text-white mt-1">{alerts.pendingSuggestionsCount}</p>
                 </article>
+                <article className="rounded-2xl border border-sky-300/25 bg-sky-500/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-sky-200 font-black">Usuarios online</p>
+                  <p className="text-3xl font-black text-white mt-1">{onlineUsersCount}</p>
+                </article>
                 <article className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-zinc-500 font-black">Categorias</p>
                   <p className="text-3xl font-black text-white mt-1">{categories.length}</p>
                 </article>
 
-                <article className="md:col-span-2 xl:col-span-4 rounded-2xl border border-white/10 bg-black/25 p-4 lg:p-5">
+                <article className="md:col-span-2 xl:col-span-5 rounded-2xl border border-white/10 bg-black/25 p-4 lg:p-5">
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
@@ -610,6 +819,20 @@ export default function AdminDashboardPage() {
                       className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-zinc-100 text-sm font-bold"
                     >
                       <Bug size={14} /> Revisar bug reports
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSection("suggestions")}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-zinc-100 text-sm font-bold"
+                    >
+                      <Lightbulb size={14} /> Ver sugestões
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSection("users")}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-zinc-100 text-sm font-bold"
+                    >
+                      <Users size={14} /> Gerenciar usuários
                     </button>
                     <Link
                       href="/admin/manga-import"
@@ -764,8 +987,8 @@ export default function AdminDashboardPage() {
                           onChange={(event) => setAnimeForm((current) => ({ ...current, status: event.target.value as StatusType }))}
                           className="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-white/35"
                         >
-                          <option value="ongoing">Ongoing</option>
-                          <option value="completed">Completed</option>
+                          <option value="ongoing">Em lançamento</option>
+                          <option value="completed">Finalizado</option>
                         </select>
                       </div>
                       <div>
@@ -786,7 +1009,7 @@ export default function AdminDashboardPage() {
                       <input
                         value={animeForm.coverImage}
                         onChange={(event) => setAnimeForm((current) => ({ ...current, coverImage: event.target.value }))}
-                        className="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-white/35"
+                        className="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-500"
                         placeholder="https://..."
                       />
                     </div>
@@ -796,7 +1019,7 @@ export default function AdminDashboardPage() {
                       <input
                         value={animeForm.bannerImage}
                         onChange={(event) => setAnimeForm((current) => ({ ...current, bannerImage: event.target.value }))}
-                        className="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-white/35"
+                        className="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-500"
                         placeholder="https://..."
                       />
                     </div>
@@ -863,7 +1086,7 @@ export default function AdminDashboardPage() {
                             <div className="min-w-0 flex-1">
                               <p className="text-sm font-black text-white truncate">{anime.title}</p>
                               <p className="text-[11px] text-zinc-400 mt-0.5">
-                                {anime.status || "ongoing"} · {anime.visibility === "public" ? "publico" : "admin_only"}
+                                {formatAnimeStatus(anime.status || "ongoing")} · {formatVisibility(anime.visibility)}
                               </p>
                               {(anime.categories || []).length > 0 && (
                                 <p className="text-[11px] text-zinc-500 mt-1 truncate">
@@ -881,12 +1104,28 @@ export default function AdminDashboardPage() {
                             >
                               <Pencil size={12} /> Editar
                             </button>
+                            <Link
+                              href={`/anime/${anime.id}`}
+                              target="_blank"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-zinc-700 text-cyan-200 hover:text-cyan-100 hover:bg-cyan-500/10"
+                            >
+                              <ExternalLink size={12} /> Ver Anime
+                            </Link>
                             <button
                               type="button"
                               onClick={() => handleToggleVisibility(anime)}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500"
                             >
-                              {anime.visibility === "public" ? "Tornar admin_only" : "Tornar publico"}
+                              {anime.visibility === "public" ? "Somente admin" : "Tornar público"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleSyncEpisodes(anime)}
+                              disabled={syncingAnimeId === anime.id}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-blue-500/40 text-blue-200 hover:text-blue-100 hover:bg-blue-500/15 disabled:opacity-60"
+                            >
+                              {syncingAnimeId === anime.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                              Atualizar episódios
                             </button>
                             <button
                               type="button"
@@ -907,7 +1146,7 @@ export default function AdminDashboardPage() {
             {section === "reports" && (
               <section className="rounded-2xl border border-white/10 bg-black/25 p-4 lg:p-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-white font-black text-lg">Bug reports</h2>
+                  <h2 className="text-white font-black text-lg">Relatos de bug</h2>
                   <div className="flex items-center gap-2">
                     {bugStatuses.map((statusValue) => (
                       <button
@@ -920,7 +1159,7 @@ export default function AdminDashboardPage() {
                             : "border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500"
                         }`}
                       >
-                        {statusValue}
+                        {bugStatusLabels[statusValue] || statusValue}
                       </button>
                     ))}
                   </div>
@@ -944,10 +1183,10 @@ export default function AdminDashboardPage() {
                             onChange={(event) => void handleUpdateBugStatus(report.id, event.target.value)}
                             className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500"
                           >
-                            <option value="open">open</option>
-                            <option value="investigating">investigating</option>
-                            <option value="resolved">resolved</option>
-                            <option value="closed">closed</option>
+                            <option value="open">Aberto</option>
+                            <option value="investigating">Investigando</option>
+                            <option value="resolved">Resolvido</option>
+                            <option value="closed">Fechado</option>
                           </select>
                         </div>
 
@@ -981,6 +1220,149 @@ export default function AdminDashboardPage() {
                           >
                             <Trash2 size={12} /> Remover report
                           </button>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
+
+            {section === "suggestions" && (
+              <section className="rounded-2xl border border-white/10 bg-black/25 p-4 lg:p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-white font-black text-lg">Sugestões dos usuários</h2>
+                  <div className="flex items-center gap-2">
+                    {suggestionStatuses.map((statusValue) => (
+                      <button
+                        key={statusValue}
+                        type="button"
+                        onClick={() => setSuggestionFilter(statusValue)}
+                        className={`px-2.5 py-1.5 rounded-full text-xs font-black border transition ${
+                          suggestionFilter === statusValue
+                            ? "bg-white text-black border-white"
+                            : "border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500"
+                        }`}
+                      >
+                        {suggestionStatusLabels[statusValue] || statusValue}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2 max-h-[74vh] overflow-y-auto pr-1">
+                  {filteredSuggestions.length === 0 ? (
+                    <p className="text-sm text-zinc-500">Nenhuma sugestão para o filtro atual.</p>
+                  ) : (
+                    filteredSuggestions.map((suggestion) => (
+                      <article key={suggestion.id} className="rounded-xl border border-zinc-800 bg-zinc-950/65 p-3.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-black text-white">{suggestion.title}</p>
+                            <p className="text-xs text-zinc-500 mt-0.5">
+                              {suggestion.user?.name || "Usuário"} · {new Date(suggestion.createdAt).toLocaleString("pt-BR")}
+                            </p>
+                          </div>
+                          <select
+                            value={suggestion.status}
+                            onChange={(event) => void handleUpdateSuggestionStatus(suggestion.id, event.target.value)}
+                            className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500"
+                          >
+                            <option value="pending">Pendente</option>
+                            <option value="reviewed">Revisada</option>
+                            <option value="accepted">Aceita</option>
+                            <option value="rejected">Recusada</option>
+                          </select>
+                        </div>
+
+                        <p className="text-sm text-zinc-200 mt-2 whitespace-pre-wrap">
+                          {suggestion.description?.trim() || "Sem descrição."}
+                        </p>
+
+                        <div className="mt-3">
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteSuggestion(suggestion.id)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-red-500/40 text-red-300 hover:text-red-200 hover:bg-red-500/10"
+                          >
+                            <Trash2 size={12} /> Remover sugestão
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
+
+            {section === "users" && (
+              <section className="rounded-2xl border border-white/10 bg-black/25 p-4 lg:p-5 space-y-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-white font-black text-lg">Usuários</h2>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      {users.length} conta(s) · {onlineUsersCount} online agora
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadUsers()}
+                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-zinc-100 text-sm font-bold"
+                  >
+                    <RefreshCw size={14} /> Atualizar usuários
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-[74vh] overflow-y-auto pr-1">
+                  {users.length === 0 ? (
+                    <p className="text-sm text-zinc-500">Nenhum usuário encontrado.</p>
+                  ) : (
+                    users.map((user) => (
+                      <article key={user.id} className="rounded-xl border border-zinc-800 bg-zinc-950/65 p-3.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex items-start gap-3">
+                            <img
+                              src={user.avatarUrl || "/default-avatar.png"}
+                              alt={user.name}
+                              className="w-11 h-11 rounded-full object-cover border border-zinc-700 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-sm font-black text-white truncate">{user.name}</p>
+                              <p className="text-xs text-zinc-400 truncate">{user.email}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
+                                <span className="px-2 py-0.5 rounded-full border border-zinc-700">
+                                  Role: {user.role === "admin" ? "Admin" : "Usuário"}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-full border ${user.onlineNow ? "border-emerald-500/50 text-emerald-300" : "border-zinc-700 text-zinc-400"}`}>
+                                  {user.onlineNow ? "Online" : "Offline"}
+                                </span>
+                                {user.isTimedOut ? (
+                                  <span className="px-2 py-0.5 rounded-full border border-amber-400/40 text-amber-300">
+                                    Suspenso até {new Date(user.isTimedOut).toLocaleString("pt-BR")}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="text-[11px] text-zinc-500 mt-1">
+                                Favoritos: {Number(user._count?.favorites || 0)} · Histórico: {Number(user._count?.histories || 0)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => void handleToggleUserRole(user)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500"
+                            >
+                              {user.role === "admin" ? "Virar usuário" : "Virar admin"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteUser(user)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-red-500/40 text-red-300 hover:text-red-200 hover:bg-red-500/10"
+                            >
+                              <Trash2 size={12} /> Remover
+                            </button>
+                          </div>
                         </div>
                       </article>
                     ))
@@ -1045,10 +1427,10 @@ export default function AdminDashboardPage() {
 
                 <article className="lg:col-span-2 rounded-2xl border border-white/10 bg-black/25 p-4 lg:p-5 space-y-3">
                   <h2 className="text-white font-black text-lg flex items-center gap-2">
-                    <AlertTriangle size={17} className="text-cyan-300" /> Feedback interno (admins)
+                    <AlertTriangle size={17} className="text-cyan-300" /> Atalho de reportar bug
                   </h2>
                   <p className="text-sm text-zinc-400 max-w-3xl">
-                    Use este atalho para abrir o formulario de feedback sem sair do painel. O mesmo feedback agora tambem aparece no menu da foto de perfil para usuarios.
+                    Use este atalho para abrir o formulário de bug sem sair do painel. O mesmo atalho também aparece no menu da foto de perfil para usuários.
                   </p>
                   <SuggestionButton
                     variant="sidebar"

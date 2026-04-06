@@ -312,6 +312,13 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
     return () => window.removeEventListener("keydown", handleEscape);
   }, []);
 
+  useEffect(() => {
+    setShowNotifications(false);
+    setShowProfile(false);
+    setSearchOpen(false);
+    setSearchExpanded(false);
+  }, [pathname]);
+
   if (!session) return null;
 
   const displayAvatar =
@@ -342,7 +349,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         <div className="hidden md:flex items-center gap-2 mr-1">
           <Link prefetch={true} href="/" className="inline-flex items-center gap-2 rounded-full px-2 py-1 hover:bg-white/5 transition">
             <Image src="/logo.png" alt="Futuro sem Contexto" width={24} height={24} className="rounded-md object-cover" />
-            <span className={`font-black tracking-tight text-white ${cinematic ? "text-xs lg:text-sm" : "text-sm"} hidden lg:inline`}>Futuro</span>
+            <span className={`font-black tracking-tight text-[var(--text-primary)] ${cinematic ? "text-xs lg:text-sm" : "text-sm"} hidden lg:inline`}>Futuro</span>
           </Link>
         </div>
 
@@ -369,19 +376,41 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         <div className={`flex items-center gap-2 flex-1 min-w-0 ${cinematic ? "justify-end" : "justify-end lg:justify-start"}`}>
           {/* Search */}
           <div className="flex-1 max-w-full sm:max-w-md relative" ref={searchRef}>
+            {searchExpanded && (
+              <button
+                type="button"
+                className="fixed inset-0 z-[65] bg-black/55 md:hidden"
+                aria-label="Fechar busca"
+                onClick={() => {
+                  setSearchOpen(false);
+                  setSearchExpanded(false);
+                }}
+              />
+            )}
+
             {/* Mobile: icon button */}
             <button
-              className={`md:hidden w-11 h-11 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/8 transition ${searchExpanded ? "hidden" : ""}`}
+              className={`md:hidden w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/[0.08] transition ${searchExpanded ? "hidden" : ""}`}
               onClick={() => {
                 setSearchExpanded(true);
                 setTimeout(() => searchInputRef.current?.focus(), 100);
               }}
             >
-              <Search size={19} />
+              <Search size={18} />
             </button>
 
             {/* Search bar */}
-            <div className={`${searchExpanded ? "flex absolute inset-x-0 top-0 z-30 h-10 px-2.5 bg-black/85 border border-white/18 backdrop-blur-xl" : "hidden"} md:relative md:z-auto md:h-auto md:px-3.5 md:bg-black/45 md:border-white/12 md:border md:flex items-center gap-2 hover:border-white/22 focus-within:border-[var(--accent-border)] rounded-full py-2.5 md:py-2 transition`}>
+            <div
+              className={`${searchExpanded ? "fixed inset-x-0 top-0 z-[70] flex px-3 bg-[var(--glass-bg-heavy)] border-b border-[var(--border-default)] backdrop-blur-xl" : "hidden"} md:relative md:z-auto md:h-auto md:px-3.5 md:bg-[var(--glass-bg)] md:border-[var(--border-default)] md:border md:flex items-center gap-2 hover:border-[var(--border-strong)] focus-within:border-[var(--accent-border)] rounded-none md:rounded-full py-2.5 md:py-2 transition`}
+              style={
+                searchExpanded
+                  ? {
+                      height: "calc(56px + env(safe-area-inset-top, 0px))",
+                      paddingTop: "env(safe-area-inset-top, 0px)",
+                    }
+                  : undefined
+              }
+            >
               <Search size={15} className={searching ? "text-[var(--text-accent)] animate-pulse" : "text-[var(--text-muted)]"} />
               <input
                 ref={searchInputRef}
@@ -389,7 +418,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                 onChange={(event) => handleSearch(event.target.value)}
                 onFocus={() => query && setSearchOpen(true)}
                 placeholder="Buscar anime, manga ou perfil..."
-                className="bg-transparent text-white text-[15px] md:text-sm flex-1 focus:outline-none placeholder:text-[var(--text-muted)] min-w-0 w-full"
+                className="bg-transparent text-[var(--text-primary)] text-[15px] md:text-sm flex-1 focus:outline-none placeholder:text-[var(--text-muted)] min-w-0 w-full"
               />
               {(query || searchExpanded) && (
                 <button
@@ -402,14 +431,14 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                     setSearchExpanded(false);
                   }}
                 >
-                  <X size={12} className="text-[var(--text-muted)] hover:text-white transition" />
+                  <X size={12} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition" />
                 </button>
               )}
             </div>
 
             {/* Search results dropdown */}
             {searchOpen && (
-                <div className="absolute top-full left-0 right-0 mt-2 glass-surface-heavy border border-white/12 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-80 overflow-y-auto animate-scaleIn">
+                <div className={`${searchExpanded ? "fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+56px)] rounded-t-none" : "absolute top-full left-0 right-0 mt-2"} md:absolute md:top-full md:left-0 md:right-0 md:mt-2 glass-surface-heavy border border-white/12 rounded-2xl shadow-2xl overflow-hidden z-[75] max-h-[min(56vh,22rem)] overflow-y-auto animate-scaleIn`}>
                 {searching ? (
                   <div className="p-8 flex flex-col items-center justify-center gap-3">
                     <div className="kdr-spinner" />
@@ -453,7 +482,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                                 />
                               )}
                             </div>
-                            <p className="text-sm text-white font-semibold truncate">
+                            <p className="text-sm text-[var(--text-primary)] font-semibold truncate">
                               {anime.title}
                             </p>
                           </Link>
@@ -489,7 +518,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                                 />
                               )}
                             </div>
-                            <p className="text-sm text-white font-semibold truncate">
+                            <p className="text-sm text-[var(--text-primary)] font-semibold truncate">
                               {manga.title}
                             </p>
                           </Link>
@@ -528,7 +557,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                                   alt={user.name}
                                 />
                             </div>
-                            <p className="text-sm text-white font-semibold">
+                            <p className="text-sm text-[var(--text-primary)] font-semibold">
                               {user.name}
                             </p>
                           </Link>
@@ -543,15 +572,15 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         </div>
 
         {/* Right side actions */}
-        <div className={`flex items-center gap-1 shrink-0 pl-1 rounded-full border border-white/12 bg-black/40 backdrop-blur-md px-1.5 py-1 ${searchExpanded ? "hidden md:flex" : "flex"}`}>
+        <div className={`flex items-center gap-1.5 shrink-0 pl-1 rounded-full border border-white/12 bg-[var(--glass-bg)] backdrop-blur-md px-1.5 py-1 ${searchExpanded ? "hidden md:flex" : "flex"}`}>
           {/* Notifications */}
           <div className="relative" ref={notificationRef}>
             <button
               onClick={handleOpenNotifications}
-              className="relative w-11 h-11 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/10 transition"
+              className="relative w-10 h-10 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/10 transition"
               title="Notificações"
             >
-              <Bell size={17} />
+              <Bell size={16} />
               {unreadCount > 0 && (
                 <span
                   className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full text-[9px] font-black text-white flex items-center justify-center"
@@ -569,15 +598,12 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                   className="fixed inset-0 bg-black/60 z-40 md:hidden"
                   onClick={() => setShowNotifications(false)}
                 />
-                <div className="fixed inset-x-0 bottom-0 z-50 md:absolute md:inset-auto md:right-0 md:top-12 md:w-[min(22rem,calc(100vw-1rem))] glass-surface-heavy border border-white/12 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden animate-slideUpSheet md:animate-scaleIn max-h-[75vh]">
-                  <div className="md:hidden flex justify-center py-2">
-                    <span className="kdr-sheet-handle" />
-                  </div>
+                <div className="fixed left-2 right-2 top-[calc(env(safe-area-inset-top,0px)+62px)] z-50 w-auto md:absolute md:left-auto md:right-0 md:top-12 md:w-[min(22rem,calc(100vw-1rem))] glass-surface-heavy border border-white/12 rounded-2xl shadow-2xl overflow-hidden animate-scaleIn max-h-[min(72vh,36rem)]">
                   <div className="flex items-center justify-between px-5 py-4 md:px-4 md:py-3 border-b border-[var(--border-subtle)]">
-                    <h3 className="font-black text-base md:text-sm text-white">Central</h3>
+                    <h3 className="font-black text-base md:text-sm text-[var(--text-primary)]">Central</h3>
                     <button
                       onClick={() => setShowNotifications(false)}
-                      className="text-[var(--text-muted)] hover:text-white transition p-1"
+                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition p-1"
                     >
                       <X size={16} />
                     </button>
@@ -613,7 +639,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="text-sm font-bold text-white leading-tight break-words">
+                                <p className="text-sm font-bold text-[var(--text-primary)] leading-tight break-words">
                                   {notification.title}
                                 </p>
                                 {notification.body && (
@@ -655,7 +681,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
             href="https://discord.gg/z2DRmZSHNy"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-11 h-11 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-white hover:bg-white/10 transition"
+            className="w-10 h-10 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/10 transition"
             title="Discord"
             aria-label="Abrir Discord"
           >
@@ -668,11 +694,11 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
           <div className="relative" ref={profileRef}>
             <button
               onClick={() => { setShowProfile((val) => !val); setShowNotifications(false); }}
-              className="flex items-center justify-center min-w-[44px] min-h-[44px] hover:opacity-90 transition"
+              className="flex items-center justify-center min-w-[40px] min-h-[40px] hover:opacity-90 transition"
               title="Perfil"
             >
               <div
-                className="w-9 h-9 md:w-8 md:h-8 rounded-full overflow-hidden border-2 transition shadow-sm relative bg-[var(--bg-card)]"
+                className="w-8 h-8 md:w-8 md:h-8 rounded-full overflow-hidden border-2 transition shadow-sm relative bg-[var(--bg-card)]"
                 style={{ borderColor: "color-mix(in srgb, var(--accent) 55%, transparent)", boxShadow: `0 0 10px var(--accent-glow)` }}
               >
                 {isImageLoading && <div className="absolute inset-0 kdr-skeleton z-0 rounded-full" />}
@@ -696,12 +722,9 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                   className="fixed inset-0 bg-black/60 z-40 md:hidden"
                   onClick={() => setShowProfile(false)}
                 />
-                <div className="fixed inset-x-0 bottom-0 z-50 md:absolute md:inset-auto md:right-0 md:top-12 md:w-56 glass-surface-heavy border border-white/12 rounded-t-3xl md:rounded-2xl shadow-2xl overflow-hidden animate-slideUpSheet md:animate-scaleIn">
-                  <div className="md:hidden flex justify-center py-2">
-                    <span className="kdr-sheet-handle" />
-                  </div>
+                <div className="fixed left-2 right-2 top-[calc(env(safe-area-inset-top,0px)+62px)] z-50 w-auto md:absolute md:left-auto md:right-0 md:top-12 md:w-[min(16rem,calc(100vw-1rem))] glass-surface-heavy border border-white/12 rounded-2xl shadow-2xl overflow-hidden animate-scaleIn">
                   <div className="px-5 md:px-4 py-4 md:py-3 border-b border-[var(--border-subtle)]">
-                    <p className="font-bold text-white text-base md:text-sm truncate">
+                    <p className="font-bold text-[var(--text-primary)] text-base md:text-sm truncate">
                       {session.user?.name}
                     </p>
                     <p className="text-[var(--text-muted)] text-xs truncate">
@@ -713,7 +736,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       prefetch={true}
                       href={`/profile/${(session.user as any)?.id || ""}`}
                       onClick={() => setShowProfile(false)}
-                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
                       <UserCircle size={17} className="text-[var(--text-accent)]" /> Meu Perfil
                     </Link>
@@ -721,7 +744,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       prefetch={true}
                       href="/favorites"
                       onClick={() => setShowProfile(false)}
-                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
                       <Heart size={17} className="text-[var(--text-accent)]" /> Favoritos
                     </Link>
@@ -729,7 +752,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       prefetch={true}
                       href="/history"
                       onClick={() => setShowProfile(false)}
-                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
                       <Clock3 size={17} className="text-[var(--text-accent)]" /> Histórico
                     </Link>
@@ -737,7 +760,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       prefetch={true}
                       href="/settings"
                       onClick={() => setShowProfile(false)}
-                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
                       <Settings2 size={17} className="text-[var(--text-accent)]" /> Configurações
                     </Link>
@@ -745,20 +768,20 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       prefetch={true}
                       href="/settings?section=feedback"
                       onClick={() => setShowProfile(false)}
-                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                      className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
-                      <MessageCircle size={17} className="text-[var(--text-accent)]" /> Feedback
+                      <MessageCircle size={17} className="text-[var(--text-accent)]" /> Reportar bug
                     </Link>
                     <div className="border-t border-[var(--border-subtle)] my-0.5" />
                     <button
                       onClick={handleOpenAccountSwitcher}
-                      className="w-full flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.05] transition min-h-[44px]"
+                      className="w-full flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
                       <UserPlus size={17} className="text-[var(--text-accent)]" /> Trocar de conta
                     </button>
                     <button
                       onClick={() => signOut()}
-                      className="w-full flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.08] transition min-h-[44px]"
+                      className="w-full flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.08] transition min-h-[44px]"
                     >
                       <LogOut size={17} /> Sair da Conta
                     </button>
@@ -782,10 +805,10 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
               <span className="kdr-sheet-handle" />
             </div>
             <div className="flex items-center justify-between">
-              <h3 className="text-white font-black text-xl sm:text-lg">Trocar de conta</h3>
+              <h3 className="text-[var(--text-primary)] font-black text-xl sm:text-lg">Trocar de conta</h3>
               <button
                 onClick={() => setShowAccountSwitcher(false)}
-                className="text-[var(--text-muted)] hover:text-white transition p-1"
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition p-1"
               >
                 <X size={16} />
               </button>
@@ -796,7 +819,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                 <p className="text-[var(--text-muted)] text-sm">Nenhuma conta salva neste dispositivo.</p>
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
-                  className="w-full text-sm font-bold rounded-xl border border-[var(--border-default)] px-3 py-3 text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.06] transition min-h-[44px]"
+                  className="w-full text-sm font-bold rounded-xl border border-[var(--border-default)] px-3 py-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition min-h-[44px]"
                 >
                   Adicionar outra conta
                 </button>
@@ -823,7 +846,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-[15px] sm:text-sm text-white font-semibold truncate">{account.name}</p>
+                      <p className="text-[15px] sm:text-sm text-[var(--text-primary)] font-semibold truncate">{account.name}</p>
                       <p className="text-xs text-[var(--text-muted)] truncate">{account.email}</p>
                     </div>
                     <span className="text-sm sm:text-xs font-bold text-[var(--text-accent)]">
@@ -837,7 +860,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
             <div className="pt-2 border-t border-[var(--border-subtle)]">
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
-                className="w-full text-sm font-bold rounded-xl border border-[var(--border-default)] px-3 py-3 text-[var(--text-secondary)] hover:text-white hover:bg-white/[0.06] transition min-h-[44px]"
+                className="w-full text-sm font-bold rounded-xl border border-[var(--border-default)] px-3 py-3 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.06] transition min-h-[44px]"
               >
                 Usar outra conta manualmente
               </button>
@@ -848,3 +871,4 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
     </header>
   );
 }
+

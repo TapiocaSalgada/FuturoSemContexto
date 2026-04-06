@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Heart, Mail, Lock, Loader2, ChevronLeft, UserPlus, Sparkles } from "lucide-react";
+import { Mail, Lock, Loader2, ChevronLeft, UserPlus, Sparkles } from "lucide-react";
 
 import {
   readSavedAccounts,
@@ -212,9 +212,6 @@ export default function LoginPage() {
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md rounded-3xl border border-[var(--border-default)] bg-[var(--glass-bg-heavy)]/95 backdrop-blur-xl shadow-[var(--glass-shadow-heavy)] p-6 sm:p-8 animate-fadeInUp">
           <div className="flex flex-col items-center gap-2 mb-8">
-          <div className="relative">
-            <Heart className="w-12 h-12 fill-current" style={{ color: "var(--accent)" }} />
-          </div>
           <h1 className="text-xl font-black tracking-tight leading-tight text-center mt-1" style={{ color: "var(--accent)" }}>
             Futuro sem <span className="text-[var(--foreground)]">Contexto</span>
           </h1>

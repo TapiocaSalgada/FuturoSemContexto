@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Play, Star } from "lucide-react";
 
@@ -22,6 +22,8 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
   const [index, setIndex] = useState(0);
   const [heroImageIndex, setHeroImageIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const touchStartRef = useRef<number | null>(null);
+  const touchDeltaRef = useRef(0);
 
   useEffect(() => {
     if (heroItems.length <= 1) return;
@@ -48,6 +50,36 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
     setHeroImageIndex(0);
   }, [index, heroItems.length]);
 
+  useEffect(() => {
+    if (!heroItems.length) return;
+
+    const indexes = [
+      index,
+      (index + 1) % heroItems.length,
+      (index - 1 + heroItems.length) % heroItems.length,
+    ];
+
+    const urls = Array.from(
+      new Set(
+        indexes
+          .map((target) =>
+            buildImageCandidates(
+              heroItems[target]?.bannerImage,
+              heroItems[target]?.coverImage,
+            )[0],
+          )
+          .filter(Boolean),
+      ),
+    ) as string[];
+
+    for (const url of urls) {
+      if (!url) continue;
+      const image = new Image();
+      image.decoding = "async";
+      image.src = url;
+    }
+  }, [heroItems, index]);
+
   if (heroItems.length === 0) return null;
 
   const active = heroItems[index];
@@ -67,6 +99,26 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
     }, 250);
   };
 
+  const handleSwipeStart = (clientX: number) => {
+    touchStartRef.current = clientX;
+    touchDeltaRef.current = 0;
+  };
+
+  const handleSwipeMove = (clientX: number) => {
+    if (touchStartRef.current === null) return;
+    touchDeltaRef.current = clientX - touchStartRef.current;
+  };
+
+  const handleSwipeEnd = () => {
+    if (touchStartRef.current === null) return;
+    const delta = touchDeltaRef.current;
+    if (Math.abs(delta) >= 46) {
+      go(delta < 0 ? "next" : "prev");
+    }
+    touchStartRef.current = null;
+    touchDeltaRef.current = 0;
+  };
+
   const sideItems = heroItems.length
     ? Array.from({ length: Math.min(3, heroItems.length) }, (_, offset) => {
         const targetIndex = (index + offset) % heroItems.length;
@@ -79,7 +131,12 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
     : null;
 
   return (
-    <section className="relative w-full flex flex-col justify-end overflow-hidden aspect-[16/11] sm:aspect-[16/8] lg:aspect-[16/6] min-h-[22rem] sm:min-h-[28rem] lg:min-h-[34rem]">
+    <section
+      className="relative w-full flex flex-col justify-end overflow-hidden aspect-[16/12] sm:aspect-[16/8] lg:aspect-[16/6] min-h-[23rem] sm:min-h-[28rem] lg:min-h-[34rem]"
+      onTouchStart={(event) => handleSwipeStart(event.touches[0]?.clientX ?? 0)}
+      onTouchMove={(event) => handleSwipeMove(event.touches[0]?.clientX ?? 0)}
+      onTouchEnd={handleSwipeEnd}
+    >
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img
@@ -96,13 +153,31 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
           }}
         />
         {/* Gradient overlays */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/58 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[var(--background)]/86 via-[var(--background)]/36 to-transparent" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,transparent_30%,var(--background)_100%)]" />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, transparent 0%, var(--hero-overlay-mid) 52%, var(--hero-overlay-bottom) 100%)",
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(90deg, var(--hero-overlay-side) 0%, var(--hero-overlay-side-mid) 44%, transparent 76%)",
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse at top right, transparent 34%, var(--hero-overlay-vignette) 100%)",
+          }}
+        />
       </div>
 
       {/* Content */}
-      <div className="relative z-10 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-6 lg:gap-10 items-end px-5 sm:px-6 lg:px-10 pb-8 lg:pb-12">
+      <div className="relative z-10 grid lg:grid-cols-[minmax(0,1fr)_300px] gap-6 lg:gap-10 items-end px-5 sm:px-6 lg:px-10 pt-12 sm:pt-0 pb-10 sm:pb-8 lg:pb-12">
         <div className={`max-w-3xl space-y-3 sm:space-y-4 transition-all duration-500 ${isTransitioning ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0"}`}>
 
           {/* Badge */}
@@ -124,7 +199,7 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
 
           {/* Title */}
           <h1
-            className="text-[2.4rem] sm:text-5xl lg:text-7xl font-black tracking-tighter text-white leading-[0.92] break-words"
+            className="text-[2rem] sm:text-5xl lg:text-7xl font-black tracking-tighter text-white leading-[0.94] break-words"
             style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}
           >
             {active.title}
@@ -140,23 +215,23 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
           )}
 
           {/* Description */}
-          <p className="text-[var(--text-secondary)] text-sm sm:text-[15px] lg:text-base line-clamp-3 max-w-2xl leading-relaxed">
+          <p className="text-[var(--text-secondary)] text-[13px] sm:text-[15px] lg:text-base line-clamp-2 sm:line-clamp-3 max-w-2xl leading-relaxed">
             {active.description || "Seu próximo anime já está pronto para maratonar."}
           </p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 pt-1">
+          <div className="grid grid-cols-2 sm:flex items-stretch sm:items-center gap-2.5 sm:gap-3 pt-1 w-full max-w-[24rem] sm:max-w-none">
             <Link
               prefetch={true}
               href={active.watchHref}
-              className="kdr-btn-primary h-12 px-8 text-[15px] sm:text-sm"
+              className="kdr-btn-primary h-11 sm:h-12 px-4 sm:px-8 text-[13px] sm:text-sm w-full sm:w-auto justify-center"
             >
               <Play fill="currentColor" size={16} /> Acessar agora
             </Link>
             <Link
               prefetch={true}
               href={`/anime/${active.id}`}
-              className="kdr-btn-secondary h-12 px-7 text-[15px] sm:text-sm"
+              className="kdr-btn-secondary h-11 sm:h-12 px-4 sm:px-7 text-[13px] sm:text-sm w-full sm:w-auto justify-center"
             >
               Detalhes
             </Link>
@@ -167,14 +242,14 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
             <div className="flex items-center gap-3 pt-1">
               <button
                 onClick={() => go("prev")}
-                  className="inline-flex w-11 h-11 rounded-full border border-white/14 bg-black/45 items-center justify-center text-white hover:bg-white/12 transition"
+                  className="hidden sm:inline-flex w-11 h-11 rounded-full border border-white/14 bg-black/45 items-center justify-center text-white hover:bg-white/12 transition"
                 aria-label="Destaque anterior"
               >
                 <ChevronLeft size={18} />
               </button>
               <button
                 onClick={() => go("next")}
-                  className="inline-flex w-11 h-11 rounded-full border border-white/14 bg-black/45 items-center justify-center text-white hover:bg-white/12 transition"
+                  className="hidden sm:inline-flex w-11 h-11 rounded-full border border-white/14 bg-black/45 items-center justify-center text-white hover:bg-white/12 transition"
                 aria-label="Próximo destaque"
               >
                 <ChevronRight size={18} />
@@ -192,16 +267,19 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
                         setIsTransitioning(false);
                       }, 250);
                     }}
-                    className="w-11 h-11 inline-flex items-center justify-center transition-all"
+                    className="w-10 h-10 sm:w-11 sm:h-11 inline-flex items-center justify-center transition-all"
                     aria-label={`Destaque ${itemIndex + 1}`}
                   >
                     <span
-                      className={`block h-1 rounded-full transition-all duration-300 ${itemIndex === index ? "w-8 bg-[var(--accent)]" : "w-3 bg-white/25 hover:bg-white/40"}`}
+                      className={`block h-1 rounded-full transition-all duration-300 ${itemIndex === index ? "w-7 sm:w-8 bg-[var(--accent)]" : "w-2.5 sm:w-3 bg-white/25 hover:bg-white/40"}`}
                       style={itemIndex === index ? { boxShadow: `0 0 10px var(--accent-glow)` } : undefined}
                     />
                   </button>
                 ))}
               </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)] sm:hidden">
+                Arraste para trocar
+              </p>
             </div>
           )}
         </div>
@@ -258,3 +336,5 @@ export default function HomeHeroRotator({ items }: { items: HeroItem[] }) {
     </section>
   );
 }
+
+

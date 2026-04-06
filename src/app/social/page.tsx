@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Film, Star, Users, RefreshCw, Heart, MessageCircle, Repeat2, BarChart3 } from "lucide-react";
+import { Film, Star, Users, RefreshCw } from "lucide-react";
 
 import AppLayout from "@/components/AppLayout";
 
@@ -147,21 +147,6 @@ export default function SocialFeedPage() {
                       <Link href={`/anime/${item.anime.id}`} className="kdr-section-title-accent hover:text-white font-bold break-words leading-snug max-w-full">
                         {item.anime.title}
                       </Link>
-                    </div>
-
-                    <div className="mt-3 flex items-center gap-4 text-zinc-500">
-                      <button type="button" className="inline-flex items-center gap-1 hover:text-zinc-200 transition text-xs">
-                        <Heart size={14} /> 1
-                      </button>
-                      <button type="button" className="inline-flex items-center gap-1 hover:text-zinc-200 transition text-xs">
-                        <MessageCircle size={14} /> 0
-                      </button>
-                      <button type="button" className="inline-flex items-center gap-1 hover:text-zinc-200 transition text-xs">
-                        <Repeat2 size={14} /> 0
-                      </button>
-                      <button type="button" className="inline-flex items-center gap-1 hover:text-zinc-200 transition text-xs">
-                        <BarChart3 size={14} /> {item.type === "rating" ? 2 : 1}
-                      </button>
                     </div>
                   </div>
 

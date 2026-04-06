@@ -21,13 +21,11 @@ export async function GET() {
   const user = await getUserFromSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const isAdmin = (user as any)?.role === "admin";
-
   const folders = await prisma.favoriteFolder.findMany({
     where: { userId: user.id },
     include: {
       favorites: {
-        where: isAdmin ? {} : { anime: { visibility: "public" } },
+        where: { anime: { visibility: "public" } },
         include: { anime: { select: { id: true, title: true, coverImage: true, visibility: true } } },
       },
     },

@@ -43,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isAdmin = (session?.user as any)?.role === "admin";
   const isCinemaContext = pathname?.startsWith("/anime/") || pathname?.startsWith("/watch/") || false;
-  const hideBottomNav = pathname?.startsWith("/watch/") || false;
+  const hideBottomNav = false;
 
   if (maintenance.enabled && status !== "loading" && !isAdmin) {
     return (

@@ -33,8 +33,6 @@ export async function GET(req: NextRequest) {
 
   const session = await getServerSession(authOptions);
 
-  const isAdmin = (session?.user as any)?.role === "admin";
-
   const [user, rawHistories] = await Promise.all([
     prisma.user.findUnique({
       where: { id },
@@ -55,7 +53,7 @@ export async function GET(req: NextRequest) {
     prisma.watchHistory.findMany({
       where: {
         userId: id,
-        ...(isAdmin ? {} : { episode: { anime: { visibility: "public" } } }),
+        episode: { anime: { visibility: "public" } },
       },
       orderBy: { updatedAt: "desc" },
       take: 50,
@@ -84,7 +82,7 @@ export async function GET(req: NextRequest) {
     for (const h of rawHistories) {
       const aid = h.episode?.anime?.id;
       const visibility = h.episode?.anime?.visibility;
-      if (aid && !seenAnimes.has(aid) && (visibility === "public" || isAdmin)) {
+      if (aid && !seenAnimes.has(aid) && visibility === "public") {
         seenAnimes.add(aid);
         historiesList.push(h);
         if (historiesList.length >= 10) break;
@@ -92,10 +90,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Hide admin_only favorites for non-admin viewers
-  if (!isAdmin) {
-    (user as any).favorites = (user as any).favorites?.filter((f: any) => f?.anime?.visibility === "public") || [];
-  }
+  // Hide admin_only favorites in public profile response
+  (user as any).favorites = (user as any).favorites?.filter((f: any) => f?.anime?.visibility === "public") || [];
 
   return NextResponse.json({
     ...user,

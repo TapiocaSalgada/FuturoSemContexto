@@ -31,15 +31,13 @@ export async function GET(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
     if (!user) return jsonError("User not found", 404);
 
-    const isAdmin = (session.user as any)?.role === "admin";
-
     if (animeId) {
       const history = await prisma.watchHistory.findFirst({
         where: {
           userId: user.id,
           episode: {
             animeId,
-            ...(isAdmin ? {} : { anime: { visibility: "public" } }),
+            anime: { visibility: "public" },
           },
         },
         orderBy: { updatedAt: "desc" },
@@ -52,7 +50,7 @@ export async function GET(req: Request) {
     const list = await prisma.watchHistory.findMany({
       where: {
         userId: user.id,
-        ...(isAdmin ? {} : { episode: { anime: { visibility: "public" } } }),
+        episode: { anime: { visibility: "public" } },
       },
       orderBy: { updatedAt: "desc" },
       include: {
@@ -96,7 +94,6 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({ where: { email: userEmail } });
     if (!user) return jsonError("User not found", 404);
 
-    const isAdmin = (session.user as any)?.role === "admin";
     const episode = await prisma.episode.findUnique({
       where: { id: episodeId },
       include: { anime: { select: { visibility: true } } },
@@ -106,7 +103,7 @@ export async function POST(req: Request) {
       return jsonError("Episode not found", 404);
     }
 
-    if (!isAdmin && String(episode.anime.visibility || "").toLowerCase() !== "public") {
+    if (String(episode.anime.visibility || "").toLowerCase() !== "public") {
       return jsonError("Not found", 404);
     }
 

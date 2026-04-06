@@ -1,0 +1,109 @@
+﻿  Ôû▓ Next.js 14.2.35
+  - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+ Ô£ô Compiled successfully
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+   Generating static pages (0/61) ...
+   Generating static pages (15/61) 
+   Generating static pages (30/61) 
+   Generating static pages (45/61) 
+ Ô£ô Generating static pages (61/61)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+Ôöî ãÆ /                                    5.15 kB         170 kB
+Ôö£ Ôùï /_not-found                          873 B          88.2 kB
+Ôö£ Ôùï /about                               201 B           165 kB
+Ôö£ Ôùï /admin                               15.8 kB         181 kB
+Ôö£ Ôùï /admin/actions                       364 B          87.7 kB
+Ôö£ Ôùï /admin/import                        6.76 kB         172 kB
+Ôö£ Ôùï /admin/manga-import                  2.59 kB         168 kB
+Ôö£ ãÆ /anime/[id]                          8.63 kB         174 kB
+Ôö£ ãÆ /api/achievements                    0 B                0 B
+Ôö£ ãÆ /api/admin/alerts                    0 B                0 B
+Ôö£ ãÆ /api/admin/anfire                    0 B                0 B
+Ôö£ ãÆ /api/admin/anime                     0 B                0 B
+Ôö£ ãÆ /api/admin/anime/media               0 B                0 B
+Ôö£ ãÆ /api/admin/anime/sync                0 B                0 B
+Ôö£ ãÆ /api/admin/animefenix                0 B                0 B
+Ôö£ ãÆ /api/admin/anisbr                    0 B                0 B
+Ôö£ ãÆ /api/admin/bug-reports               0 B                0 B
+Ôö£ ãÆ /api/admin/categories                0 B                0 B
+Ôö£ ãÆ /api/admin/comments                  0 B                0 B
+Ôö£ ãÆ /api/admin/dashboard                 0 B                0 B
+Ôö£ ãÆ /api/admin/episode                   0 B                0 B
+Ôö£ ãÆ /api/admin/maintenance               0 B                0 B
+Ôö£ ãÆ /api/admin/manga                     0 B                0 B
+Ôö£ ãÆ /api/admin/manga/import              0 B                0 B
+Ôö£ ãÆ /api/admin/manga/sync                0 B                0 B
+Ôö£ ãÆ /api/admin/mangadex/search           0 B                0 B
+Ôö£ ãÆ /api/admin/mobile-app                0 B                0 B
+Ôö£ ãÆ /api/admin/navigation                0 B                0 B
+Ôö£ ãÆ /api/admin/playanimes                0 B                0 B
+Ôö£ ãÆ /api/admin/proxy                     0 B                0 B
+Ôö£ ãÆ /api/admin/proxy/search              0 B                0 B
+Ôö£ ãÆ /api/admin/sugoi                     0 B                0 B
+Ôö£ ãÆ /api/admin/users                     0 B                0 B
+Ôö£ ãÆ /api/anime/[id]                      0 B                0 B
+Ôö£ ãÆ /api/announcements                   0 B                0 B
+Ôö£ ãÆ /api/announcements/read              0 B                0 B
+Ôö£ ãÆ /api/auth/[...nextauth]              0 B                0 B
+Ôö£ ãÆ /api/auth/accounts                   0 B                0 B
+Ôö£ ãÆ /api/auth/register                   0 B                0 B
+Ôö£ ãÆ /api/bug-reports                     0 B                0 B
+Ôö£ ãÆ /api/comments                        0 B                0 B
+Ôö£ ãÆ /api/download/[episodeId]            0 B                0 B
+Ôö£ ãÆ /api/favorites                       0 B                0 B
+Ôö£ ãÆ /api/favorites/folders               0 B                0 B
+Ôö£ ãÆ /api/feed                            0 B                0 B
+Ôö£ ãÆ /api/follows                         0 B                0 B
+Ôö£ ãÆ /api/follows/list                    0 B                0 B
+Ôö£ ãÆ /api/history                         0 B                0 B
+Ôö£ ãÆ /api/local-files                     0 B                0 B
+Ôö£ ãÆ /api/mangas                          0 B                0 B
+Ôö£ ãÆ /api/mangas/[id]                     0 B                0 B
+Ôö£ ãÆ /api/mangas/chapter/[chapterId]      0 B                0 B
+Ôö£ ãÆ /api/mobile/push/register            0 B                0 B
+Ôö£ ãÆ /api/notifications                   0 B                0 B
+Ôö£ ãÆ /api/presence                        0 B                0 B
+Ôö£ ãÆ /api/profile                         0 B                0 B
+Ôö£ ãÆ /api/profile/change-email            0 B                0 B
+Ôö£ ãÆ /api/profile/change-password         0 B                0 B
+Ôö£ ãÆ /api/profile/connections             0 B                0 B
+Ôö£ ãÆ /api/ratings                         0 B                0 B
+Ôö£ ãÆ /api/search                          0 B                0 B
+Ôö£ ãÆ /api/settings                        0 B                0 B
+Ôö£ ãÆ /api/suggestions                     0 B                0 B
+Ôö£ ãÆ /api/system/maintenance              0 B                0 B
+Ôö£ ãÆ /api/system/navigation               0 B                0 B
+Ôö£ ãÆ /api/upload                          0 B                0 B
+Ôö£ ãÆ /api/watch/[id]                      0 B                0 B
+Ôö£ ãÆ /api/watch/telemetry                 0 B                0 B
+Ôö£ Ôùï /explore                             2.48 kB         167 kB
+Ôö£ Ôùï /favorites                           3.39 kB         168 kB
+Ôö£ Ôùï /history                             2.43 kB         167 kB
+Ôö£ Ôùï /login                               3.96 kB         110 kB
+Ôö£ Ôùï /mangas                              1.89 kB         167 kB
+Ôö£ ãÆ /mangas/[id]                         2.74 kB         168 kB
+Ôö£ ãÆ /mangas/[id]/chapter/[chapterId]     2.2 kB          167 kB
+Ôö£ Ôùï /profile                             529 B          97.5 kB
+Ôö£ ãÆ /profile/[id]                        7.37 kB         172 kB
+Ôö£ Ôùï /register                            2.36 kB        99.2 kB
+Ôö£ Ôùï /settings                            6.5 kB          171 kB
+Ôö£ Ôùï /social                              2.71 kB         168 kB
+Ôöö ãÆ /watch/[id]                          376 kB          482 kB
++ First Load JS shared by all            87.3 kB
+  Ôö£ chunks/117-98d011bdb970bf96.js       31.7 kB
+  Ôö£ chunks/fd9d1056-b11b2651f33aae7f.js  53.6 kB
+  Ôöö other shared chunks (total)          1.97 kB
+
+
+ãÆ Middleware                             49.4 kB
+
+Ôùï  (Static)   prerendered as static content
+ãÆ  (Dynamic)  server-rendered on demand
+

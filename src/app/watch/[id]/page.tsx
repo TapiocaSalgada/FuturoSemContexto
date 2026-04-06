@@ -80,6 +80,24 @@ function getFullscreenElement() {
   );
 }
 
+async function setLandscapeLock(enabled: boolean) {
+  if (typeof screen === "undefined") return;
+  const orientation = (screen as any)?.orientation;
+  if (!orientation) return;
+
+  try {
+    if (enabled && typeof orientation.lock === "function") {
+      await orientation.lock("landscape");
+      return;
+    }
+    if (!enabled && typeof orientation.unlock === "function") {
+      orientation.unlock();
+    }
+  } catch {
+    // ignore orientation lock errors
+  }
+}
+
 function getUrlHost(value: string) {
   const url = String(value || "").trim();
   if (!url.startsWith("http")) return "";
@@ -493,6 +511,12 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   }, [isMobileViewport, revealMobileChrome]);
 
   useEffect(() => {
+    if (isMobileViewport && mobilePanel === "none") {
+      setMobilePanel("details");
+    }
+  }, [isMobileViewport, mobilePanel]);
+
+  useEffect(() => {
     if (autoplayCountdown !== null || playerError || showNextEpisodePrompt) {
       revealMobileChrome(true);
     }
@@ -537,6 +561,44 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       document.removeEventListener("webkitfullscreenchange", syncFullscreen as EventListener);
     };
   }, []);
+
+  useEffect(() => {
+    const video = videoRef.current as any;
+    if (!video || !isCurrentDirect) return;
+
+    const onWebkitBeginFullscreen = () => setIsFullscreen(true);
+    const onWebkitEndFullscreen = () => setIsFullscreen(Boolean(getFullscreenElement()));
+
+    video.addEventListener("webkitbeginfullscreen", onWebkitBeginFullscreen);
+    video.addEventListener("webkitendfullscreen", onWebkitEndFullscreen);
+
+    return () => {
+      video.removeEventListener("webkitbeginfullscreen", onWebkitBeginFullscreen);
+      video.removeEventListener("webkitendfullscreen", onWebkitEndFullscreen);
+    };
+  }, [currentSource.url, isCurrentDirect]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isFullscreen) {
+      root.classList.add("watch-fullscreen");
+    } else {
+      root.classList.remove("watch-fullscreen");
+    }
+
+    return () => {
+      root.classList.remove("watch-fullscreen");
+    };
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isMobileViewport) return;
+    void setLandscapeLock(isFullscreen);
+
+    return () => {
+      void setLandscapeLock(false);
+    };
+  }, [isFullscreen, isMobileViewport]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -675,20 +737,63 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       );
     };
 
+    const tryAutoPip = () => {
+      const pipEnabled = Boolean((document as any).pictureInPictureEnabled);
+      const inPip = Boolean((document as any).pictureInPictureElement);
+      if (!pipEnabled || inPip) return;
+      if (video.paused || video.ended) return;
+
+      (video as any).requestPictureInPicture?.().catch(() => {});
+    };
+
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
         persistCurrentProgress();
+        tryAutoPip();
       }
     };
 
-    window.addEventListener("pagehide", persistCurrentProgress);
+    const onPageHide = () => {
+      persistCurrentProgress();
+      tryAutoPip();
+    };
+
+    window.addEventListener("pagehide", onPageHide);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      window.removeEventListener("pagehide", persistCurrentProgress);
+      window.removeEventListener("pagehide", onPageHide);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [data?.episodeId, isCurrentDirect, sendHistoryUpdate, session?.user]);
+
+  useEffect(() => {
+    const video = videoRef.current as any;
+    if (!video || !isCurrentDirect) return;
+
+    const maybeEnterPip = () => {
+      const pipEnabled = Boolean((document as any).pictureInPictureEnabled);
+      const inPip = Boolean((document as any).pictureInPictureElement);
+      if (!pipEnabled || inPip) return;
+      if (video.paused || video.ended) return;
+
+      video.requestPictureInPicture?.().catch(() => {});
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        maybeEnterPip();
+      }
+    };
+
+    window.addEventListener("pagehide", maybeEnterPip);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", maybeEnterPip);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [data?.episodeId, isCurrentDirect]);
 
   useEffect(() => {
     if (isCurrentDirect) return;
@@ -1092,6 +1197,11 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     revealMobileChrome(true);
 
     if (!data.nextEpisode) return;
+    if (!data.viewerSettings?.autoplay) {
+      setAutoplayCountdown(null);
+      setShowNextEpisodePrompt(true);
+      return;
+    }
 
     clearInterval(autoplayTimeout.current);
     setAutoplayCountdown(AUTOPLAY_SECONDS);
@@ -1124,6 +1234,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   const cancelAutoplay = () => {
     clearInterval(autoplayTimeout.current);
     setAutoplayCountdown(null);
+    setShowNextEpisodePrompt(Boolean(data?.nextEpisode));
   };
 
   const openBugModal = () => {
@@ -1225,7 +1336,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           <div className="w-full max-w-3xl aspect-video rounded-3xl bg-zinc-900 animate-pulse" />
           <div className="w-full max-w-2xl h-4 rounded bg-zinc-900 animate-pulse" />
           <div className="w-full max-w-xl h-4 rounded bg-zinc-900 animate-pulse" />
-          <p className="text-sm text-zinc-400">Preparando o player...</p>
+          <p className="text-sm text-[var(--text-muted)]">Preparando o player...</p>
         </div>
       </AppLayout>
     );
@@ -1257,34 +1368,34 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   return (
     <AppLayout>
       {showBugModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowBugModal(false)} />
-          <div className="relative glass-surface-heavy border border-white/12 rounded-2xl p-5 sm:p-6 w-full max-w-lg space-y-4">
+          <div className="relative glass-surface-heavy border border-white/12 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-6 w-full max-w-lg space-y-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-black text-lg flex items-center gap-2">
-                <AlertTriangle size={18} className="text-amber-300" /> Reportar bug do episódio
+                <AlertTriangle size={18} className="text-[var(--text-primary)]" /> Reportar bug do episódio
               </h3>
-              <button onClick={() => setShowBugModal(false)} className="text-zinc-500 hover:text-white transition">
+              <button onClick={() => setShowBugModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition">
                 <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleBugReportSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-zinc-400 mb-1 block">Título</label>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Título</label>
                 <input
                   value={bugForm.title}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, title: e.target.value }))}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-400"
+                  className="kdr-input w-full rounded-lg px-3 py-2.5 text-sm"
                   placeholder="Ex: player travando no episódio"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-zinc-400 mb-1 block">Descrição *</label>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Descrição *</label>
                 <textarea
                   value={bugForm.description}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, description: e.target.value }))}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-400 min-h-[100px] resize-none"
+                  className="kdr-input w-full rounded-lg px-3 py-2.5 text-sm min-h-[100px] resize-none"
                   placeholder="Descreva o problema, dispositivo e como reproduzir."
                 />
               </div>
@@ -1298,7 +1409,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
               <button
                 type="submit"
                 disabled={bugSending}
-                className="w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-black text-sm transition disabled:opacity-60"
+                className="kdr-btn-primary w-full h-11 rounded-xl text-sm disabled:opacity-60"
               >
                 {bugSending ? "Enviando..." : "Enviar bug"}
               </button>
@@ -1308,7 +1419,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       )}
 
       <div className="min-h-screen bg-[var(--background)] relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(920px 540px at 80% -12%, rgba(229,9,20,0.30), transparent 72%), radial-gradient(740px 440px at 14% 5%, rgba(249,115,22,0.16), transparent 70%)" }} />
+        <div className="absolute inset-0 pointer-events-none hidden md:block" style={{ background: "radial-gradient(920px 540px at 80% -12%, rgba(148,163,184,0.18), transparent 72%), radial-gradient(740px 440px at 14% 5%, rgba(203,213,225,0.14), transparent 70%)" }} />
         <div className="max-w-[1620px] mx-auto px-0 lg:px-6 py-0 md:py-6 space-y-0 md:space-y-6 relative z-10">
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-0 md:gap-6 items-start">
             <section className="space-y-0 md:space-y-4 pt-0">
@@ -1411,7 +1522,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 {/* Auto-play countdown with SVG ring */}
                 {autoplayCountdown !== null && data.nextEpisode && (
                   <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 z-40">
-                    <div className="max-w-sm w-full rounded-3xl bg-black/82 border border-red-500/28 p-6 text-center space-y-4 shadow-[0_22px_56px_rgba(0,0,0,0.58)]">
+                    <div className="max-w-sm w-full rounded-3xl bg-black/82 border border-[var(--accent-border)] p-6 text-center space-y-4 shadow-[0_22px_56px_rgba(0,0,0,0.58)]">
                       <p className="text-[var(--text-muted)] text-sm">Episódio concluído</p>
                       {/* Countdown ring */}
                       <div className="relative inline-flex items-center justify-center">
@@ -1432,6 +1543,31 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                           className="kdr-btn-secondary flex-1 h-12 rounded-2xl text-sm"
                         >
                           Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {showNextEpisodePrompt && autoplayCountdown === null && data.nextEpisode && (
+                  <div className="absolute left-3 right-3 bottom-3 z-40 rounded-2xl border border-white/20 bg-black/80 backdrop-blur-md p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)] font-black">Proximo episodio</p>
+                        <p className="text-sm font-black text-white truncate">{data.nextEpisode.title}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => setShowNextEpisodePrompt(false)}
+                          className="h-9 px-3 rounded-lg border border-white/20 text-xs font-black text-[var(--text-secondary)] hover:text-white hover:bg-white/10 transition"
+                        >
+                          Fechar
+                        </button>
+                        <button
+                          onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
+                          className="kdr-btn-primary h-9 px-3 rounded-lg text-xs"
+                        >
+                          <Play size={12} /> Assistir
                         </button>
                       </div>
                     </div>
@@ -1468,26 +1604,45 @@ export default function WatchPage({ params }: { params: { id: string } }) {
             <div className="hidden md:flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)] font-black">Assistindo agora</p>
-                <p className="text-sm font-black text-white truncate">{data.anime.title} - {formatSeasonLabel(data.episode)}</p>
+                <p className="text-sm font-black text-[var(--text-primary)] truncate">{data.anime.title} - {formatSeasonLabel(data.episode)}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setDetailsExpanded((prev) => !prev)}
-                className="h-9 px-3 rounded-xl border border-white/15 bg-white/5 hover:bg-white/12 text-xs font-black text-zinc-200 hover:text-white transition"
+                className="h-9 px-3 rounded-xl border border-white/15 bg-white/5 hover:bg-white/12 text-xs font-black text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition"
               >
                 {detailsExpanded ? "Ocultar detalhes" : "Mostrar detalhes"}
               </button>
             </div>
 
-            <div className="md:hidden px-3 pt-3">
+            <div className="md:hidden px-3 pt-3 space-y-2.5">
+              <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--glass-bg-card)]/90 backdrop-blur-xl px-3.5 py-3">
+                <p className="text-[10px] uppercase tracking-[0.17em] font-black text-[var(--text-muted)]">Assistindo agora</p>
+                <h2 className="mt-1 text-base font-black text-[var(--text-primary)] leading-tight line-clamp-2">{data.anime.title}</h2>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-secondary)]">
+                    {formatSeasonLabel(data.episode)}
+                  </span>
+                  {nextPlaylistEpisode && (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/watch/${nextPlaylistEpisode.id}`)}
+                      className="h-8 px-3 rounded-full border border-[var(--border-default)] text-[11px] font-black text-[var(--text-primary)] bg-[var(--bg-card)]/70"
+                    >
+                      Próximo episódio
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="rounded-2xl border border-white/12 bg-black/55 p-1.5 flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => setMobilePanel((prev) => (prev === "details" ? "none" : "details"))}
                   className={`flex-1 h-10 rounded-xl text-xs font-black transition ${
                     mobilePanel === "details"
-                      ? "bg-red-600 text-white"
-                      : "text-zinc-300 hover:text-white hover:bg-white/10"
+                      ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10"
                   }`}
                 >
                   Detalhes
@@ -1497,8 +1652,8 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   onClick={() => setMobilePanel((prev) => (prev === "episodes" ? "none" : "episodes"))}
                   className={`flex-1 h-10 rounded-xl text-xs font-black transition ${
                     mobilePanel === "episodes"
-                      ? "bg-red-600 text-white"
-                      : "text-zinc-300 hover:text-white hover:bg-white/10"
+                      ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10"
                   }`}
                 >
                   Episódios
@@ -1512,20 +1667,20 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 <img src="/logo.png" alt="Futuro sem Contexto" className="w-10 h-10 rounded-2xl object-cover" />
                 <div>
                   <p className="text-sm kdr-section-title-accent font-black uppercase tracking-[0.18em]">Futuro sem Contexto</p>
-                  <h1 className="text-2xl lg:text-3xl font-black text-white">{data.anime.title}</h1>
+                  <h1 className="text-2xl lg:text-3xl font-black text-[var(--text-primary)]">{data.anime.title}</h1>
                 </div>
               </div>
 
               <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
-                <span className="px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-white font-bold">{formatSeasonLabel(data.episode)}</span>
+                <span className="px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-primary)] font-bold">{formatSeasonLabel(data.episode)}</span>
                 <span className="px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
                   Fonte: {data.episode.sourceLabel || data.sourceType.replace("_", " ")}
                 </span>
-                {data.nextEpisode && <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">Auto próximo ativo</span>}
+                {data.nextEpisode && <span className="px-3 py-1 rounded-full bg-[var(--accent-soft)] border border-[var(--accent-border)] text-[var(--text-accent)] font-bold">Auto próximo ativo</span>}
                 {pipSupported && isCurrentDirect && (
                   <button
                     onClick={handleEnterPip}
-                    className="px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-white/10 hover:text-white transition"
+                    className="px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] transition"
                   >
                     Janela flutuante
                   </button>
@@ -1533,15 +1688,15 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 <button
                   type="button"
                   onClick={session ? openBugModal : () => router.push("/login")}
-                  className="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/35 text-amber-200 hover:bg-amber-500/25 transition font-semibold"
+                  className="px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:bg-white/10 hover:text-[var(--text-primary)] transition font-semibold"
                 >
                   Reportar bug
                 </button>
                 {data.sources && data.sources.length > 1 && (
-                  <div className="flex items-center gap-2 text-xs text-zinc-300">
+                  <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                     <span>Fonte atual:</span>
                     <select
-                      className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-white"
+                      className="bg-[var(--bg-card)] border border-[var(--border-default)] rounded-lg px-2 py-1 text-[var(--text-primary)]"
                       value={`${currentSource.type}:${currentSource.url}`}
                       onChange={(e) => {
                         const [type, ...rest] = e.target.value.split(":");
@@ -1579,14 +1734,14 @@ export default function WatchPage({ params }: { params: { id: string } }) {
               {/* -- END Star Rating Block Moved to Anime Page -- */}
               {/* Keyboard shortcut hint (desktop only) */}
               {isCurrentDirect && (
-                <p className="mt-3 text-[11px] text-zinc-600 hidden md:block">
-                  Atalhos: <kbd className="bg-zinc-800 px-1 rounded">Espaço</kbd> pausar &nbsp;
-                  <kbd className="bg-zinc-800 px-1 rounded">←/→</kbd> ±5s &nbsp;
-                  <kbd className="bg-zinc-800 px-1 rounded">J/L</kbd> ±10s &nbsp;
-                  <kbd className="bg-zinc-800 px-1 rounded">F</kbd> tela cheia &nbsp;
-                  <kbd className="bg-zinc-800 px-1 rounded">M</kbd> mudo &nbsp;
-                  <kbd className="bg-zinc-800 px-1 rounded">N/P</kbd> troca ep &nbsp;
-                  <kbd className="bg-zinc-800 px-1 rounded">0-9</kbd> pular %
+                <p className="mt-3 text-[11px] text-[var(--text-muted)] hidden md:block">
+                  Atalhos: <kbd className="bg-[var(--bg-card)] px-1 rounded">Espaço</kbd> pausar &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">←/→</kbd> ±5s &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">J/L</kbd> ±10s &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">F</kbd> tela cheia &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">M</kbd> mudo &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">N/P</kbd> troca ep &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">0-9</kbd> pular %
                 </p>
               )}
             </div>
@@ -1595,15 +1750,15 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           {/* ── Playlist Sidebar ── */}
             <aside id="watch-playlist" className={`${mobilePanel === "episodes" ? "block" : "hidden"} md:block glass-surface border border-white/10 rounded-[28px] p-4 lg:p-5 xl:sticky xl:top-20 scroll-mt-28`}>
             <div className="mb-4 rounded-2xl border border-white/15 bg-black/25 p-4">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-black">Episódio detalhes</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] font-black">Episódio detalhes</p>
               <div className="grid grid-cols-2 gap-3 mt-3 pb-3 border-b border-white/10">
                 <div>
-                  <p className="text-4xl font-black leading-none text-white">{data.episode.number}</p>
-                  <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mt-1">Episódio</p>
+                  <p className="text-4xl font-black leading-none text-[var(--text-primary)]">{data.episode.number}</p>
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] mt-1">Episódio</p>
                 </div>
                 <div>
-                  <p className="text-4xl font-black leading-none text-zinc-400">{data.episode.season}</p>
-                  <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 mt-1">Temporada</p>
+                  <p className="text-4xl font-black leading-none text-[var(--text-secondary)]">{data.episode.season}</p>
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] mt-1">Temporada</p>
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1611,7 +1766,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   type="button"
                   disabled={!prevPlaylistEpisode}
                   onClick={() => prevPlaylistEpisode && router.push(`/watch/${prevPlaylistEpisode.id}`)}
-                  className="h-9 rounded-xl border border-white/12 bg-white/[0.05] text-zinc-200 text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
+                  className="h-9 rounded-xl border border-white/12 bg-white/[0.05] text-[var(--text-primary)] text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
                 >
                   <span className="inline-flex items-center gap-1"><ChevronLeft size={13} /> Anterior</span>
                 </button>
@@ -1619,24 +1774,24 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   type="button"
                   disabled={!nextPlaylistEpisode}
                   onClick={() => nextPlaylistEpisode && router.push(`/watch/${nextPlaylistEpisode.id}`)}
-                  className="h-9 rounded-xl border border-white/12 bg-white/[0.05] text-zinc-200 text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
+                  className="h-9 rounded-xl border border-white/12 bg-white/[0.05] text-[var(--text-primary)] text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
                 >
                   <span className="inline-flex items-center gap-1">Próximo <ChevronRight size={13} /></span>
                 </button>
               </div>
-              <div className="mt-3 space-y-1.5 text-[11px] text-zinc-400">
-                <p className="flex items-center justify-between gap-2"><span>Série</span><span className="text-zinc-200 font-bold truncate max-w-[140px]">{data.anime.title}</span></p>
-                <p className="flex items-center justify-between gap-2"><span>Fonte</span><span className="text-zinc-200 font-bold">{data.episode.sourceLabel || data.sourceType.replace("_", " ")}</span></p>
+              <div className="mt-3 space-y-1.5 text-[11px] text-[var(--text-muted)]">
+                <p className="flex items-center justify-between gap-2"><span>Série</span><span className="text-[var(--text-primary)] font-bold truncate max-w-[140px]">{data.anime.title}</span></p>
+                <p className="flex items-center justify-between gap-2"><span>Fonte</span><span className="text-[var(--text-primary)] font-bold">{data.episode.sourceLabel || data.sourceType.replace("_", " ")}</span></p>
               </div>
             </div>
 
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <p className="text-[var(--text-muted)] text-xs uppercase tracking-[0.2em]">Playlist</p>
-                <h2 className="text-lg font-black text-white">{data.playlist.length} episódios</h2>
+                <h2 className="text-lg font-black text-[var(--text-primary)]">{data.playlist.length} episódios</h2>
               </div>
               {currentPlaylistIndex >= 0 && (
-                <span className="text-[11px] font-black text-zinc-300 px-2.5 py-1 rounded-lg border border-white/12 bg-white/[0.04]">
+                <span className="text-[11px] font-black text-[var(--text-secondary)] px-2.5 py-1 rounded-lg border border-white/12 bg-white/[0.04]">
                   #{currentPlaylistIndex + 1}
                 </span>
               )}
@@ -1653,7 +1808,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 <button
                   type="button"
                   onClick={() => setSeasonFilter("all")}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black whitespace-nowrap border transition ${seasonFilter === "all" ? "bg-white text-black border-white/60" : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-white hover:border-[var(--border-strong)]"}`}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black whitespace-nowrap border transition ${seasonFilter === "all" ? "bg-[var(--accent)] text-[var(--accent-contrast)] border-[var(--accent-border)]" : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"}`}
                 >
                   Todas
                 </button>
@@ -1662,13 +1817,13 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     key={season}
                     type="button"
                     onClick={() => setSeasonFilter(season)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black whitespace-nowrap border transition ${seasonFilter === season ? "bg-white text-black border-white/60" : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-white hover:border-[var(--border-strong)]"}`}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-black whitespace-nowrap border transition ${seasonFilter === season ? "bg-[var(--accent)] text-[var(--accent-contrast)] border-[var(--accent-border)]" : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border-strong)]"}`}
                   >
                     T{season}
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-zinc-500 font-bold">Mostrando {filteredEpisodeTotal} de {data.playlist.length} episódios</p>
+              <p className="text-[10px] text-[var(--text-muted)] font-bold">Mostrando {filteredEpisodeTotal} de {data.playlist.length} episódios</p>
             </div>
 
             <div className="space-y-4 max-h-[68vh] overflow-y-auto pr-1">
@@ -1688,20 +1843,20 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                           href={`/watch/${episode.id}`}
                           className={`block rounded-xl border px-2.5 py-2 transition ${
                             active
-                              ? "border-red-400/55 bg-red-500/12"
+                              ? "border-[var(--accent-border)] bg-[var(--accent-soft)]"
                               : "border-[var(--border-subtle)] bg-[var(--bg-card)]/40 hover:border-[var(--border-strong)] hover:bg-white/[0.06]"
                           }`}
                         >
                           <div className="flex items-start gap-3">
                             <div
                               className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs ${
-                                active ? "bg-red-500 text-white" : "bg-[var(--bg-card)] text-[var(--text-secondary)]"
+                                active ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "bg-[var(--bg-card)] text-[var(--text-secondary)]"
                               }`}
                             >
                               {episode.number}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-bold text-white text-[13px] truncate">{episode.title}</p>
+                              <p className="font-bold text-[var(--text-primary)] text-[13px] truncate">{episode.title}</p>
                               <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{formatSeasonLabel(episode)}</p>
                             </div>
                           </div>

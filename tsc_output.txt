@@ -1,0 +1,123 @@
+﻿mobile-app/App.tsx(199,6): error TS2786: 'View' cannot be used as a JSX component.
+  Its type 'typeof View' is not a valid JSX element type.
+    Type 'typeof View' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & ViewComponent' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(200,8): error TS2786: 'StatusBar' cannot be used as a JSX component.
+  Its type 'typeof StatusBar' is not a valid JSX element type.
+    Type 'typeof StatusBar' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'Component<StatusBarProps, {}, any>' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(202,8): error TS2786: 'WebView' cannot be used as a JSX component.
+  Its type 'typeof WebView' is not a valid JSX element type.
+    Type 'typeof WebView' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'WebView<any>' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(246,10): error TS2786: 'View' cannot be used as a JSX component.
+  Its type 'typeof View' is not a valid JSX element type.
+    Type 'typeof View' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & ViewComponent' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(247,12): error TS2786: 'Image' cannot be used as a JSX component.
+  Its type 'typeof Image' is not a valid JSX element type.
+    Type 'typeof Image' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & ImageComponent' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(248,12): error TS2786: 'ActivityIndicator' cannot be used as a JSX component.
+  Its type 'typeof ActivityIndicator' is not a valid JSX element type.
+    Type 'typeof ActivityIndicator' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & ActivityIndicatorComponent' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(249,12): error TS2786: 'Text' cannot be used as a JSX component.
+  Its type 'typeof Text' is not a valid JSX element type.
+    Type 'typeof Text' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & TextComponent' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(254,10): error TS2786: 'View' cannot be used as a JSX component.
+  Its type 'typeof View' is not a valid JSX element type.
+    Type 'typeof View' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & ViewComponent' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(255,12): error TS2786: 'Text' cannot be used as a JSX component.
+  Its type 'typeof Text' is not a valid JSX element type.
+    Type 'typeof Text' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & TextComponent' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(256,12): error TS2786: 'Text' cannot be used as a JSX component.
+  Its type 'typeof Text' is not a valid JSX element type.
+    Type 'typeof Text' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & TextComponent' but required in type 'Component<any, any, any>'.
+mobile-app/App.tsx(257,12): error TS2786: 'Pressable' cannot be used as a JSX component.
+  Its type 'ForwardRefExoticComponent<PressableProps & RefAttributes<View>>' is not a valid JSX element type.
+    Type 'ForwardRefExoticComponent<PressableProps & RefAttributes<View>>' is not assignable to type '(props: any, deprecatedLegacyContext?: any) => ReactNode'.
+      Type 'import("C:/Users/relug/Documents/Futuro Stream/futuro-stream-app/mobile-app/node_modules/@types/react/index").ReactNode' is not assignable to type 'React.ReactNode'.
+        Type 'ReactElement<unknown, string | JSXElementConstructor<any>>' is not assignable to type 'ReactNode'.
+          Property 'children' is missing in type 'ReactElement<unknown, string | JSXElementConstructor<any>>' but required in type 'ReactPortal'.
+mobile-app/App.tsx(266,14): error TS2786: 'Text' cannot be used as a JSX component.
+  Its type 'typeof Text' is not a valid JSX element type.
+    Type 'typeof Text' is not assignable to type 'new (props: any, deprecatedLegacyContext?: any) => Component<any, any, any>'.
+      Property 'refs' is missing in type 'NativeMethods & TextComponent' but required in type 'Component<any, any, any>'.
+src/app/api/admin/anime/route.ts(6,10): error TS2724: '"@/lib/mal"' has no exported member named 'findAnimeMediaByTitle'. Did you mean 'findAnimeMediaOptionsByTitle'?
+src/app/api/admin/anime/sync/route.ts(61,14): error TS2802: Type 'MapIterator<SyncCandidate>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+src/app/api/admin/manga/import/route.ts(6,10): error TS2724: '"@/lib/mangadex"' has no exported member named 'fetchMangaDexChapters'. Did you mean 'getMangaDexChapters'?
+src/app/api/admin/manga/import/route.ts(101,34): error TS2339: Property 'coverImage' does not exist on type 'MangaDexSearchResult'.
+src/app/api/admin/manga/import/route.ts(102,63): error TS2339: Property 'coverImage' does not exist on type 'MangaDexSearchResult'.
+src/app/api/admin/manga/import/route.ts(108,33): error TS2339: Property 'sourceUrl' does not exist on type 'MangaDexSearchResult'.
+src/app/api/admin/manga/import/route.ts(119,34): error TS2339: Property 'coverImage' does not exist on type 'MangaDexSearchResult'.
+src/app/api/admin/manga/import/route.ts(120,63): error TS2339: Property 'coverImage' does not exist on type 'MangaDexSearchResult'.
+src/app/api/admin/manga/import/route.ts(127,33): error TS2339: Property 'sourceUrl' does not exist on type 'MangaDexSearchResult'.
+src/app/api/admin/manga/import/route.ts(145,29): error TS7006: Parameter 'chapter' implicitly has an 'any' type.
+src/app/api/admin/manga/sync/route.ts(6,10): error TS2724: '"@/lib/mangadex"' has no exported member named 'fetchMangaDexChapters'. Did you mean 'getMangaDexChapters'?
+src/app/api/admin/manga/sync/route.ts(49,29): error TS7006: Parameter 'chapter' implicitly has an 'any' type.
+src/app/api/admin/mangadex/search/route.ts(5,10): error TS2724: '"@/lib/mangadex"' has no exported member named 'fetchMangaDexChapters'. Did you mean 'getMangaDexChapters'?
+src/app/api/admin/sugoi/route.ts(335,14): error TS2802: Type 'MapIterator<any>' can only be iterated through when using the '--downlevelIteration' flag or with a '--target' of 'es2015' or higher.
+src/app/api/upload/route.ts(17,27): error TS2339: Property 'get' does not exist on type 'FormData'.
+src/app/api/watch/[id]/route.ts(805,9): error TS2322: Type 'string' is not assignable to type 'VideoSourceKind'.
+src/app/api/watch/[id]/route.ts(834,11): error TS2322: Type 'string' is not assignable to type 'VideoSourceKind'.
+src/app/api/watch/[id]/route.ts(845,9): error TS2322: Type 'string' is not assignable to type 'VideoSourceKind'.
+src/app/api/watch/[id]/route.ts(889,7): error TS2322: Type 'string' is not assignable to type 'VideoSourceKind'.
+src/app/api/watch/[id]/route.ts(899,9): error TS2322: Type 'string' is not assignable to type 'VideoSourceKind'.
+src/app/api/watch/[id]/route.ts(904,11): error TS2322: Type 'string' is not assignable to type 'VideoSourceKind'.
+src/app/api/watch/[id]/route.ts(925,9): error TS2322: Type 'string' is not assignable to type 'VideoSourceKind'.
+src/components/TomatoVideoPlayer.tsx(55,36): error TS2724: 'videojs' has no exported member named 'Player'. Did you mean 'players'?
+src/components/TomatoVideoPlayer.tsx(255,12): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(type: keyof ElementEventMap, listener: (this: Element, ev: Event) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.
+    Argument of type '"click"' is not assignable to parameter of type 'keyof ElementEventMap'.
+  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.
+    Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.
+      Type '(event: MouseEvent) => void' is not assignable to type 'EventListener'.
+        Types of parameters 'event' and 'evt' are incompatible.
+          Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.
+src/components/TomatoVideoPlayer.tsx(256,12): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(type: keyof ElementEventMap, listener: (this: Element, ev: Event) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.
+    Argument of type '"dblclick"' is not assignable to parameter of type 'keyof ElementEventMap'.
+  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.
+    Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.
+      Type '(event: MouseEvent) => void' is not assignable to type 'EventListener'.
+        Types of parameters 'event' and 'evt' are incompatible.
+          Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.
+src/components/TomatoVideoPlayer.tsx(257,12): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(type: keyof ElementEventMap, listener: (this: Element, ev: Event) => any, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.
+    Argument of type '"touchend"' is not assignable to parameter of type 'keyof ElementEventMap'.
+  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions | undefined): void', gave the following error.
+    Argument of type '(event: TouchEvent) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.
+      Type '(event: TouchEvent) => void' is not assignable to type 'EventListener'.
+        Types of parameters 'event' and 'evt' are incompatible.
+          Type 'Event' is missing the following properties from type 'TouchEvent': altKey, changedTouches, ctrlKey, metaKey, and 7 more.
+src/components/TomatoVideoPlayer.tsx(260,14): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(type: keyof ElementEventMap, listener: (this: Element, ev: Event) => any, options?: boolean | EventListenerOptions | undefined): void', gave the following error.
+    Argument of type '"click"' is not assignable to parameter of type 'keyof ElementEventMap'.
+  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions | undefined): void', gave the following error.
+    Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.
+      Type '(event: MouseEvent) => void' is not assignable to type 'EventListener'.
+        Types of parameters 'event' and 'evt' are incompatible.
+          Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.
+src/components/TomatoVideoPlayer.tsx(261,14): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(type: keyof ElementEventMap, listener: (this: Element, ev: Event) => any, options?: boolean | EventListenerOptions | undefined): void', gave the following error.
+    Argument of type '"dblclick"' is not assignable to parameter of type 'keyof ElementEventMap'.
+  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions | undefined): void', gave the following error.
+    Argument of type '(event: MouseEvent) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.
+      Type '(event: MouseEvent) => void' is not assignable to type 'EventListener'.
+        Types of parameters 'event' and 'evt' are incompatible.
+          Type 'Event' is missing the following properties from type 'MouseEvent': altKey, button, buttons, clientX, and 23 more.
+src/components/TomatoVideoPlayer.tsx(262,14): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(type: keyof ElementEventMap, listener: (this: Element, ev: Event) => any, options?: boolean | EventListenerOptions | undefined): void', gave the following error.
+    Argument of type '"touchend"' is not assignable to parameter of type 'keyof ElementEventMap'.
+  Overload 2 of 2, '(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions | undefined): void', gave the following error.
+    Argument of type '(event: TouchEvent) => void' is not assignable to parameter of type 'EventListenerOrEventListenerObject'.
+      Type '(event: TouchEvent) => void' is not assignable to type 'EventListener'.
+        Types of parameters 'event' and 'evt' are incompatible.
+          Type 'Event' is missing the following properties from type 'TouchEvent': altKey, changedTouches, ctrlKey, metaKey, and 7 more.
+src/lib/auth.ts(118,25): error TS18048: 'credentials' is possibly 'undefined'.
+src/lib/auth.ts(124,15): error TS18048: 'credentials' is possibly 'undefined'.

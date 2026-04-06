@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
 import { getNavigationState } from "@/lib/navigation";
 import prisma from "@/lib/prisma";
 import { isPublicVisibility } from "@/lib/visibility";
@@ -17,11 +14,7 @@ function rankMatch(value: string, query: string) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim() || "";
-  const [session, navigation] = await Promise.all([
-    getServerSession(authOptions),
-    getNavigationState(),
-  ]);
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const navigation = await getNavigationState();
 
   if (!q) return NextResponse.json({ animes: [], mangas: [], users: [] });
 
@@ -47,14 +40,10 @@ export async function GET(req: NextRequest) {
     }),
   ]);
 
-  const visibleAnimes = isAdmin
-    ? animes
-    : navigation.animeTabEnabled
+  const visibleAnimes = navigation.animeTabEnabled
     ? animes.filter((anime) => isPublicVisibility(anime.visibility))
     : [];
-  const visibleMangas = isAdmin
-    ? mangas
-    : navigation.mangaTabEnabled
+  const visibleMangas = navigation.mangaTabEnabled
     ? mangas.filter((manga) => isPublicVisibility(manga.visibility))
     : [];
 

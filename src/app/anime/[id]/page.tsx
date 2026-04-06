@@ -1,7 +1,6 @@
-"use client";
+﻿"use client";
 
 import AppLayout from "@/components/AppLayout";
-import AnimeLegacyTopRail from "@/components/AnimeLegacyTopRail";
 import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useParams } from "next/navigation";
@@ -86,7 +85,7 @@ function CommentItem({ comment, animeId, currentUserId, onRefresh }: {
     setEditing(false); onRefresh();
   };
   const handleDelete = async () => {
-    if (!confirm("Apagar comentário?")) return;
+    if (!confirm("Apagar comentÃ¡rio?")) return;
     await fetch("/api/comments", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: comment.id }) });
     onRefresh();
   };
@@ -177,6 +176,8 @@ export default function AnimePageClient() {
   const [bugSending, setBugSending] = useState(false);
   const [bugMsg, setBugMsg] = useState<{ text: string; type: "ok" | "err" }>({ text: "", type: "ok" });
   const [bugForm, setBugForm] = useState({ title: "", description: "", episodeId: "" });
+  const [episodeLayout, setEpisodeLayout] = useState<"default" | "compact" | "list">("default");
+  const [episodeFilter, setEpisodeFilter] = useState("");
 
   const handleRate = async (star: number) => {
     if (!id || !session) return;
@@ -234,6 +235,19 @@ export default function AnimePageClient() {
 
     return () => abort.abort();
   }, [id, session, loadComments]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = String(localStorage.getItem("anime-episodes-layout-v1") || "").trim();
+    if (saved === "default" || saved === "compact" || saved === "list") {
+      setEpisodeLayout(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("anime-episodes-layout-v1", episodeLayout);
+  }, [episodeLayout]);
 
   const handleFavorite = async () => {
     if (!session) return;
@@ -299,6 +313,10 @@ export default function AnimePageClient() {
   const addEmoji = (emoji: string) => setNewComment(prev => prev + emoji);
 
   const openCommentsQuickModal = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      jumpToComments();
+      return;
+    }
     setShowCommentsQuickModal(true);
   };
 
@@ -324,7 +342,7 @@ export default function AnimePageClient() {
     e.preventDefault();
     if (!session || !anime) return;
     if (!bugForm.description.trim() || bugForm.description.trim().length < 8) {
-      setBugMsg({ text: "Descreva melhor o problema (mínimo 8 caracteres).", type: "err" });
+      setBugMsg({ text: "Descreva melhor o problema (mÃ­nimo 8 caracteres).", type: "err" });
       return;
     }
 
@@ -395,6 +413,26 @@ export default function AnimePageClient() {
   );
 
   const seasons = Object.keys(groupedEps).map(Number).sort();
+  const normalizedEpisodeFilter = episodeFilter.trim().toLowerCase();
+  const filteredEpisodesBySeason = (() => {
+    const result: Record<number, Anime["episodes"]> = {};
+    for (const season of seasons) {
+      const list = (groupedEps[season] as Anime["episodes"] || []).filter((episode) => {
+        if (!normalizedEpisodeFilter) return true;
+        const title = String(episode.title || "").toLowerCase();
+        return (
+          title.includes(normalizedEpisodeFilter) ||
+          String(episode.number).includes(normalizedEpisodeFilter) ||
+          String(episode.season).includes(normalizedEpisodeFilter)
+        );
+      });
+      result[season] = list;
+    }
+    return result;
+  })();
+  const hasEpisodeResults = seasons.some(
+    (season) => (filteredEpisodesBySeason[season]?.length || 0) > 0,
+  );
   const createdYear = (() => {
     const raw = (anime as any)?.createdAt;
     const parsed = raw ? new Date(raw) : null;
@@ -402,11 +440,8 @@ export default function AnimePageClient() {
   })();
   const viewerCount = Math.max(0, Number(anime.viewerCount || 0));
   const pseudoLikes = Math.max(1, Math.round((ratingData.total || 1) * 0.65));
-  const subtitleLine =
-    importMeta.meta.query ||
-    `${anime.categories.slice(0, 2).map((item) => item.name).join(" • ")}${anime.categories.length ? "" : "Série"}`;
   const ratingOutOf10 = ratingData.average ? Number((ratingData.average * 2).toFixed(1)) : 0;
-  const mediaTypeLabel = anime.episodes.length >= 12 ? "Série de TV" : "Especial";
+  const mediaTypeLabel = anime.episodes.length >= 12 ? "SÃ©rie de TV" : "Especial";
 
   return (
     <AppLayout>
@@ -415,7 +450,7 @@ export default function AnimePageClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowFolderPicker(false)} />
           <div className="relative glass-surface-heavy border border-white/12 rounded-2xl p-6 w-full max-w-sm space-y-4">
-            <h3 className="font-bold text-lg flex items-center gap-2"><FolderOpen size={18} className="kdr-section-title-accent" /> Adicionar à Pasta</h3>
+            <h3 className="font-bold text-lg flex items-center gap-2"><FolderOpen size={18} className="kdr-section-title-accent" /> Adicionar Ã  Pasta</h3>
             <div className="relative">
               <select value={selectedFolder} onChange={e => setSelectedFolder(e.target.value)}
                 className="w-full bg-black/35 border border-white/12 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-white/30 transition appearance-none">
@@ -437,9 +472,9 @@ export default function AnimePageClient() {
       )}
 
       {showBugModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowBugModal(false)} />
-          <div className="relative glass-surface-heavy border border-white/12 rounded-2xl p-6 w-full max-w-lg space-y-4">
+          <div className="relative glass-surface-heavy border border-white/12 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-6 w-full max-w-lg space-y-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-black text-lg flex items-center gap-2">
                 <AlertTriangle size={18} className="text-amber-400" /> Reportar bug
@@ -451,31 +486,31 @@ export default function AnimePageClient() {
 
             <form onSubmit={handleBugReportSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-zinc-400 mb-1 block">Título</label>
+                <label className="text-xs font-bold text-zinc-400 mb-1 block">TÃ­tulo</label>
                 <input
                   value={bugForm.title}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, title: e.target.value }))}
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-400"
-                  placeholder="Ex: Vídeo não carrega no episódio 3"
+                  placeholder="Ex: VÃ­deo nÃ£o carrega no episÃ³dio 3"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-zinc-400 mb-1 block">Episódio (opcional)</label>
+                <label className="text-xs font-bold text-zinc-400 mb-1 block">EpisÃ³dio (opcional)</label>
                 <select
                   value={bugForm.episodeId}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, episodeId: e.target.value }))}
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-400"
                 >
-                  <option value="">Sem episódio específico</option>
+                  <option value="">Sem episÃ³dio especÃ­fico</option>
                   {anime.episodes.map((episode) => (
                     <option key={episode.id} value={episode.id}>
-                      T{episode.season}E{episode.number} - {episode.title || `Episódio ${episode.number}`}
+                      T{episode.season}E{episode.number} - {episode.title || `EpisÃ³dio ${episode.number}`}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-zinc-400 mb-1 block">Descrição *</label>
+                <label className="text-xs font-bold text-zinc-400 mb-1 block">DescriÃ§Ã£o *</label>
                 <textarea
                   value={bugForm.description}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, description: e.target.value }))}
@@ -508,7 +543,7 @@ export default function AnimePageClient() {
           <div className="relative glass-surface-heavy border border-white/12 rounded-2xl p-5 w-full max-w-xl space-y-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-black text-lg flex items-center gap-2">
-                <MessageSquare size={18} className="kdr-section-title-accent" /> Comentários recentes
+                <MessageSquare size={18} className="kdr-section-title-accent" /> ComentÃ¡rios recentes
               </h3>
               <button onClick={() => setShowCommentsQuickModal(false)} className="text-zinc-500 hover:text-white transition">
                 <X size={18} />
@@ -516,7 +551,7 @@ export default function AnimePageClient() {
             </div>
 
             {comments.length === 0 ? (
-              <p className="text-sm text-zinc-400">Ainda não existem comentários para este anime.</p>
+              <p className="text-sm text-zinc-400">Ainda nÃ£o existem comentÃ¡rios para este anime.</p>
             ) : (
               <div className="max-h-[52vh] overflow-y-auto space-y-2 pr-1">
                 {comments.slice(0, 8).map((comment) => (
@@ -540,7 +575,7 @@ export default function AnimePageClient() {
                   onClick={jumpToComments}
                   className="flex-1 px-3 py-2 rounded-full bg-white hover:bg-zinc-100 text-black text-sm font-black transition"
                 >
-                  Ir para seção completa
+                  Ir para seÃ§Ã£o completa
                 </button>
               <button
                 type="button"
@@ -555,48 +590,33 @@ export default function AnimePageClient() {
       )}
 
       <div className="pb-28 md:pb-24">
-        <div className="max-w-[1320px] mx-auto px-3 sm:px-6 lg:px-10 pt-2 md:pt-3 pb-2">
-          <AnimeLegacyTopRail
-            trail={[
-              { label: "Início", href: "/" },
-              { label: "Animes", href: "/" },
-              { label: anime.title },
-            ]}
-            actions={[
-              { label: "Sinopse", href: "#anime-sinopse" },
-              { label: "Episódios", href: "#anime-episodios" },
-              { label: "Comentários", href: "#anime-comments" },
-            ]}
-          />
-        </div>
-
-        <div className="relative w-full overflow-hidden rounded-none lg:rounded-[30px] border-0 lg:border lg:border-[var(--border-subtle)] aspect-[16/11] sm:aspect-[16/9] lg:aspect-[16/7] max-h-[78vh]">
+        <div className="relative w-full overflow-hidden rounded-none lg:rounded-[30px] border-0 lg:border lg:border-[var(--border-subtle)] aspect-[16/12] sm:aspect-[16/9] lg:aspect-[16/7] max-h-[82vh]">
           <img
             src={anime.bannerImage || anime.coverImage || ""}
-            className="w-full h-full object-cover [filter:saturate(1.04)_brightness(0.58)]"
+            className="w-full h-full object-cover [filter:saturate(1.04)_brightness(0.68)]"
             alt={anime.title}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/55 to-black/20" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[var(--background)]/82 via-[var(--background)]/36 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/45 to-black/8" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[var(--background)]/72 via-[var(--background)]/24 to-transparent" />
           <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${accentSoft} 0%, transparent 48%)` }} />
 
-          <div className="absolute inset-x-0 bottom-0 z-10 px-3 sm:px-6 lg:px-10 pb-4 sm:pb-6">
+          <div className="absolute inset-x-0 bottom-0 z-10 px-3 sm:px-6 lg:px-10 pb-5 sm:pb-6">
             <div className="max-w-[1320px] mx-auto grid grid-cols-1 lg:grid-cols-[170px_minmax(0,1fr)] gap-4 lg:gap-6 items-end">
               <div className="hidden sm:block space-y-3">
                 <div className="rounded-2xl overflow-hidden border border-white/20 shadow-[0_14px_38px_rgba(0,0,0,0.55)]">
                   <img src={anime.coverImage || ""} alt={anime.title} className="w-full aspect-[2/3] object-cover" />
                 </div>
                 <div className="h-9 rounded-full border border-white/12 bg-black/42 backdrop-blur-md flex items-center justify-between px-3">
-                  <button type="button" className="w-6 h-6 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition">‹</button>
+                  <button type="button" className="w-6 h-6 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition">â€¹</button>
                   <span className="w-8 h-1 rounded-full" style={{ backgroundColor: accentColor }} />
-                  <button type="button" className="w-6 h-6 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition">›</button>
+                  <button type="button" className="w-6 h-6 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition">â€º</button>
                 </div>
               </div>
 
               <div className="rounded-3xl border border-white/10 bg-black/46 backdrop-blur-md p-4 sm:p-5 lg:p-6 shadow-[0_16px_44px_rgba(0,0,0,0.42)]">
                 <div className="flex flex-wrap items-center gap-2 mb-3">
                   <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black border uppercase tracking-[0.05em] ${anime.status === "ongoing" ? "bg-emerald-500/20 text-emerald-100 border-emerald-400/35" : "bg-violet-500/20 text-violet-100 border-violet-300/35"}`}>
-                    {anime.status === "ongoing" ? "Em lançamento" : "Finalizado"}
+                    {anime.status === "ongoing" ? "Em lanÃ§amento" : "Finalizado"}
                   </span>
                   <span className="px-2.5 py-1 rounded-lg text-[11px] font-black border border-white/18 bg-white/5 text-zinc-200 uppercase tracking-[0.05em]">
                     {mediaTypeLabel}
@@ -607,17 +627,13 @@ export default function AnimePageClient() {
                   {anime.title}
                 </h1>
 
-                <p className="mt-1 text-[12px] sm:text-[13px] text-zinc-300/90 font-semibold tracking-wide line-clamp-1">
-                  {subtitleLine}
-                </p>
-
                 <p id="anime-sinopse" className="mt-3 text-[var(--text-secondary)] leading-relaxed text-sm lg:text-base break-words line-clamp-3 scroll-mt-28">
-                  {importMeta.cleanDescription || "Nenhuma sinopse disponível."}
+                  {importMeta.cleanDescription || "Nenhuma sinopse disponÃ­vel."}
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                  <span className="px-2.5 py-1 rounded-full bg-zinc-900/70 border border-zinc-700 text-zinc-300 font-bold inline-flex items-center gap-1.5">📅 {createdYear}</span>
-                  <span className="px-2.5 py-1 rounded-full bg-zinc-900/70 border border-zinc-700 text-zinc-300 font-bold inline-flex items-center gap-1.5">🎬 {mediaTypeLabel}</span>
+                  <span className="px-2.5 py-1 rounded-full bg-zinc-900/70 border border-zinc-700 text-zinc-300 font-bold inline-flex items-center gap-1.5">ðŸ“… {createdYear}</span>
+                  <span className="px-2.5 py-1 rounded-full bg-zinc-900/70 border border-zinc-700 text-zinc-300 font-bold inline-flex items-center gap-1.5">ðŸŽ¬ {mediaTypeLabel}</span>
                   <span className="px-2.5 py-1 rounded-full bg-zinc-900/70 border border-zinc-700 text-zinc-200 font-bold inline-flex items-center gap-1.5">
                     <Star size={12} className="text-yellow-300 fill-yellow-300" /> {ratingOutOf10.toFixed(1)}
                   </span>
@@ -690,7 +706,7 @@ export default function AnimePageClient() {
                 </div>
 
                 <div className="flex flex-col items-center justify-center border-r border-b sm:border-b-0 border-white/10 py-3.5 px-2">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500 font-black">Visualizações</p>
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-zinc-500 font-black">VisualizaÃ§Ãµes</p>
                   <p className="text-base font-black text-white mt-0.5 inline-flex items-center gap-1"><Eye size={13} className="text-zinc-300" /> {viewerCount}</p>
                 </div>
 
@@ -704,7 +720,7 @@ export default function AnimePageClient() {
                     type="button"
                     onClick={openCommentsQuickModal}
                     className="w-9 h-9 rounded-lg border border-white/12 bg-white/5 text-zinc-200 hover:text-white hover:bg-white/12 transition"
-                    title="Comentários"
+                    title="ComentÃ¡rios"
                   >
                     <MessageSquare size={16} className="mx-auto" />
                   </button>
@@ -735,7 +751,7 @@ export default function AnimePageClient() {
             </div>
 
             <aside className="border border-white/12 rounded-2xl p-4 sm:p-5 bg-gradient-to-br from-black/70 via-black/58 to-violet-600/20 backdrop-blur-md shadow-[0_12px_36px_rgba(0,0,0,0.42)]">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)] font-black">Avaliação</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--text-muted)] font-black">AvaliaÃ§Ã£o</p>
               <div className="mt-2 flex items-end gap-2">
                 <p className="text-4xl leading-none font-black text-white">{ratingOutOf10.toFixed(1)}</p>
                 <p className="text-sm text-[var(--text-muted)] font-bold mb-1">/10</p>
@@ -766,7 +782,7 @@ export default function AnimePageClient() {
                 onClick={openCommentsQuickModal}
                 className="mt-4 w-full h-10 rounded-xl border border-white/15 bg-white/10 hover:bg-white/18 text-white text-sm font-black transition"
               >
-                Avaliar e comentários
+                Avaliar e comentÃ¡rios
               </button>
 
               {ratingData.userRating && session && (
@@ -781,39 +797,118 @@ export default function AnimePageClient() {
           {/* Episodes by Season */}
           {anime.episodes.length > 0 && (
             <div id="anime-episodios" className="scroll-mt-28">
-              <h2 className="kdr-section-title mb-6"><Play size={16} className="kdr-section-title-accent" /> Episódios</h2>
-              {seasons.map(season => (
-                <div key={season} className="mb-8">
-                  <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">
-                    {seasons.length > 1 ? `Temporada ${season}` : "Episódios"}
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {(groupedEps[season] as Anime["episodes"] || []).map(ep => (
-                      <div key={ep.id} className="glass-card border border-[var(--border-subtle)] hover:border-[var(--border-strong)] rounded-xl overflow-hidden group transition-all duration-300 flex flex-col hover:shadow-lg">
-                        <Link prefetch={true} href={`/watch/${ep.id}`} className="block">
-                          <div className="aspect-video bg-[var(--bg-card)] relative">
-                            <img src={ep.thumbnailUrl || anime.bannerImage || anime.coverImage || ""} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 group-hover:scale-[1.03] transition-all duration-500" alt="" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/90 group-hover:text-black transition-all duration-300 group-hover:scale-110">
-                                <Play size={18} className="text-white fill-white group-hover:text-black group-hover:fill-black ml-0.5" />
-                              </div>
-                            </div>
-                            <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-lg border border-white/10">
-                              T{ep.season} E{ep.number}
-                            </div>
-                          </div>
-                        </Link>
-                        <div className="p-3 flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-bold text-white text-sm truncate">{ep.title || `Episódio ${ep.number}`}</p>
-                            <p className="text-xs text-[var(--text-muted)] mt-0.5">{ep.duration || "—"}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+              <div className="mb-5 space-y-3">
+                <h2 className="kdr-section-title"><Play size={16} className="kdr-section-title-accent" /> Episodios</h2>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+                  <input
+                    value={episodeFilter}
+                    onChange={(event) => setEpisodeFilter(event.target.value)}
+                    placeholder="Buscar episodio por titulo/numero..."
+                    className="kdr-input w-full sm:max-w-sm rounded-xl px-3 py-2.5 text-sm"
+                  />
+                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+                    <button
+                      type="button"
+                      onClick={() => setEpisodeLayout("list")}
+                      className={`h-9 px-3 rounded-lg border text-xs font-black whitespace-nowrap transition ${
+                        episodeLayout === "list"
+                          ? "bg-[var(--accent)] text-[var(--accent-contrast)] border-[var(--accent-border)]"
+                          : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      Lista
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEpisodeLayout("compact")}
+                      className={`h-9 px-3 rounded-lg border text-xs font-black whitespace-nowrap transition ${
+                        episodeLayout === "compact"
+                          ? "bg-[var(--accent)] text-[var(--accent-contrast)] border-[var(--accent-border)]"
+                          : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      2 por fileira
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEpisodeLayout("default")}
+                      className={`h-9 px-3 rounded-lg border text-xs font-black whitespace-nowrap transition ${
+                        episodeLayout === "default"
+                          ? "bg-[var(--accent)] text-[var(--accent-contrast)] border-[var(--accent-border)]"
+                          : "bg-[var(--bg-card)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      Atual
+                    </button>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              {!hasEpisodeResults && (
+                <p className="text-sm text-[var(--text-muted)] mb-6">
+                  Nenhum episodio encontrado para esse filtro.
+                </p>
+              )}
+
+              {seasons.map((season) => {
+                const episodes = filteredEpisodesBySeason[season] || [];
+                if (!episodes.length) return null;
+
+                return (
+                  <div key={season} className="mb-8">
+                    <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">
+                      {seasons.length > 1 ? `Temporada ${season}` : "Episodios"}
+                    </h3>
+
+                    {episodeLayout === "list" ? (
+                      <div className="space-y-2">
+                        {episodes.map((ep) => (
+                          <Link
+                            prefetch={true}
+                            key={ep.id}
+                            href={`/watch/${ep.id}`}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)]/40 hover:bg-white/[0.06] hover:border-[var(--border-strong)] px-3 py-2.5 transition"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-bold text-white text-sm truncate">
+                                T{ep.season}E{ep.number} - {ep.title || `Episodio ${ep.number}`}
+                              </p>
+                              <p className="text-xs text-[var(--text-muted)] mt-0.5">{ep.duration || "--"}</p>
+                            </div>
+                            <Play size={14} className="text-[var(--text-accent)] shrink-0" />
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={episodeLayout === "compact" ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"}>
+                        {episodes.map((ep) => (
+                          <div key={ep.id} className="glass-card border border-[var(--border-subtle)] hover:border-[var(--border-strong)] rounded-xl overflow-hidden group transition-all duration-300 flex flex-col hover:shadow-lg">
+                            <Link prefetch={true} href={`/watch/${ep.id}`} className="block">
+                              <div className={episodeLayout === "compact" ? "aspect-[16/10] bg-[var(--bg-card)] relative" : "aspect-video bg-[var(--bg-card)] relative"}>
+                                <img src={ep.thumbnailUrl || anime.bannerImage || anime.coverImage || ""} className="w-full h-full object-cover opacity-50 group-hover:opacity-80 group-hover:scale-[1.03] transition-all duration-500" alt="" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className={`${episodeLayout === "compact" ? "w-9 h-9" : "w-10 h-10"} rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/90 group-hover:text-black transition-all duration-300 group-hover:scale-110`}>
+                                    <Play size={episodeLayout === "compact" ? 16 : 18} className="text-white fill-white group-hover:text-black group-hover:fill-black ml-0.5" />
+                                  </div>
+                                </div>
+                                <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-0.5 rounded-lg border border-white/10">
+                                  T{ep.season} E{ep.number}
+                                </div>
+                              </div>
+                            </Link>
+                            <div className="p-3 flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-bold text-white text-sm truncate">{ep.title || `Episodio ${ep.number}`}</p>
+                                <p className="text-xs text-[var(--text-muted)] mt-0.5">{ep.duration || "--"}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -821,14 +916,14 @@ export default function AnimePageClient() {
           {/* Comments */}
           <div id="anime-comments" className="scroll-mt-24">
               <h2 className="kdr-section-title text-xl mb-6 border-l-4 pl-4 rounded-r" style={{ borderColor: accentColor }}>
-                <MessageSquare size={20} className="kdr-section-title-accent" /> Comentários ({comments.length})
+                <MessageSquare size={20} className="kdr-section-title-accent" /> ComentÃ¡rios ({comments.length})
               </h2>
 
             {session ? (
               <form onSubmit={handleComment} className="mb-8 space-y-2">
                 {/* Emoji Bar */}
                 <div className="flex items-center gap-1 flex-wrap">
-                  {["😂","❤️","🔥","👍","😭","💀","🫡","✨","😮","🎉"].map(e => (
+                  {["ðŸ˜‚","â¤ï¸","ðŸ”¥","ðŸ‘","ðŸ˜­","ðŸ’€","ðŸ«¡","âœ¨","ðŸ˜®","ðŸŽ‰"].map(e => (
                     <button key={e} type="button" onClick={() => addEmoji(e)}
                       className="text-xl hover:scale-125 transition-transform duration-150 p-1 rounded-lg hover:bg-zinc-800 min-w-[36px]">
                       {e}
@@ -840,7 +935,7 @@ export default function AnimePageClient() {
                     <Image src={(session.user as any)?.avatarUrl || session.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user?.name || "U")}&background=111827&color=fff`} fill sizes="44px" className="object-cover" alt="avatar" />
                   </div>
                   <div className="flex-1 flex items-center gap-2 bg-[var(--bg-card)]/50 border border-[var(--border-default)] hover:border-[var(--border-strong)] rounded-xl px-4 py-2.5 transition focus-within:border-[var(--accent-border)]">
-                    <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Deixe um comentário..."
+                    <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Deixe um comentÃ¡rio..."
                       className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder:text-[var(--text-muted)] min-w-0" />
                     <button type="submit" disabled={!newComment.trim()} className="text-[var(--text-accent)] hover:text-white disabled:opacity-30 transition">
                       <Send size={16} />
@@ -850,7 +945,7 @@ export default function AnimePageClient() {
               </form>
             ) : (
               <p className="block text-center py-4 text-zinc-500 mb-6 text-sm">
-                <Link prefetch={true} href="/login" className="kdr-section-title-accent hover:underline">Faça login</Link> para comentar
+                <Link prefetch={true} href="/login" className="kdr-section-title-accent hover:underline">FaÃ§a login</Link> para comentar
               </p>
             )}
 
@@ -869,3 +964,5 @@ export default function AnimePageClient() {
     </AppLayout>
   );
 }
+
+
