@@ -31,3 +31,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Falha ao buscar metadados do anime." }, { status: 500 });
   }
 }
+/**
+ * Admin metadata fetch endpoint (MAL + fallback metadata providers).
+ */

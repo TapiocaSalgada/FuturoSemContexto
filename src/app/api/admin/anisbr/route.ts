@@ -30,3 +30,6 @@ export async function GET(req: NextRequest) {
   const results = await searchProviderWithFallback("anisbr", q, { allowKappaFallback: false });
   return NextResponse.json(results);
 }
+/**
+ * Admin provider route: AniSBR integration.
+ */

@@ -5,7 +5,6 @@ import SuggestionButton from "@/components/SuggestionButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import {
   Bell,
   Check,
@@ -18,9 +17,8 @@ import {
   UserCircle,
   LogOut,
   MessageCircle,
-  Shield,
 } from "lucide-react";
-import { signIn, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 
 import { DEFAULT_SETTINGS, type UserSettingsPayload } from "@/lib/settings";
 import { useThemeStore } from "@/lib/theme-store";
@@ -88,7 +86,7 @@ export default function SettingsPage() {
   const [showPw, setShowPw] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [showAccountsModal, setShowAccountsModal] = useState(false);
-  const [savedAccounts, setSavedAccounts] = useState<{email: string; name: string; avatar: string; handoffHash?: string}[]>([]);
+  const [savedAccounts, setSavedAccounts] = useState<{email: string; name: string; avatar: string}[]>([]);
   const [switchingAccount, setSwitchingAccount] = useState<string | null>(null);
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>();
 
@@ -107,7 +105,6 @@ export default function SettingsPage() {
         avatar:
           item.avatar ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name || item.email)}&background=1f2937&color=fff`,
-        handoffHash: item.handoffHash,
       }));
       setSavedAccounts(saved);
     }
@@ -282,27 +279,11 @@ export default function SettingsPage() {
     setTimeout(() => setEmailMsg(""), 4000);
   };
 
-  const handleSwitchAccount = async (account: { email: string; handoffHash?: string }) => {
+  const handleSwitchAccount = async (account: { email: string }) => {
     if (!account.email) return;
     setSwitchingAccount(account.email);
 
     try {
-      if (account.handoffHash) {
-        const quick = await signIn("credentials", {
-          email: account.email,
-          password: account.handoffHash,
-          isQuick: "true",
-          redirect: false,
-        });
-
-        if (!quick?.error) {
-          setShowAccountsModal(false);
-          router.push("/");
-          router.refresh();
-          return;
-        }
-      }
-
       await signOut({ callbackUrl: `/login?email=${encodeURIComponent(account.email)}` });
     } finally {
       setSwitchingAccount(null);
@@ -399,7 +380,6 @@ export default function SettingsPage() {
   }
 
   const userEmail = session?.user?.email || "";
-  const isAdmin = (session?.user as any)?.role === "admin";
   const [localPart, domain] = userEmail.split("@");
   const censoredEmail = localPart ? `${localPart.substring(0, Math.ceil(localPart.length / 2))}***@${domain || ""}` : "";
 
@@ -411,14 +391,6 @@ export default function SettingsPage() {
             <Settings size={28} className="kdr-section-title-accent" /> Configuracoes
           </h1>
           <div className="flex items-center gap-2">
-            {isAdmin && (
-              <Link
-                href="/admin"
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/20 bg-white/10 text-[11px] sm:text-xs font-black text-[var(--text-primary)] hover:bg-white/14 transition min-h-[44px]"
-              >
-                <Shield size={14} /> Admin
-              </Link>
-            )}
             {saveState !== "idle" && (
               <span
                 className={`text-sm font-bold animate-fadeIn ${
@@ -481,14 +453,6 @@ export default function SettingsPage() {
                     className="flex-1 flex items-center justify-center gap-2 bg-black/35 hover:bg-white/10 hover:text-white border border-white/12 hover:border-white/30 text-zinc-300 font-bold py-3 rounded-xl transition text-sm">
                     <LogOut size={18} /> Trocar de Conta
                   </button>
-                  {isAdmin && (
-                    <Link
-                      href="/admin"
-                      className="flex-1 flex items-center justify-center gap-2 bg-black/35 hover:bg-white/10 border border-white/12 text-zinc-200 font-bold py-3 rounded-xl transition text-sm"
-                    >
-                      <Shield size={18} /> Painel Admin
-                    </Link>
-                  )}
                 </div>
 
                 {/* Switch Account Modal */}
@@ -758,8 +722,7 @@ export default function SettingsPage() {
                     </p>
                     <div className="grid grid-cols-1 gap-2">
                       {[
-                        { value: "kandaraku-dark", label: "Preto", color: "bg-black" },
-                        { value: "kandaraku-light", label: "Branco", color: "bg-white border border-zinc-300" },
+                        { value: "futuro-noir", label: "Futuro Noir", color: "bg-black" },
                       ].map((t) => (
                         <button
                           key={t.value}

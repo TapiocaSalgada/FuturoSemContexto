@@ -179,8 +179,26 @@ export function detectVideoSource(
 
   if (sourceType === "google_drive") return "google_drive";
   if (sourceType === "youtube") return "youtube";
-  if (sourceType === "embed") return "embed";
-  if (sourceType === "direct") return "direct";
+
+  // Some providers store video links as `embed` even when they are direct media endpoints.
+  const looksLikeDirectFromHostOrPath =
+    host.includes("googlevideo.com") ||
+    host.includes("akamaized.net") ||
+    host.includes("cloudfront.net") ||
+    host.includes("bunnycdn") ||
+    host.includes("wasabisys.com") ||
+    host.includes("backblazeb2.com") ||
+    host.includes("storage.googleapis.com") ||
+    (host.includes("blogger.com") && pathname.startsWith("/video.g")) ||
+    (host.includes("blogspot.com") && pathname.includes("videoplayback")) ||
+    normalized.startsWith("/") ||
+    /\.(mp4|m4v|webm|ogg|mov|m3u8|mpd|ts)(\?|#|$)/.test(normalized) ||
+    /(?:^|[?&])(format|mime)=video/.test(search) ||
+    /(?:^|[?&])type=video/.test(search);
+
+  if (looksLikeDirectFromHostOrPath) {
+    return "direct";
+  }
 
   const nestedMedia = extractNestedMediaUrl(normalizedUrl);
   if (nestedMedia && nestedMedia !== normalizedUrl) {
@@ -189,29 +207,11 @@ export function detectVideoSource(
     if (nestedType === "google_drive") return "google_drive";
   }
 
+  if (sourceType === "direct") return "direct";
+  if (sourceType === "embed") return "embed";
+
   if (/\/embed\//.test(pathname) || /(?:^|[?&])(embed|player)=/.test(search)) {
     return "embed";
-  }
-
-  if (
-    host.includes("googlevideo.com") ||
-    host.includes("akamaized.net") ||
-    host.includes("cloudfront.net") ||
-    host.includes("bunnycdn") ||
-    host.includes("wasabisys.com") ||
-    host.includes("backblazeb2.com") ||
-    host.includes("storage.googleapis.com")
-  ) {
-    return "direct";
-  }
-
-  if (
-    normalized.startsWith("/") ||
-    /\.(mp4|m4v|webm|ogg|mov|m3u8|mpd|ts)(\?|#|$)/.test(normalized) ||
-    /(?:^|[?&])(format|mime)=video/.test(search) ||
-    /(?:^|[?&])type=video/.test(search)
-  ) {
-    return "direct";
   }
 
   return "embed";

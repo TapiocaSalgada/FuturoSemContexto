@@ -104,9 +104,11 @@ export default function FavoritesPage() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 lg:p-10 pb-28 md:pb-24 max-w-6xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-4xl sm:text-5xl font-black tracking-tight">Minha Lista</h1>
-          <p className="text-zinc-400 text-sm mt-1">Organize seus animes favoritos em pastas personalizadas.</p>
+        <div className="glass-surface-heavy rounded-3xl p-5 sm:p-6 md:p-8">
+          <div>
+            <h1 className="text-4xl sm:text-5xl font-black tracking-tight">Minha Lista</h1>
+            <p className="text-[var(--text-secondary)] text-sm mt-1">Organize seus animes favoritos em pastas personalizadas.</p>
+          </div>
         </div>
 
         {/* Create Folder */}
@@ -155,7 +157,7 @@ export default function FavoritesPage() {
                       />
                       <button
                         onClick={() => removeFavorite(fav.animeId)}
-                        className="absolute top-2 right-2 z-20 p-1.5 rounded-lg bg-black/70 text-zinc-300 hover:text-red-400 hover:bg-red-500/20 transition"
+                        className="absolute top-2 right-2 z-20 p-1.5 rounded-lg bg-black/70 text-zinc-300 hover:text-purple-400 hover:bg-purple-500/20 transition"
                         title="Remover favorito"
                       >
                         <Trash2 size={12} />
@@ -189,7 +191,7 @@ export default function FavoritesPage() {
                   <button onClick={() => { setEditingFolder(folder.id); setEditName(folder.name); }} className="p-2.5 sm:p-2 text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 rounded-lg transition min-w-[40px] min-h-[40px] inline-flex items-center justify-center">
                     <Edit3 size={15} />
                   </button>
-                  <button onClick={() => deleteFolder(folder.id)} className="p-2.5 sm:p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition min-w-[40px] min-h-[40px] inline-flex items-center justify-center">
+                  <button onClick={() => deleteFolder(folder.id)} className="p-2.5 sm:p-2 text-zinc-500 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition min-w-[40px] min-h-[40px] inline-flex items-center justify-center">
                     <Trash2 size={15} />
                   </button>
                 </div>
@@ -211,7 +213,7 @@ export default function FavoritesPage() {
                         />
                         <button
                           onClick={() => removeFavorite(fav.animeId)}
-                          className="absolute top-2 right-2 z-20 p-1.5 rounded-lg bg-black/70 text-zinc-300 hover:text-red-400 hover:bg-red-500/20 transition"
+                          className="absolute top-2 right-2 z-20 p-1.5 rounded-lg bg-black/70 text-zinc-300 hover:text-purple-400 hover:bg-purple-500/20 transition"
                           title="Remover favorito"
                         >
                           <Trash2 size={12} />

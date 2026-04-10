@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Futuro sem Contexto - Web App
 
-## Getting Started
+Streaming platform focused on anime discovery, watch continuity, profile/social features, and a full admin panel for content operations.
 
-First, run the development server:
+## Stack
+
+- Next.js 14 (App Router) + React 18 + TypeScript
+- NextAuth (credentials flow)
+- Prisma + PostgreSQL (Supabase)
+- Vercel deployment
+- Video.js / HLS.js for direct playback
+
+## Quick Start
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Set environment variables in `.env.local` (see "Environment" section).
+
+3. Generate Prisma client:
+
+```bash
+npx prisma generate
+```
+
+4. Start dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Map
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `src/app`: pages and API routes (App Router)
+- `src/components`: reusable UI and player components
+- `src/lib`: auth, settings, source resolution, admin state, utility modules
+- `prisma/schema.prisma`: core data model
+- `docs/`: onboarding and operational documentation
 
-## Learn More
+## Main User Flows
 
-To learn more about Next.js, take a look at the following resources:
+- Home -> Anime detail -> Watch episode
+- Continue watching/history/favorites sync by account
+- Mobile immersive playback mode (fullscreen + landscape handling)
+- Admin operations for anime catalog, metadata, bug triage, system controls
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Important Documentation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `docs/CODEBASE_GUIDE.md` - complete architecture and code navigation map
+- `docs/API_INDEX.md` - API endpoint index grouped by domain
+- `docs/OPERATIONS.md` - production operation checklist
+- `docs/SUPABASE_SECURITY.md` - security hardening notes
 
-## Deploy on Vercel
+## Environment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Required variables (minimum):
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `DATABASE_URL`
+- `DIRECT_URL`
+- `NEXTAUTH_SECRET`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_KEY`
+
+Optional depending on features enabled:
+
+- `DISCORD_CLIENT_ID`
+- `DISCORD_CLIENT_SECRET`
+- `OWNER_EMAIL`
+
+## Useful Commands
+
+```bash
+npm run lint
+npm run build
+npm run start
+```
+
+## Deploy
+
+Production deployment is handled on Vercel. If deploying manually:
+
+```bash
+npx vercel --prod --yes
+```

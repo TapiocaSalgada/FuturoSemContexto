@@ -60,3 +60,6 @@ export async function DELETE(req: NextRequest) {
   await prisma.bugReport.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+/**
+ * Admin bug report triage endpoint (list + status transitions).
+ */

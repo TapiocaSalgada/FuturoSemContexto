@@ -63,3 +63,6 @@ export async function DELETE(req: NextRequest) {
   await prisma.announcement.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+/**
+ * Announcements feed endpoint.
+ */

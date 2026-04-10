@@ -4,7 +4,7 @@ import AppLayout from "@/components/AppLayout";
 import { useState, useEffect, useMemo, type ComponentType } from "react";
 import { useSession } from "next-auth/react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Heart, Edit3, Check, UploadCloud, Lock, Film, BookOpen, BookText, X, Users, Play, Sparkles, MessageSquare, CalendarDays, Clock3 } from "lucide-react";
+import { Heart, Edit3, Check, UploadCloud, Lock, Film, X, Users, Play, Sparkles, MessageSquare, CalendarDays, Clock3 } from "lucide-react";
 import Link from "next/link";
 import AnimeCard from "@/components/AnimeCard";
 import Image from "next/image";
@@ -20,13 +20,12 @@ interface ProfileUser {
   histories?: { episode: { title?: string; number?: number; season?: number; anime: { id: string; title: string; coverImage?: string; visibility?: string } } }[];
 }
 
-type ProfileTab = "atividade" | "posts" | "animes" | "mangas" | "favoritos";
+type ProfileTab = "atividade" | "posts" | "animes" | "favoritos";
 
 const PROFILE_TABS: { key: ProfileTab; label: string }[] = [
   { key: "atividade", label: "Atividade" },
   { key: "posts", label: "Comentários" },
   { key: "animes", label: "Animes" },
-  { key: "mangas", label: "Mangas" },
   { key: "favoritos", label: "Favoritos" },
 ];
 
@@ -34,7 +33,6 @@ const PROFILE_TAB_ICON: Record<ProfileTab, any> = {
   atividade: Sparkles,
   posts: MessageSquare,
   animes: Film,
-  mangas: BookOpen,
   favoritos: Heart,
 };
 
@@ -48,7 +46,7 @@ function formatLastSeen(lastActiveAt?: string | null): string {
   if (diffMin < 60) return `Visto há ${diffMin} min`;
 
   const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `Visto hÃ¡ ${diffHours} h`;
+  if (diffHours < 24) return `Visto ha ${diffHours} h`;
 
   const diffDays = Math.floor(diffHours / 24);
   return `Visto há ${diffDays} dia${diffDays > 1 ? "s" : ""}`;
@@ -169,7 +167,7 @@ export default function ProfilePage() {
 
   const activeTab = useMemo<ProfileTab>(() => {
     const tab = String(searchParams?.get("tab") || "").toLowerCase();
-    if (tab === "posts" || tab === "animes" || tab === "mangas" || tab === "favoritos") {
+    if (tab === "posts" || tab === "animes" || tab === "favoritos") {
       return tab;
     }
     return "atividade";
@@ -281,10 +279,10 @@ export default function ProfilePage() {
   const membershipLabel = "Membro da comunidade";
 
   const profileStats = [
-    { label: "Animes", value: profile.favorites?.length || 0, icon: Heart },
+    { label: "Favoritos", value: profile.favorites?.length || 0, icon: Heart },
     { label: "Episodios", value: profile.histories?.length || 0, icon: Play },
-    { label: "Mangas", value: 0, icon: BookOpen },
-    { label: "Capitulos", value: 0, icon: BookText },
+    { label: "Seguidores", value: followData.followersCount || 0, icon: Users },
+    { label: "Seguindo", value: followData.followingCount || 0, icon: Users },
   ];
   const timelineItems = (profile.histories || [])
     .filter((entry) => !entry.episode?.anime?.visibility || entry.episode.anime.visibility === "public")
@@ -311,7 +309,6 @@ export default function ProfilePage() {
     !isPrivateForViewer &&
     (activeTab === "atividade" || activeTab === "animes" || activeTab === "favoritos");
   const showPostsPlaceholder = !isPrivateForViewer && activeTab === "posts";
-  const showMangasPlaceholder = !isPrivateForViewer && activeTab === "mangas";
 
   return (
     <AppLayout>
@@ -503,13 +500,6 @@ export default function ProfilePage() {
                 <div className="mt-8 text-center p-10 glass-card rounded-2xl border border-[var(--border-subtle)]">
                   <h3 className="text-[var(--text-primary)] font-bold mb-1 text-lg">Comentários em breve</h3>
                   <p className="text-sm text-[var(--text-muted)]">A aba de comentários sociais estará disponível em uma próxima atualização.</p>
-                </div>
-              )}
-
-              {showMangasPlaceholder && (
-                <div className="mt-8 text-center p-10 glass-card rounded-2xl border border-[var(--border-subtle)]">
-                  <h3 className="text-[var(--text-primary)] font-bold mb-1 text-lg">Mangás em breve</h3>
-                  <p className="text-sm text-[var(--text-muted)]">A vitrine de mangás do perfil estará disponível em uma próxima atualização.</p>
                 </div>
               )}
 

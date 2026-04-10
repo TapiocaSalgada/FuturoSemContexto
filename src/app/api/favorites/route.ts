@@ -61,3 +61,6 @@ export async function DELETE(req: NextRequest) {
   await prisma.favorite.deleteMany({ where: { userId: user.id, animeId } });
   return NextResponse.json({ ok: true });
 }
+/**
+ * Favorites CRUD endpoint.
+ */

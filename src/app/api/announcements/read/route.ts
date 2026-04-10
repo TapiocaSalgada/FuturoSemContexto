@@ -22,3 +22,6 @@ export async function POST() {
   ]);
   return NextResponse.json({ ok: true });
 }
+/**
+ * Marks announcements as read for the current user.
+ */

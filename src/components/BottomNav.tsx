@@ -2,19 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, User, MessageSquare, BookOpen } from "lucide-react";
+import { Home, Search, Heart, Menu } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
 type NavigationState = {
   canAccessAnimeTab?: boolean;
-  canAccessMangaTab?: boolean;
 };
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const userId = (session?.user as any)?.id;
   const [navigation, setNavigation] = useState<NavigationState>({});
 
   useEffect(() => {
@@ -25,7 +23,6 @@ export default function BottomNav() {
         if (!alive || !data) return;
         setNavigation({
           canAccessAnimeTab: Boolean(data.canAccessAnimeTab),
-          canAccessMangaTab: Boolean(data.canAccessMangaTab),
         });
       })
       .catch(() => {});
@@ -38,30 +35,21 @@ export default function BottomNav() {
   if (!session) return null;
 
   const canAccessAnimeTab = navigation.canAccessAnimeTab ?? true;
-  const canAccessMangaTab = navigation.canAccessMangaTab ?? false;
 
   const navItems = [
-    ...(canAccessAnimeTab ? [{ href: "/", icon: Home, label: "Animes" }] : []),
-    ...(canAccessMangaTab ? [{ href: "/mangas", icon: BookOpen, label: "Mangás" }] : []),
-    { href: "/social", icon: MessageSquare, label: "Social" },
-    { href: userId ? `/profile/${userId}` : "/profile", icon: User, label: "Perfil" },
+    ...(canAccessAnimeTab ? [{ href: "/", icon: Home, label: "Inicio" }] : []),
+    { href: "/explore", icon: Search, label: "Explorar" },
+    { href: "/favorites", icon: Heart, label: "Favoritos" },
+    { href: "/settings", icon: Menu, label: "Configurações" },
   ];
 
   return (
     <nav
-      className="bottom-nav-shell fixed bottom-2.5 left-3 right-3 z-40 md:hidden transition-all duration-300"
+      className="bottom-nav-shell fixed bottom-0 left-0 right-0 z-40 lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <div className="glass-surface-heavy rounded-2xl overflow-hidden">
-        {/* Top gradient line */}
-        <div
-          className="h-[1px] w-full"
-          style={{
-            background: `linear-gradient(90deg, transparent 5%, color-mix(in srgb, var(--accent) 55%, transparent) 50%, transparent 95%)`,
-          }}
-        />
-
-        <div className="flex items-stretch justify-around px-1">
+      <div className="mx-3 mb-2 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-0)]/95 shadow-[0_18px_45px_rgba(0,0,0,0.58)] overflow-hidden">
+        <div className="grid grid-cols-4 gap-1 p-1.5">
           {navItems.map(({ href, icon: Icon, label }) => {
             const active = pathname === href || (href !== "/" && pathname.startsWith(href));
             return (
@@ -69,35 +57,24 @@ export default function BottomNav() {
                 prefetch={true}
                 key={href}
                 href={href}
-                className={`relative flex-1 flex flex-col items-center justify-center gap-1 py-2 px-1 min-h-[54px] rounded-xl transition-all duration-200 active:scale-[0.98] ${
-                  active ? "text-white" : "text-[var(--text-muted)] active:text-[var(--text-secondary)]"
+                className={`relative flex min-h-[56px] flex-col items-center justify-center gap-1 rounded-xl transition-all duration-200 ${
+                  active
+                    ? "bg-[var(--accent-soft)] text-white"
+                    : "text-[var(--text-muted)] hover:bg-white/[0.05] hover:text-[var(--text-primary)]"
                 }`}
               >
-                {/* Active indicator bar */}
-                {active && (
+                {active ? (
                   <span
-                    className="absolute top-0 w-8 h-[2px] rounded-full"
+                    className="absolute top-1.5 h-1 w-7 rounded-full"
                     style={{
-                      backgroundColor: "var(--accent)",
-                      boxShadow: `0 2px 12px var(--accent-glow)`,
+                      background: "linear-gradient(90deg, #8f67ff 0%, #5536d9 100%)",
+                      boxShadow: "0 0 16px rgba(229,9,20,0.6)",
                     }}
                   />
-                )}
+                ) : null}
 
-                <Icon
-                  size={20}
-                  strokeWidth={active ? 2.5 : 1.8}
-                  className={`transition-all duration-200 ${active ? "" : ""}`}
-                  style={active ? { color: "var(--accent)", filter: `drop-shadow(0 0 8px var(--accent-glow))` } : undefined}
-                />
-                <span
-                  className={`text-[10px] leading-none transition-all duration-200 ${
-                    active ? "font-bold" : "font-medium"
-                  }`}
-                  style={active ? { color: "var(--accent)" } : undefined}
-                >
-                  {label}
-                </span>
+                <Icon size={19} strokeWidth={active ? 2.3 : 1.9} />
+                <span className={`text-[10px] leading-none ${active ? "font-bold" : "font-medium"}`}>{label}</span>
               </Link>
             );
           })}

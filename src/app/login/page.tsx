@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, Lock, Loader2, ChevronLeft, UserPlus, Sparkles } from "lucide-react";
+import { Mail, Lock, Loader2, ChevronLeft, UserPlus } from "lucide-react";
 
 import {
   readSavedAccounts,
@@ -17,7 +17,6 @@ type LoginAccount = {
   email: string;
   name: string;
   avatar: string;
-  handoffHash?: string;
   role?: string;
 };
 
@@ -32,7 +31,6 @@ function normalizeForUi(accounts: SavedAccount[]): LoginAccount[] {
       email: account.email,
       name,
       avatar,
-      handoffHash: account.handoffHash,
       role: account.role,
     };
   });
@@ -74,7 +72,6 @@ export default function LoginPage() {
         avatar:
           String(user.image || "").trim() ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(String(user.name || "U"))}&background=1f2937&color=fff`,
-        handoffHash: typeof user.handoffHash === "string" ? user.handoffHash : undefined,
         role: typeof user.role === "string" ? user.role : undefined,
       };
 
@@ -117,7 +114,7 @@ export default function LoginPage() {
     }
   }, []);
 
-  // Update localStorage with NEW handoffHash from session after login
+  // Update localStorage with latest account info from session after login
   useEffect(() => {
     if (!session?.user) return;
 
@@ -130,38 +127,14 @@ export default function LoginPage() {
       avatar:
         String(user.image || "").trim() ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(String(user.name || "U"))}&background=1f2937&color=fff`,
-      handoffHash: typeof user.handoffHash === "string" ? user.handoffHash : undefined,
       role: typeof user.role === "string" ? user.role : undefined,
     });
   }, [session]);
 
-  const selectSavedAccount = async (acc: LoginAccount) => {
-    if (acc.handoffHash) {
-      setLoading(true);
-      setLoadingStatus("Preparando sua sessão...");
-      const res = await signIn("credentials", {
-        email: acc.email,
-        password: acc.handoffHash,
-        isQuick: "true",
-        redirect: false,
-      });
-      if (res?.error) {
-        setLoading(false);
-        setError("Sessão expirada. Entre com sua senha novamente.");
-        setSelectedAccount(acc);
-        setIdentifier(acc.email);
-        setShowSavedList(false);
-      } else {
-        await refreshSavedFromSession(acc.email);
-        setLoadingStatus("Bem-vindo de volta!");
-        router.push("/");
-        router.refresh();
-      }
-    } else {
-      setSelectedAccount(acc);
-      setIdentifier(acc.email);
-      setShowSavedList(false);
-    }
+  const selectSavedAccount = (acc: LoginAccount) => {
+    setSelectedAccount(acc);
+    setIdentifier(acc.email);
+    setShowSavedList(false);
   };
 
   const removeSavedAccount = (email: string, e: React.MouseEvent) => {
@@ -188,7 +161,6 @@ export default function LoginPage() {
     const res = await signIn("credentials", {
       email: cleanIdentifier,
       password,
-      isQuick: "false",
       redirect: false,
     });
     if (res?.error) {
@@ -226,7 +198,7 @@ export default function LoginPage() {
           )}
 
           {error && (
-            <div className="p-3 bg-red-500/12 border border-red-500/35 text-red-400 rounded-xl mb-6 text-sm text-center font-bold animate-fadeInUp">
+            <div className="p-3 bg-purple-500/12 border border-purple-500/35 text-purple-400 rounded-xl mb-6 text-sm text-center font-bold animate-fadeInUp">
               {error}
             </div>
           )}
@@ -246,12 +218,11 @@ export default function LoginPage() {
                       <div className="text-left">
                         <div className="flex items-center gap-1.5">
                           <p className="font-bold text-white text-base">{acc.name}</p>
-                          {acc.handoffHash && <Sparkles size={12} className="kdr-section-title-accent" />}
                         </div>
                         <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Conta salva</p>
                       </div>
                     </div>
-                    <button onClick={(e) => removeSavedAccount(acc.email, e)} className="p-2 text-[var(--text-muted)] hover:text-red-500 transition sm:opacity-0 sm:group-hover:opacity-100 min-w-[44px] min-h-[44px]" title="Remover conta">
+                    <button onClick={(e) => removeSavedAccount(acc.email, e)} className="p-2 text-[var(--text-muted)] hover:text-purple-500 transition sm:opacity-0 sm:group-hover:opacity-100 min-w-[44px] min-h-[44px]" title="Remover conta">
                       <span className="text-xs font-bold uppercase">Remover</span>
                     </button>
                   </div>
@@ -336,3 +307,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

@@ -62,3 +62,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
+/**
+ * Followers/following listing endpoint.
+ */

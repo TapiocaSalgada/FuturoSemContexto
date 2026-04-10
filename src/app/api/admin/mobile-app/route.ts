@@ -24,3 +24,6 @@ export async function GET() {
     hasDirectDownload: Boolean(downloadUrl),
   });
 }
+/**
+ * Admin endpoint for mobile app operational config/status.
+ */

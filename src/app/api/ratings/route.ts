@@ -84,3 +84,6 @@ export async function POST(req: NextRequest) {
     userRating: rating,
   });
 }
+/**
+ * Anime rating endpoint.
+ */

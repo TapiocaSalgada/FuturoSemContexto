@@ -107,3 +107,6 @@ export async function DELETE(req: NextRequest) {
   await prisma.comment.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+/**
+ * Comment thread endpoint (create/list replies).
+ */

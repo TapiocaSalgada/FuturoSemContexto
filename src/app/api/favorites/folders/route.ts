@@ -72,3 +72,6 @@ export async function DELETE(req: NextRequest) {
   await prisma.favoriteFolder.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+/**
+ * Favorite folders management endpoint.
+ */

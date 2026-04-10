@@ -141,3 +141,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to toggle follow" }, { status: 500 });
   }
 }
+/**
+ * Follow/unfollow endpoint.
+ */

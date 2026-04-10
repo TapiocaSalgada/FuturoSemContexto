@@ -27,12 +27,13 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const animeId = String(searchParams.get("animeId") || "").trim();
+    const withProgress = searchParams.get("withProgress") === "1";
 
     const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
     if (!user) return jsonError("User not found", 404);
 
     if (animeId) {
-      const history = await prisma.watchHistory.findFirst({
+      const histories = await prisma.watchHistory.findMany({
         where: {
           userId: user.id,
           episode: {
@@ -41,10 +42,35 @@ export async function GET(req: Request) {
           },
         },
         orderBy: { updatedAt: "desc" },
-        select: { episodeId: true },
+        select: {
+          episodeId: true,
+          progressSec: true,
+          watched: true,
+          updatedAt: true,
+        },
       });
 
-      return NextResponse.json({ episodeId: history?.episodeId || null });
+      const latest = histories[0] || null;
+      if (!withProgress) {
+        return NextResponse.json({ episodeId: latest?.episodeId || null });
+      }
+
+      const progressByEpisode = histories.reduce<Record<string, { progressSec: number; watched: boolean; updatedAt: string }>>(
+        (acc, item) => {
+          acc[item.episodeId] = {
+            progressSec: Number(item.progressSec || 0),
+            watched: Boolean(item.watched),
+            updatedAt: item.updatedAt.toISOString(),
+          };
+          return acc;
+        },
+        {},
+      );
+
+      return NextResponse.json({
+        episodeId: latest?.episodeId || null,
+        progressByEpisode,
+      });
     }
 
     const list = await prisma.watchHistory.findMany({
@@ -178,3 +204,6 @@ export async function DELETE(req: Request) {
   }
 }
 
+/**
+ * Watch history endpoint (latest episode + progress persistence).
+ */

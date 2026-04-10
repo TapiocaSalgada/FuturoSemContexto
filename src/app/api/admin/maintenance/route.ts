@@ -38,3 +38,6 @@ export async function PATCH(req: NextRequest) {
   const state = await setMaintenanceState(enabled, message);
   return NextResponse.json({ ok: true, state });
 }
+/**
+ * Admin runtime maintenance mode endpoint.
+ */

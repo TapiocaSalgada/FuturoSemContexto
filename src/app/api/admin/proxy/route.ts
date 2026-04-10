@@ -1,6 +1,210 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
+
 import { authOptions } from "@/lib/auth";
+
+const DEFAULT_KAPPA_BASE = "https://anime-api-kappa-one.vercel.app/api";
+
+type EndpointName = "search" | "episodes" | "episode-video";
+
+type EpisodeItem = {
+  id: string;
+  number: number;
+  title: string;
+  link: string | null;
+  thumbnail: string | null;
+};
+
+function parseJsonSafely(text: string) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPayload(url: string) {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json,text/plain,*/*",
+    },
+    cache: "no-store",
+  });
+
+  const text = await response.text();
+  const payload = parseJsonSafely(text);
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    payload,
+    raw: text,
+  };
+}
+
+function unwrapEnvelope(payload: any) {
+  if (!payload || typeof payload !== "object") return payload;
+
+  const success = payload?.sucesso ?? payload?.success;
+  if (success === true) {
+    return payload?.dados ?? payload?.data ?? payload?.results ?? payload;
+  }
+
+  return payload?.dados ?? payload?.data ?? payload?.results ?? payload;
+}
+
+function extractList(payload: any) {
+  const value = unwrapEnvelope(payload);
+  if (!value) return [] as any[];
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === "object") {
+    const nestedArray = [value?.items, value?.animes, value?.episodes].find((entry) => Array.isArray(entry));
+    if (Array.isArray(nestedArray)) return nestedArray;
+
+    const objectEntries = Object.entries(value)
+      .filter(([key, item]) => {
+        if (!item || typeof item !== "object") return false;
+        return !["success", "sucesso", "status", "message", "error", "info"].includes(key);
+      })
+      .map(([id, item]) => ({ id, ...(item as Record<string, unknown>) }));
+
+    if (objectEntries.length > 0) return objectEntries;
+  }
+
+  return [] as any[];
+}
+
+function normalizeSearchItems(payload: any) {
+  const list = extractList(payload);
+
+  return list
+    .map((item: any, index: number) => ({
+      id: String(item?.id || item?.anime_id || item?.animeId || item?.slug || `item-${index}`),
+      title: String(item?.title || item?.nome || item?.name || "").trim() || "Titulo indisponivel",
+      image:
+        String(item?.img || item?.image || item?.image_url || "").trim() ||
+        "https://img.freepik.com/premium-vector/photo-icon-with-picture-landscape-vector-isolated-white-background-eps-10_399089-2810.jpg",
+      url: String(item?.url || item?.link || "#").trim() || "#",
+    }))
+    .filter((item) => Boolean(item.title));
+}
+
+function normalizeEpisodes(payload: any): EpisodeItem[] {
+  const list = extractList(payload);
+
+  return list.map((item: any, idx: number) => {
+    const rawNumber = item?.episodio ?? item?.number ?? item?.episode ?? idx + 1;
+    const number = Number(rawNumber);
+
+    return {
+      id: String(item?.id || item?.episode_id || item?.episodio_id || `ep-${idx}`),
+      number: Number.isFinite(number) && number > 0 ? number : idx + 1,
+      title: String(item?.episode_name || item?.title || `Episodio ${rawNumber}`),
+      link: item?.link || item?.url || null,
+      thumbnail: item?.imagem || item?.image || null,
+    };
+  });
+}
+
+function extractVideoUrl(payload: any, depth = 0): string {
+  if (!payload || depth > 3) return "";
+
+  if (typeof payload === "string") {
+    return payload.startsWith("http") ? payload : "";
+  }
+
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      const found = extractVideoUrl(entry, depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  const value = unwrapEnvelope(payload);
+  const directCandidates = [
+    value?.videoUrl,
+    value?.video_url,
+    value?.url,
+    value?.link,
+    value?.file,
+    value?.stream,
+    value?.src,
+  ];
+
+  for (const candidate of directCandidates) {
+    if (typeof candidate === "string" && candidate.trim().startsWith("http")) {
+      return candidate.trim();
+    }
+  }
+
+  const nestedCandidates = [
+    value?.data,
+    value?.dados,
+    value?.result,
+    value?.results,
+    value?.item,
+    value?.episode,
+    value?.source,
+    value?.sources,
+    value?.streams,
+    value?.links,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    const found = extractVideoUrl(candidate, depth + 1);
+    if (found) return found;
+  }
+
+  return "";
+}
+
+function getEndpointPaths(endpoint: EndpointName, params: URLSearchParams) {
+  const query =
+    params.get("keyword")?.trim() ||
+    params.get("q")?.trim() ||
+    params.get("query")?.trim() ||
+    "";
+
+  const id =
+    params.get("id")?.trim() ||
+    params.get("anime_id")?.trim() ||
+    params.get("episode_id")?.trim() ||
+    "";
+
+  if (endpoint === "search") {
+    if (!query) return [] as string[];
+    const q = encodeURIComponent(query);
+    return [`/search?keyword=${q}`, `/search?q=${q}`];
+  }
+
+  if (endpoint === "episodes") {
+    if (!id) return [] as string[];
+    const encoded = encodeURIComponent(id);
+    return [`/episodes?anime_id=${encoded}`, `/episodes?id=${encoded}`];
+  }
+
+  if (!id) return [] as string[];
+  const encoded = encodeURIComponent(id);
+  return [`/episode-video?episode_id=${encoded}`, `/episode-video?id=${encoded}`];
+}
+
+function normalizeEndpointResponse(endpoint: EndpointName, payload: any) {
+  if (endpoint === "search") {
+    return normalizeSearchItems(payload);
+  }
+
+  if (endpoint === "episodes") {
+    return normalizeEpisodes(payload);
+  }
+
+  const videoUrl = extractVideoUrl(payload);
+  return videoUrl ? { videoUrl } : null;
+}
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,97 +214,66 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const endpoint = searchParams.get("endpoint"); // search, episodes, episode-video
-  const id = searchParams.get("id");
-  const keyword = searchParams.get("keyword");
+  const endpointRaw = String(searchParams.get("endpoint") || "").trim().toLowerCase();
 
-  if (!endpoint) return new NextResponse("Endpoint required", { status: 400 });
-
-  const baseUrl = "https://anime-api-kappa-one.vercel.app/api";
-  let url = `${baseUrl}/${endpoint}`;
-  
-  const params = new URLSearchParams();
-  if (endpoint === "search" && keyword) params.append("keyword", keyword);
-  if (endpoint === "episodes" && id) params.append("anime_id", id);
-  if (endpoint === "episode-video" && id) params.append("episode_id", id);
-
-  const queryString = params.toString();
-  if (queryString) url += `?${queryString}`;
-
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
-        return NextResponse.json({ error: `API responded with status ${res.status} [${endpoint}]` }, { status: res.status });
-    }
-    
-    // Safety check for JSON content type
-    const contentType = res.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-        return NextResponse.json({ error: "Invalid response format from API" }, { status: 502 });
-    }
-
-    let data = await res.json();
-
-    // Normalize envelopes and field names used by the Kappa API
-    const success = data?.sucesso || data?.success;
-    if (data && success) {
-        if (Array.isArray(data.dados)) data = data.dados;
-        else if (Array.isArray(data.data)) data = data.data;
-        else if (data.video_url || data.videoUrl) data = { videoUrl: data.video_url || data.videoUrl };
-    }
-
-    // Transform Search results if they come as a named object-map (OLD API legacy fallback)
-    if (endpoint === "search") {
-        if (data && typeof data === "object" && !Array.isArray(data)) {
-            data = Object.entries(data)
-                .filter(([id, val]: [string, any]) => val && id !== "null")
-                .map(([id, val]: [string, any]) => ({
-                    id: id || "unknown",
-                    title: val.title || "Título indisponível",
-                    image: val.img || val.image || "https://img.freepik.com/premium-vector/photo-icon-with-picture-landscape-vector-isolated-white-background-eps-10_399089-2810.jpg",
-                    url: val.url || "#"
-                }));
-        } else if (Array.isArray(data)) {
-            // New API Array format - ensure id mapping is consistent
-            data = data.map((item: any) => ({
-                id: item.id || item.anime_id || "unknown",
-                title: item.title || item.nome || "Indisponível",
-                image: item.img || item.image || item.image_url || "https://img.freepik.com/premium-vector/photo-icon-with-picture-landscape-vector-isolated-white-background-eps-10_399089-2810.jpg",
-                url: item.url || "#"
-            }));
-        }
-    }
-
-    // Normalize episodes payload (API returns { success, data: [...] })
-    if (endpoint === "episodes") {
-        if (!Array.isArray(data)) {
-            return NextResponse.json({ error: "Invalid episodes payload from API" }, { status: 502 });
-        }
-
-        data = data.map((item: any, idx: number) => {
-            const number = Number(item.episodio || item.number || item.episode || idx + 1);
-            return {
-                id: item.id || item.episode_id || item.episodio_id || `ep-${idx}`,
-                number: Number.isFinite(number) ? number : idx + 1,
-                title: item.episode_name || item.title || `Episódio ${item.episodio || idx + 1}`,
-                link: item.link || item.url || null,
-                thumbnail: item.imagem || item.image || null,
-            };
-        });
-    }
-
-    // Normalize episode video payload (expects { videoUrl })
-    if (endpoint === "episode-video") {
-        const videoUrl = data?.videoUrl || data?.video_url;
-        if (!videoUrl) {
-            return NextResponse.json({ error: "Video URL not found in API response" }, { status: 502 });
-        }
-        data = { videoUrl };
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error("Proxy Error", error);
-    return NextResponse.json({ error: "Internal Server Error during Proxy" }, { status: 500 });
+  if (!["search", "episodes", "episode-video"].includes(endpointRaw)) {
+    return NextResponse.json(
+      {
+        error: "Endpoint invalido. Use search, episodes ou episode-video.",
+      },
+      { status: 400 },
+    );
   }
+
+  const endpoint = endpointRaw as EndpointName;
+  const baseUrl = (process.env.KAPPA_API_BASE?.trim() || DEFAULT_KAPPA_BASE).replace(/\/+$/, "");
+  const paths = getEndpointPaths(endpoint, searchParams);
+
+  if (paths.length === 0) {
+    return NextResponse.json(
+      {
+        error: endpoint === "search" ? "Parametro q/keyword obrigatorio." : "Parametro id obrigatorio.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const errors: string[] = [];
+
+  for (const path of paths) {
+    const upstreamUrl = `${baseUrl}${path}`;
+
+    try {
+      const result = await fetchPayload(upstreamUrl);
+      if (!result.ok) {
+        errors.push(`status ${result.status} em ${path}`);
+        continue;
+      }
+
+      const normalized = normalizeEndpointResponse(endpoint, result.payload);
+
+      if (endpoint === "episode-video") {
+        if (normalized && typeof normalized === "object" && "videoUrl" in normalized) {
+          return NextResponse.json(normalized);
+        }
+      } else if (Array.isArray(normalized) && normalized.length > 0) {
+        return NextResponse.json(normalized);
+      } else if (Array.isArray(normalized) && normalized.length === 0) {
+        return NextResponse.json(normalized);
+      }
+
+      errors.push(`formato invalido em ${path}`);
+    } catch (error) {
+      errors.push(`falha em ${path}: ${error instanceof Error ? error.message : "erro"}`);
+    }
+  }
+
+  const notFound = errors.some((entry) => entry.includes("status 404"));
+  return NextResponse.json(
+    {
+      error: `Falha ao normalizar resposta de ${endpoint}.`,
+      details: errors,
+    },
+    { status: notFound ? 404 : 502 },
+  );
 }

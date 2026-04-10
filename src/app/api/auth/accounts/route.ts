@@ -31,3 +31,6 @@ export async function GET() {
     return NextResponse.json({ accounts: [] });
   }
 }
+/**
+ * Saved account/session helper endpoint for login UX.
+ */

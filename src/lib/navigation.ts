@@ -42,7 +42,8 @@ export async function getNavigationState(): Promise<NavigationState> {
   const payload = parsePayload(row.content);
   return {
     animeTabEnabled: payload.animeTabEnabled ?? true,
-    mangaTabEnabled: payload.mangaTabEnabled ?? false,
+    // Product is anime-only; manga tab stays permanently disabled.
+    mangaTabEnabled: false,
     updatedAt: payload.updatedAt || row.createdAt.toISOString(),
   };
 }
@@ -53,7 +54,8 @@ export async function setNavigationState(nextState: {
 }) {
   const content = JSON.stringify({
     animeTabEnabled: nextState.animeTabEnabled,
-    mangaTabEnabled: nextState.mangaTabEnabled,
+    // Persisted as false to keep all surfaces anime-only.
+    mangaTabEnabled: false,
     updatedAt: new Date().toISOString(),
   });
 

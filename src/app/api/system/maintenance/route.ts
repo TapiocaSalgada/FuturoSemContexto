@@ -16,3 +16,6 @@ export async function GET() {
     },
   });
 }
+/**
+ * Public runtime maintenance-state reader endpoint.
+ */

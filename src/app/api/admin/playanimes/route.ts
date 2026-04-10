@@ -26,3 +26,6 @@ export async function GET(req: NextRequest) {
   const results = await searchProviderWithFallback("playanimes", q, { allowKappaFallback: false });
   return NextResponse.json(results);
 }
+/**
+ * Admin provider route: PlayAnimes integration.
+ */

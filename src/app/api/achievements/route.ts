@@ -76,3 +76,6 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ ok: true });
 }
+/**
+ * Achievements API endpoint for listing and progress updates.
+ */

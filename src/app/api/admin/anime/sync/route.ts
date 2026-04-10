@@ -762,7 +762,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const animeId = String(body?.animeId || "").trim();
     if (!animeId) {
       return NextResponse.json({ error: "animeId é obrigatório" }, { status: 400 });
@@ -835,6 +835,7 @@ export async function POST(req: NextRequest) {
         providerRequested: provider,
         providerUsed: resolved.providerUsed,
         imported: 0,
+        importedCount: 0,
         failed: resolved.failed,
         deduped: resolved.imported.length,
         message: "Nenhum episódio novo encontrado no momento.",
@@ -893,6 +894,7 @@ export async function POST(req: NextRequest) {
       providerUsed: resolved.providerUsed,
       externalId: resolved.externalId || externalId || null,
       imported: created,
+      importedCount: created,
       failed: resolved.failed,
       deduped: Math.max(0, resolved.imported.length - dedupedImported.length),
       scanned: dedupedImported.length + resolved.failed,
@@ -906,3 +908,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Erro interno ao sincronizar episódios" }, { status: 500 });
   }
 }
+/**
+ * Admin anime synchronization endpoint for provider refresh workflows.
+ */

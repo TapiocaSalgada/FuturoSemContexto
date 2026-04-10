@@ -1,5 +1,15 @@
 "use client";
 
+/**
+ * Watch page orchestration layer.
+ *
+ * This file coordinates:
+ * - source loading/fallback (direct + embed)
+ * - player lifecycle and mobile immersive behavior
+ * - history persistence and telemetry
+ * - autoplay/next-episode gating with source-aware thresholds
+ */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -10,21 +20,29 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
-  Maximize2,
   Play,
   RotateCcw,
   RotateCw,
+  SkipForward,
   X,
 } from "lucide-react";
 
 import AppLayout from "@/components/AppLayout";
 import TomatoVideoPlayer from "@/components/TomatoVideoPlayer";
+import { toEmbeddableVideoUrl } from "@/lib/video";
+import {
+  WATCH_PLAYER_DEFAULT_CONFIG,
+  normalizeWatchPlayerConfig,
+  resolveNextPromptWindowSeconds,
+  type WatchPlayerConfigState,
+} from "@/lib/watch-player-config";
 
 type EpisodeItem = {
   id: string;
   title: string;
   number: number;
   season: number;
+  duration?: string | null;
   videoUrl: string;
   sourceType?: string;
   sourceLabel?: string | null;
@@ -56,13 +74,14 @@ type WatchPayload = {
     resumePlayback: boolean;
     playbackSpeed: string;
   };
+  watchPlayerConfig?: WatchPlayerConfigState | null;
   sourceType: string;
   isDirectSource: boolean;
   sources?: { label?: string; url: string; type: string }[];
 };
 
 function formatSeasonLabel(episode: EpisodeItem) {
-  return `T${episode.season} · Ep ${episode.number}`;
+  return `T${episode.season} Â· Ep ${episode.number}`;
 }
 
 function isHlsUrl(url: string) {
@@ -164,7 +183,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   const hlsRef = useRef<Hls | null>(null);
   const playerWrapRef = useRef<HTMLDivElement>(null);
   const autoplayTimeout = useRef<ReturnType<typeof setInterval>>();
-  const iframeStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekFlashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const failedSourcesRef = useRef<Set<string>>(new Set());
   const failedHostsRef = useRef<Set<string>>(new Set());
@@ -174,8 +192,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   const [data, setData] = useState<WatchPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [resumeApplied, setResumeApplied] = useState(false);
-  const [showSkipIntro, setShowSkipIntro] = useState(false);
-  const [showSkipOutro, setShowSkipOutro] = useState(false);
   const [seekFlash, setSeekFlash] = useState<"back" | "forward" | null>(null);
   const [autoplayCountdown, setAutoplayCountdown] = useState<number | null>(null);
   const [showNextEpisodePrompt, setShowNextEpisodePrompt] = useState(false);
@@ -189,6 +205,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   const [loadError, setLoadError] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [isPortraitOrientation, setIsPortraitOrientation] = useState(false);
+  const [mobileImmersive, setMobileImmersive] = useState(false);
+  const [autoFullscreenAttempted, setAutoFullscreenAttempted] = useState(false);
   const [showMobileChrome, setShowMobileChrome] = useState(true);
   const [mobilePanel, setMobilePanel] = useState<"none" | "details" | "episodes">("none");
   const [detailsExpanded, setDetailsExpanded] = useState(false);
@@ -198,13 +217,21 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   const [bugForm, setBugForm] = useState({ title: "", description: "" });
   const pendingRestoreTimeRef = useRef<number | null>(null);
   const lastProgressSentRef = useRef(0);
-  const AUTOPLAY_SECONDS = 10;
   const isCurrentDirect = currentSource.type === "direct";
+  const watchPlayerConfig = useMemo(
+    () => normalizeWatchPlayerConfig(data?.watchPlayerConfig || WATCH_PLAYER_DEFAULT_CONFIG),
+    [data?.watchPlayerConfig],
+  );
+  const AUTOPLAY_SECONDS = watchPlayerConfig.autoplaySeconds;
   const historyQueueKey = useMemo(() => {
     const userId = String((session?.user as any)?.id || "").trim();
     const email = String(session?.user?.email || "").trim().toLowerCase();
     return `${HISTORY_QUEUE_KEY_BASE}:${userId || email || "guest"}`;
   }, [session?.user]);
+  const nextPromptWindowSec = useMemo(
+    () => resolveNextPromptWindowSeconds(currentSource.type, watchPlayerConfig),
+    [currentSource.type, watchPlayerConfig],
+  );
 
   const queueHistoryUpdate = useCallback((payload: HistoryUpdatePayload) => {
     if (typeof window === "undefined") return;
@@ -402,9 +429,11 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     setResumeApplied(false);
     setAutoplayCountdown(null);
     setShowNextEpisodePrompt(false);
-    setShowSkipIntro(false);
-    setShowSkipOutro(false);
     setMobilePanel("none");
+    setAutoFullscreenAttempted(false);
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setMobileImmersive(true);
+    }
     setDetailsExpanded(false);
     clearInterval(autoplayTimeout.current);
 
@@ -432,27 +461,31 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
         if (cancelled) return;
 
+        const listedSources = Array.isArray(payload?.sources)
+          ? payload.sources.filter((source: { url?: string }) => Boolean(source?.url))
+          : [];
+
+        const preferredSource =
+          listedSources.find((source: { type?: string }) => source?.type === "direct") ||
+          (payload?.videoToPlay
+            ? {
+                url: String(payload.videoToPlay),
+                type: String(payload?.sourceType || "embed"),
+              }
+            : null) ||
+          listedSources[0] ||
+          null;
+
+        if (!preferredSource?.url) {
+          throw new Error("Este episodio nao possui nenhuma fonte disponivel no momento.");
+        }
+
         setData(payload as WatchPayload);
-        if (payload.videoToPlay) {
-          setCurrentSource({ url: payload.videoToPlay, type: payload.sourceType });
-        }
+        setCurrentSource({
+          url: String(preferredSource.url),
+          type: String(preferredSource.type || payload?.sourceType || "embed"),
+        });
         setLoading(false);
-
-        // --- HACK PARA IFRAMES (GOOGLE DRIVE, ETC) ---
-        // Iframe content security policy prevents the video 'timeupdate' events from bubbling up.
-        // We push a 'started watching' history event roughly 10s after the page mounts so the episode is tracked.
-        if (!payload.isDirectSource) {
-          if (iframeStartTimerRef.current) {
-            clearTimeout(iframeStartTimerRef.current);
-          }
-
-          iframeStartTimerRef.current = setTimeout(() => {
-            void sendHistoryUpdate({
-              episodeId: payload.episodeId,
-              progressSec: 1,
-            });
-          }, 10000);
-        }
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
         setData(null);
@@ -468,11 +501,8 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       cancelled = true;
       controller.abort();
       clearInterval(autoplayTimeout.current);
-      if (iframeStartTimerRef.current) {
-        clearTimeout(iframeStartTimerRef.current);
-      }
     };
-  }, [params.id, sendHistoryUpdate]);
+  }, [params.id]);
 
   useEffect(() => {
     return () => {
@@ -487,34 +517,35 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const syncViewport = () => {
-      setIsMobileViewport(window.innerWidth < 768);
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      setIsMobileViewport(width < 768);
+      setIsPortraitOrientation(height >= width);
     };
 
     syncViewport();
     window.addEventListener("resize", syncViewport);
+    window.addEventListener("orientationchange", syncViewport);
 
     return () => {
       window.removeEventListener("resize", syncViewport);
+      window.removeEventListener("orientationchange", syncViewport);
     };
   }, []);
 
   useEffect(() => {
     if (!isMobileViewport) {
       setShowMobileChrome(true);
+      setMobileImmersive(false);
       if (mobileChromeTimerRef.current) {
         clearTimeout(mobileChromeTimerRef.current);
       }
       return;
     }
 
+    setMobileImmersive(true);
     revealMobileChrome();
   }, [isMobileViewport, revealMobileChrome]);
-
-  useEffect(() => {
-    if (isMobileViewport && mobilePanel === "none") {
-      setMobilePanel("details");
-    }
-  }, [isMobileViewport, mobilePanel]);
 
   useEffect(() => {
     if (autoplayCountdown !== null || playerError || showNextEpisodePrompt) {
@@ -580,25 +611,42 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const root = document.documentElement;
+    const immersiveActive = isMobileViewport && mobileImmersive;
+    const forceLandscape = immersiveActive && isPortraitOrientation;
+
     if (isFullscreen) {
       root.classList.add("watch-fullscreen");
     } else {
       root.classList.remove("watch-fullscreen");
     }
 
+    if (immersiveActive) {
+      root.classList.add("watch-immersive");
+    } else {
+      root.classList.remove("watch-immersive");
+    }
+
+    if (forceLandscape) {
+      root.classList.add("watch-force-landscape");
+    } else {
+      root.classList.remove("watch-force-landscape");
+    }
+
     return () => {
       root.classList.remove("watch-fullscreen");
+      root.classList.remove("watch-immersive");
+      root.classList.remove("watch-force-landscape");
     };
-  }, [isFullscreen]);
+  }, [isFullscreen, isMobileViewport, isPortraitOrientation, mobileImmersive]);
 
   useEffect(() => {
     if (!isMobileViewport) return;
-    void setLandscapeLock(isFullscreen);
+    void setLandscapeLock(isFullscreen || mobileImmersive);
 
     return () => {
       void setLandscapeLock(false);
     };
-  }, [isFullscreen, isMobileViewport]);
+  }, [isFullscreen, isMobileViewport, mobileImmersive]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -637,9 +685,19 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       failedHostsRef.current.clear();
       endHandledRef.current = false;
       setPlayerError("");
-      setCurrentSource({ url: data.videoToPlay, type: data.sourceType });
+      const preferredSource =
+        data.sources?.find((source) => source.url === data.videoToPlay) ||
+        data.sources?.[0] ||
+        {
+          url: data.videoToPlay,
+          type: data.sourceType || "embed",
+        };
+      setCurrentSource({
+        url: preferredSource.url,
+        type: preferredSource.type || data.sourceType || "embed",
+      });
     }
-  }, [data?.videoToPlay, data?.sourceType]);
+  }, [data?.videoToPlay, data?.sourceType, data?.sources]);
 
   // Prefetch next episode source when available and direct
   useEffect(() => {
@@ -655,7 +713,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     };
   }, [allowNextPrefetch, data?.nextEpisode, prefetchedNext]);
 
-  // ── Playback speed ──
+  // â”€â”€ Playback speed â”€â”€
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isCurrentDirect || !data) return;
@@ -663,7 +721,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     video.playbackRate = Number.isFinite(speed) ? speed : 1;
   }, [data, isCurrentDirect]);
 
-  // ── Resume playback ──
+  // â”€â”€ Resume playback â”€â”€
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isCurrentDirect || !data?.history || resumeApplied) return;
@@ -676,7 +734,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     return () => video.removeEventListener("loadedmetadata", applyResume);
   }, [data, resumeApplied, isCurrentDirect]);
 
-  // ── Save progress every 10s ──
+  // â”€â”€ Save progress every 10s â”€â”€
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isCurrentDirect || !data?.episodeId || !session?.user) return;
@@ -795,22 +853,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     };
   }, [data?.episodeId, isCurrentDirect]);
 
-  useEffect(() => {
-    if (isCurrentDirect) return;
-
-    if (!data?.nextEpisode) {
-      setShowNextEpisodePrompt(false);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setShowNextEpisodePrompt(true);
-    }, 12000);
-
-    return () => clearTimeout(timer);
-  }, [data?.episodeId, data?.nextEpisode?.id, isCurrentDirect]);
-
-  // ── Keyboard shortcuts (MP4 only) ──
+  // â”€â”€ Keyboard shortcuts (MP4 only) â”€â”€
   useEffect(() => {
     if (!isCurrentDirect) return;
     const video = videoRef.current;
@@ -895,7 +938,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           }
           break;
         default:
-          // 0-9 → jump to % of video
+          // 0-9 â†’ jump to % of video
           if (e.code.startsWith("Digit")) {
             e.preventDefault();
             const pct = parseInt(e.code.replace("Digit", "")) / 10;
@@ -965,6 +1008,11 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     return Object.values(filteredEpisodeGroups).reduce((sum, episodes) => sum + episodes.length, 0);
   }, [filteredEpisodeGroups]);
 
+  const playbackSources = useMemo(() => {
+    if (!data?.sources?.length) return [] as { label?: string; url: string; type: string }[];
+    return data.sources.filter((source) => Boolean(source?.url));
+  }, [data?.sources]);
+
   const applySource = useCallback((next: { url: string; type: string }, preservePosition = false) => {
     if (!next.url) return;
 
@@ -978,11 +1026,11 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     }
 
     setPlayerError("");
-    setCurrentSource({ url: next.url, type: next.type });
+    setCurrentSource({ url: next.url, type: next.type || "embed" });
   }, [currentSource.type]);
 
   const pickNextSource = useCallback(() => {
-    if (!data?.sources?.length) return null;
+    if (!playbackSources.length) return null;
 
     const currentKey = `${currentSource.type}:${currentSource.url}`;
     failedSourcesRef.current.add(currentKey);
@@ -992,28 +1040,25 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       failedHostsRef.current.add(currentHost);
     }
 
-    const available = data.sources.filter((source) => {
+    const available = playbackSources.filter((source) => {
       const key = `${source.type}:${source.url}`;
       return !failedSourcesRef.current.has(key);
     });
 
     if (!available.length) return null;
 
-    const withDifferentHost = available.filter((source) => {
+    const preferred = available.some((source) => source.type === "direct")
+      ? available.filter((source) => source.type === "direct")
+      : available;
+
+    const withDifferentHost = preferred.filter((source) => {
       const host = getUrlHost(source.url);
       if (!host) return true;
       return !failedHostsRef.current.has(host);
     });
 
-    const candidates = withDifferentHost.length ? withDifferentHost : available;
-
-    return (
-      candidates.find((source) => source.type === "direct") ||
-      candidates.find((source) => source.type !== "direct") ||
-      candidates[0] ||
-      null
-    );
-  }, [currentSource.type, currentSource.url, data?.sources]);
+    return withDifferentHost.length ? withDifferentHost[0] : preferred[0];
+  }, [currentSource.type, currentSource.url, playbackSources]);
 
   const handleSourceFailure = useCallback((message: string) => {
     trackPlaybackEvent({
@@ -1034,19 +1079,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
         message: "auto-fallback",
       });
       applySource({ url: nextSource.url, type: nextSource.type }, true);
-      return;
-    }
-
-    if (currentSource.url && currentSource.type !== "embed") {
-      trackPlaybackEvent({
-        event: "source_switch",
-        sourceUrl: currentSource.url,
-        sourceType: currentSource.type,
-        fallbackUrl: currentSource.url,
-        fallbackType: "embed",
-        message: "force-embed-fallback",
-      });
-      applySource({ url: currentSource.url, type: "embed" });
       return;
     }
 
@@ -1120,21 +1152,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   const handleTimeUpdate = () => {
     if (!data?.episode || !videoRef.current) return;
     const t = videoRef.current.currentTime;
-    const { introStartSec, introEndSec, outroStartSec, outroEndSec } = data.episode;
-
-    // Skip Intro
-    if (introStartSec != null && introEndSec != null) {
-      setShowSkipIntro(t >= introStartSec && t < introEndSec);
-    } else {
-      setShowSkipIntro(false);
-    }
-
-    // Skip Outro
-    if (outroStartSec != null && outroEndSec != null) {
-      setShowSkipOutro(t >= outroStartSec && t < outroEndSec);
-    } else {
-      setShowSkipOutro(false);
-    }
 
     const duration = videoRef.current.duration;
     if (
@@ -1144,7 +1161,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       autoplayCountdown === null
     ) {
       const remaining = duration - t;
-      setShowNextEpisodePrompt(remaining <= 25 && remaining > 1);
+      setShowNextEpisodePrompt(remaining <= nextPromptWindowSec && remaining > 1);
 
       if (remaining <= 0.8 && !endHandledRef.current) {
         handleEnded();
@@ -1152,18 +1169,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     } else {
       setShowNextEpisodePrompt(false);
     }
-  };
-
-  const handleSkipIntro = () => {
-    if (!videoRef.current || !data?.episode.introEndSec) return;
-    videoRef.current.currentTime = data.episode.introEndSec;
-    setShowSkipIntro(false);
-  };
-
-  const handleSkipOutro = () => {
-    if (!videoRef.current || !data?.episode.outroEndSec) return;
-    videoRef.current.currentTime = data.episode.outroEndSec;
-    setShowSkipOutro(false);
   };
 
   const seekBySeconds = (deltaSec: number, direction: "back" | "forward") => {
@@ -1253,7 +1258,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
     const description = bugForm.description.trim();
     if (description.length < 8) {
-      setBugMsg({ type: "err", text: "Descreva melhor o problema (mínimo 8 caracteres)." });
+      setBugMsg({ type: "err", text: "Descreva melhor o problema (mÃ­nimo 8 caracteres)." });
       return;
     }
 
@@ -1270,7 +1275,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           title: bugForm.title.trim() || `Bug no player - ${formatSeasonLabel(data.episode)}`,
           description,
           pagePath: typeof window !== "undefined" ? window.location.pathname : null,
-          sourceUrl: currentSource.url || data.videoToPlay || data.embedUrl || null,
+          sourceUrl: currentSource.url || data.videoToPlay || null,
         }),
       });
 
@@ -1292,7 +1297,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const toggleFullscreen = async () => {
+  const toggleFullscreen = useCallback(async () => {
     try {
       const fullscreenElement = getFullscreenElement();
       if (fullscreenElement) {
@@ -1327,7 +1332,39 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     } catch {
       // ignore fullscreen errors
     }
-  };
+  }, []);
+
+  const openMobilePanel = useCallback((panel: "details" | "episodes") => {
+    setMobileImmersive(false);
+    setMobilePanel(panel);
+    setShowMobileChrome(true);
+
+    const targetId = panel === "episodes" ? "watch-playlist" : "watch-detalhes";
+    window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  }, []);
+
+  const enableEpisodeOnlyMode = useCallback(() => {
+    setMobilePanel("none");
+    setMobileImmersive(true);
+    if (!getFullscreenElement()) {
+      void toggleFullscreen();
+    }
+  }, [toggleFullscreen]);
+
+  useEffect(() => {
+    if (!isMobileViewport || !data?.episodeId || autoFullscreenAttempted) return;
+
+    setAutoFullscreenAttempted(true);
+    const timer = window.setTimeout(() => {
+      void toggleFullscreen();
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [autoFullscreenAttempted, data?.episodeId, isMobileViewport, toggleFullscreen]);
 
   if (loading) {
     return (
@@ -1346,8 +1383,8 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     return (
       <AppLayout>
         <div className="min-h-[70vh] bg-[var(--background)] flex flex-col justify-center items-center text-white px-6 text-center gap-4">
-          <p className="font-black text-xl">Não foi possível abrir este episódio.</p>
-          <p className="text-[var(--text-muted)] text-sm max-w-md">{loadError || "Vídeo não encontrado."}</p>
+          <p className="font-black text-xl">NÃ£o foi possÃ­vel abrir este episÃ³dio.</p>
+          <p className="text-[var(--text-muted)] text-sm max-w-md">{loadError || "VÃ­deo nÃ£o encontrado."}</p>
           <Link prefetch={true} href="/" className="kdr-btn-primary h-10 px-6 text-sm">
             Voltar para home
           </Link>
@@ -1356,14 +1393,14 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     );
   }
 
-  const isDrive =
-    currentSource.url?.includes("drive.google.com") ||
-    data.embedUrl?.includes("drive.google.com") ||
-    data.videoToPlay?.includes("drive.google.com");
-
   const tomatoTitle = `${data.episode.number}. ${
     String(data.episode.title || data.epTitle || `Episodio ${data.episode.number}`).trim()
   }`;
+  const currentEmbedUrl = !isCurrentDirect
+    ? toEmbeddableVideoUrl(currentSource.url || data.videoToPlay || "", currentSource.type || data.sourceType)
+    : "";
+  const mobileOnlyEpisodeMode = isMobileViewport && mobileImmersive;
+  const forceLandscapeMobile = mobileOnlyEpisodeMode && isPortraitOrientation;
 
   return (
     <AppLayout>
@@ -1373,7 +1410,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           <div className="relative glass-surface-heavy border border-white/12 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-6 w-full max-w-lg space-y-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-black text-lg flex items-center gap-2">
-                <AlertTriangle size={18} className="text-[var(--text-primary)]" /> Reportar bug do episódio
+                <AlertTriangle size={18} className="text-[var(--text-primary)]" /> Reportar bug do episÃ³dio
               </h3>
               <button onClick={() => setShowBugModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition">
                 <X size={18} />
@@ -1382,16 +1419,16 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
             <form onSubmit={handleBugReportSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Título</label>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">TÃ­tulo</label>
                 <input
                   value={bugForm.title}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, title: e.target.value }))}
                   className="kdr-input w-full rounded-lg px-3 py-2.5 text-sm"
-                  placeholder="Ex: player travando no episódio"
+                  placeholder="Ex: player travando no episÃ³dio"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Descrição *</label>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">DescriÃ§Ã£o *</label>
                 <textarea
                   value={bugForm.description}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, description: e.target.value }))}
@@ -1401,7 +1438,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
               </div>
 
               {bugMsg.text && (
-                <p className={`text-xs font-bold ${bugMsg.type === "ok" ? "text-green-400" : "text-red-400"}`}>
+                <p className={`text-xs font-bold ${bugMsg.type === "ok" ? "text-green-400" : "text-purple-400"}`}>
                   {bugMsg.text}
                 </p>
               )}
@@ -1418,15 +1455,32 @@ export default function WatchPage({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      <div className="min-h-screen bg-[var(--background)] relative overflow-hidden">
+      <div className={`min-h-screen ${mobileOnlyEpisodeMode ? "bg-black" : "bg-[var(--background)]"} relative overflow-hidden`}>
         <div className="absolute inset-0 pointer-events-none hidden md:block" style={{ background: "radial-gradient(920px 540px at 80% -12%, rgba(148,163,184,0.18), transparent 72%), radial-gradient(740px 440px at 14% 5%, rgba(203,213,225,0.14), transparent 70%)" }} />
-        <div className="max-w-[1620px] mx-auto px-0 lg:px-6 py-0 md:py-6 space-y-0 md:space-y-6 relative z-10">
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-0 md:gap-6 items-start">
+        <div className={`${mobileOnlyEpisodeMode ? "max-w-none mx-0 px-0 py-0" : "max-w-[1620px] mx-auto px-0 lg:px-6 py-0 md:py-6 space-y-0 md:space-y-6"} relative z-10`}>
+          <div className={`grid grid-cols-1 ${mobileOnlyEpisodeMode ? "gap-0" : "xl:grid-cols-[minmax(0,1fr)_340px] gap-0 md:gap-6"} items-start`}>
             <section className="space-y-0 md:space-y-4 pt-0">
-            {/* ── Player ── */}
-            <div id="watch-player" ref={playerWrapRef} className="relative rounded-none lg:rounded-[30px] overflow-hidden border-0 lg:border lg:border-white/15 bg-black shadow-[0_24px_56px_rgba(0,0,0,0.55)] scroll-mt-28">
+            {/* â”€â”€ Player â”€â”€ */}
+            <div
+              id="watch-player"
+              ref={playerWrapRef}
+              className={`relative overflow-hidden bg-black ${mobileOnlyEpisodeMode ? "rounded-none border-0 shadow-none scroll-mt-0" : "rounded-none lg:rounded-[30px] border-0 lg:border lg:border-white/15 shadow-[0_24px_56px_rgba(0,0,0,0.55)] scroll-mt-28"}`}
+              style={
+                forceLandscapeMobile
+                  ? {
+                      position: "fixed",
+                      inset: "0px",
+                      width: "100vh",
+                      height: "100vw",
+                      transform: "rotate(90deg) translateY(-100%)",
+                      transformOrigin: "top left",
+                      zIndex: 95,
+                    }
+                  : undefined
+              }
+            >
               <div
-                className="aspect-video relative"
+                className={forceLandscapeMobile ? "relative w-full h-full" : "aspect-video relative"}
                 onTouchStart={() => revealMobileChrome()}
                 onMouseMove={() => {
                   if (isMobileViewport) {
@@ -1434,13 +1488,6 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   }
                 }}
               >
-                <button
-                  type="button"
-                  onClick={toggleFullscreen}
-                  className="hidden md:inline-flex absolute top-3 right-3 z-30 items-center gap-1.5 rounded-full bg-black/60 border border-white/15 px-3 py-1.5 text-[11px] font-black text-white hover:bg-white hover:text-black transition"
-                >
-                  <Maximize2 size={13} /> {isFullscreen ? "Sair tela cheia" : "Tela cheia"}
-                </button>
                 {isCurrentDirect ? (
                   <TomatoVideoPlayer
                     videoRef={videoRef}
@@ -1453,6 +1500,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     onError={() => handleSourceFailure("Essa fonte falhou ao carregar o video.")}
                     onSeekBackward={() => seekBySeconds(-10, "back")}
                     onSeekForward={() => seekBySeconds(10, "forward")}
+                    onOpenEpisodes={() => openMobilePanel("episodes")}
+                    onOpenAudioSubtitles={() => openMobilePanel("details")}
+                    isMobileViewport={isMobileViewport}
                     introStartSec={data.episode.introStartSec}
                     introEndSec={data.episode.introEndSec}
                     outroStartSec={data.episode.outroStartSec}
@@ -1462,75 +1512,48 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                         ? () => router.push(`/watch/${data.nextEpisode?.id}`)
                         : undefined
                     }
-                    showNextEpisodeButton={Boolean(data.nextEpisode && autoplayCountdown === null)}
+                    showNextEpisodeButton={Boolean(data.nextEpisode)}
                   />
-                ) : (
-                  <>
+                ) : currentEmbedUrl ? (
+                  <div className="absolute inset-0 bg-black">
                     <iframe
-                      src={currentSource.url || data.embedUrl}
-                      className="w-full h-full outline-none"
-                      allow="autoplay; fullscreen"
+                      src={currentEmbedUrl}
+                      className="w-full h-full"
+                      allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                       allowFullScreen
-                      referrerPolicy="no-referrer"
+                      loading="eager"
+                      referrerPolicy="strict-origin-when-cross-origin"
                     />
-                    {/* ── Block Google Drive top-right escape buttons ── */}
-                    {isDrive && (
-                      <>
-                        {/* Desktop top-right pop-out block */}
-                        <div
-                          className="absolute top-0 right-0 h-16 w-32 z-[60]"
-                          style={{ pointerEvents: "all", background: "transparent", cursor: "default" }}
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        />
-                        {/* Mobile/Compact UI top-right block (often taller) */}
-                        <div
-                          className="absolute top-0 right-0 h-24 w-16 z-[60]"
-                          style={{ pointerEvents: "all", background: "transparent", cursor: "default" }}
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        />
-                        {/* Extra safety for some Drive embed variations */}
-                        <div
-                          className="absolute top-12 right-0 h-12 w-48 z-[60]"
-                          style={{ pointerEvents: "all", background: "transparent", cursor: "default" }}
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                        />
-                      </>
+                    {data.nextEpisode && (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
+                        className="absolute right-3 bottom-3 h-9 px-3 rounded-lg border border-white/20 bg-black/70 text-white text-xs font-black inline-flex items-center gap-1.5"
+                      >
+                        <SkipForward size={13} /> Proximo episodio
+                      </button>
                     )}
-                  </>
-                )}
-
-                {/* Skip Intro */}
-                {!isCurrentDirect && showSkipIntro && (
-                  <button
-                    onClick={handleSkipIntro}
-                    className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/38 text-white font-black hover:bg-black/58 transition shadow-lg z-30 text-sm"
-                  >
-                    Pular abertura <ChevronRight size={16} />
-                  </button>
-                )}
-
-                {/* Skip Outro */}
-                {!isCurrentDirect && showSkipOutro && (
-                  <button
-                    onClick={handleSkipOutro}
-                    className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-black/38 text-white font-black hover:bg-black/58 transition shadow-lg z-30 text-sm"
-                  >
-                    Pular encerramento <ChevronRight size={16} />
-                  </button>
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 bg-black/80 flex items-center justify-center px-6 text-center">
+                    <p className="text-sm text-purple-200 font-bold">
+                      Nao foi possivel montar o player para esta fonte.
+                    </p>
+                  </div>
                 )}
 
                 {/* Auto-play countdown with SVG ring */}
                 {autoplayCountdown !== null && data.nextEpisode && (
                   <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 z-40">
                     <div className="max-w-sm w-full rounded-3xl bg-black/82 border border-[var(--accent-border)] p-6 text-center space-y-4 shadow-[0_22px_56px_rgba(0,0,0,0.58)]">
-                      <p className="text-[var(--text-muted)] text-sm">Episódio concluído</p>
+                      <p className="text-[var(--text-muted)] text-sm">EpisÃ³dio concluÃ­do</p>
                       {/* Countdown ring */}
                       <div className="relative inline-flex items-center justify-center">
                         <CountdownRing total={AUTOPLAY_SECONDS} current={autoplayCountdown} />
                         <span className="absolute text-2xl font-black text-white">{autoplayCountdown}</span>
                       </div>
                       <h3 className="text-xl font-black text-white">{data.nextEpisode.title}</h3>
-                      <p className="text-[var(--text-muted)] text-xs">Próximo episódio iniciando automaticamente...</p>
+                      <p className="text-[var(--text-muted)] text-xs">PrÃ³ximo episÃ³dio iniciando automaticamente...</p>
                       <div className="flex gap-3">
                         <button
                           onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
@@ -1549,7 +1572,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   </div>
                 )}
 
-                {showNextEpisodePrompt && autoplayCountdown === null && data.nextEpisode && (
+                {showNextEpisodePrompt && autoplayCountdown === null && data.nextEpisode && isCurrentDirect && (
                   <div className="absolute left-3 right-3 bottom-3 z-40 rounded-2xl border border-white/20 bg-black/80 backdrop-blur-md p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
@@ -1586,12 +1609,12 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 )}
 
                 {playerError && (
-                  <div className="absolute left-3 right-3 bottom-3 z-40 rounded-2xl border border-red-500/30 bg-black/80 backdrop-blur-md p-3 text-xs text-red-200 space-y-2">
+                  <div className="absolute left-3 right-3 bottom-3 z-40 rounded-2xl border border-purple-500/30 bg-black/80 backdrop-blur-md p-3 text-xs text-purple-200 space-y-2">
                     <p className="font-bold">{playerError}</p>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleSourceFailure(playerError)}
-                        className="px-3 py-1.5 rounded-lg bg-red-500/20 hover:bg-red-500 hover:text-white transition font-bold"
+                        className="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500 hover:text-white transition font-bold"
                       >
                         Tentar outra fonte
                       </button>
@@ -1615,6 +1638,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
               </button>
             </div>
 
+            {!mobileOnlyEpisodeMode && (
             <div className="md:hidden px-3 pt-3 space-y-2.5">
               <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--glass-bg-card)]/90 backdrop-blur-xl px-3.5 py-3">
                 <p className="text-[10px] uppercase tracking-[0.17em] font-black text-[var(--text-muted)]">Assistindo agora</p>
@@ -1623,23 +1647,32 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   <span className="px-2.5 py-1 rounded-full text-[11px] font-bold border border-[var(--border-subtle)] bg-[var(--bg-card)] text-[var(--text-secondary)]">
                     {formatSeasonLabel(data.episode)}
                   </span>
+                  <button
+                    type="button"
+                    onClick={enableEpisodeOnlyMode}
+                    className="h-8 px-3 rounded-full border border-[var(--border-default)] text-[11px] font-black text-[var(--text-primary)] bg-[var(--bg-card)]/70"
+                  >
+                    SÃ³ episÃ³dio
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-end gap-2">
                   {nextPlaylistEpisode && (
                     <button
                       type="button"
                       onClick={() => router.push(`/watch/${nextPlaylistEpisode.id}`)}
                       className="h-8 px-3 rounded-full border border-[var(--border-default)] text-[11px] font-black text-[var(--text-primary)] bg-[var(--bg-card)]/70"
                     >
-                      Próximo episódio
+                      PrÃ³ximo episÃ³dio
                     </button>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/12 bg-black/55 p-1.5 flex items-center gap-1.5">
+              <div className="rounded-2xl border border-white/12 bg-black/55 p-1 flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setMobilePanel((prev) => (prev === "details" ? "none" : "details"))}
-                  className={`flex-1 h-10 rounded-xl text-xs font-black transition ${
+                  className={`flex-1 h-9 rounded-xl text-[11px] font-black transition ${
                     mobilePanel === "details"
                       ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10"
@@ -1650,19 +1683,20 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 <button
                   type="button"
                   onClick={() => setMobilePanel((prev) => (prev === "episodes" ? "none" : "episodes"))}
-                  className={`flex-1 h-10 rounded-xl text-xs font-black transition ${
+                  className={`flex-1 h-9 rounded-xl text-[11px] font-black transition ${
                     mobilePanel === "episodes"
                       ? "bg-[var(--accent)] text-[var(--accent-contrast)]"
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10"
                   }`}
                 >
-                  Episódios
+                  EpisÃ³dios
                 </button>
               </div>
             </div>
+            )}
 
-            {/* ── Info + Rating ── */}
-            <div id="watch-detalhes" className={`${mobilePanel === "details" ? "block" : "hidden"} ${detailsExpanded ? "md:block" : "md:hidden"} bg-transparent md:glass-surface md:border md:border-white/10 rounded-none md:rounded-[30px] p-5 lg:p-6 mt-2 md:mt-0 scroll-mt-28`}>
+            {/* â”€â”€ Info + Rating â”€â”€ */}
+            <div id="watch-detalhes" className={`${mobileOnlyEpisodeMode ? "hidden" : mobilePanel === "details" ? "block" : "hidden"} ${detailsExpanded ? "md:block" : "md:hidden"} bg-transparent md:glass-surface md:border md:border-white/10 rounded-none md:rounded-[30px] p-5 lg:p-6 mt-2 md:mt-0 scroll-mt-28`}>
               <div className="flex items-center gap-3 flex-wrap">
                 <img src="/logo.png" alt="Futuro sem Contexto" className="w-10 h-10 rounded-2xl object-cover" />
                 <div>
@@ -1676,7 +1710,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 <span className="px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
                   Fonte: {data.episode.sourceLabel || data.sourceType.replace("_", " ")}
                 </span>
-                {data.nextEpisode && <span className="px-3 py-1 rounded-full bg-[var(--accent-soft)] border border-[var(--accent-border)] text-[var(--text-accent)] font-bold">Auto próximo ativo</span>}
+                {data.nextEpisode && <span className="px-3 py-1 rounded-full bg-[var(--accent-soft)] border border-[var(--accent-border)] text-[var(--text-accent)] font-bold">Auto prÃ³ximo ativo</span>}
                 {pipSupported && isCurrentDirect && (
                   <button
                     onClick={handleEnterPip}
@@ -1692,7 +1726,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 >
                   Reportar bug
                 </button>
-                {data.sources && data.sources.length > 1 && (
+                {playbackSources.length > 1 && (
                   <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
                     <span>Fonte atual:</span>
                     <select
@@ -1714,7 +1748,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                         applySource({ url, type }, true);
                       }}
                     >
-                      {data.sources.map((s: any, idx: number) => (
+                      {playbackSources.map((s, idx: number) => (
                         <option key={`${s.url}-${idx}`} value={`${s.type}:${s.url}`}>
                           {s.label || `Fonte ${idx + 1}`} ({s.type})
                         </option>
@@ -1735,9 +1769,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
               {/* Keyboard shortcut hint (desktop only) */}
               {isCurrentDirect && (
                 <p className="mt-3 text-[11px] text-[var(--text-muted)] hidden md:block">
-                  Atalhos: <kbd className="bg-[var(--bg-card)] px-1 rounded">Espaço</kbd> pausar &nbsp;
-                  <kbd className="bg-[var(--bg-card)] px-1 rounded">←/→</kbd> ±5s &nbsp;
-                  <kbd className="bg-[var(--bg-card)] px-1 rounded">J/L</kbd> ±10s &nbsp;
+                  Atalhos: <kbd className="bg-[var(--bg-card)] px-1 rounded">EspaÃ§o</kbd> pausar &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">â†/â†’</kbd> Â±5s &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">J/L</kbd> Â±10s &nbsp;
                   <kbd className="bg-[var(--bg-card)] px-1 rounded">F</kbd> tela cheia &nbsp;
                   <kbd className="bg-[var(--bg-card)] px-1 rounded">M</kbd> mudo &nbsp;
                   <kbd className="bg-[var(--bg-card)] px-1 rounded">N/P</kbd> troca ep &nbsp;
@@ -1747,17 +1781,17 @@ export default function WatchPage({ params }: { params: { id: string } }) {
             </div>
           </section>
 
-          {/* ── Playlist Sidebar ── */}
-            <aside id="watch-playlist" className={`${mobilePanel === "episodes" ? "block" : "hidden"} md:block glass-surface border border-white/10 rounded-[28px] p-4 lg:p-5 xl:sticky xl:top-20 scroll-mt-28`}>
-            <div className="mb-4 rounded-2xl border border-white/15 bg-black/25 p-4">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] font-black">Episódio detalhes</p>
+          {/* â”€â”€ Playlist Sidebar â”€â”€ */}
+            <aside id="watch-playlist" className={`${mobileOnlyEpisodeMode ? "hidden" : mobilePanel === "episodes" ? "block" : "hidden"} md:block glass-surface border border-white/10 rounded-[24px] p-3 lg:p-5 xl:sticky xl:top-20 scroll-mt-28`}>
+            <div className="mb-3 rounded-2xl border border-white/15 bg-black/25 p-3 sm:p-4">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] font-black">EpisÃ³dio detalhes</p>
               <div className="grid grid-cols-2 gap-3 mt-3 pb-3 border-b border-white/10">
                 <div>
-                  <p className="text-4xl font-black leading-none text-[var(--text-primary)]">{data.episode.number}</p>
-                  <p className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] mt-1">Episódio</p>
+                  <p className="text-3xl sm:text-4xl font-black leading-none text-[var(--text-primary)]">{data.episode.number}</p>
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] mt-1">EpisÃ³dio</p>
                 </div>
                 <div>
-                  <p className="text-4xl font-black leading-none text-[var(--text-secondary)]">{data.episode.season}</p>
+                  <p className="text-3xl sm:text-4xl font-black leading-none text-[var(--text-secondary)]">{data.episode.season}</p>
                   <p className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] mt-1">Temporada</p>
                 </div>
               </div>
@@ -1766,7 +1800,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   type="button"
                   disabled={!prevPlaylistEpisode}
                   onClick={() => prevPlaylistEpisode && router.push(`/watch/${prevPlaylistEpisode.id}`)}
-                  className="h-9 rounded-xl border border-white/12 bg-white/[0.05] text-[var(--text-primary)] text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
+                  className="h-8 sm:h-9 rounded-xl border border-white/12 bg-white/[0.05] text-[var(--text-primary)] text-[11px] sm:text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
                 >
                   <span className="inline-flex items-center gap-1"><ChevronLeft size={13} /> Anterior</span>
                 </button>
@@ -1774,13 +1808,13 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   type="button"
                   disabled={!nextPlaylistEpisode}
                   onClick={() => nextPlaylistEpisode && router.push(`/watch/${nextPlaylistEpisode.id}`)}
-                  className="h-9 rounded-xl border border-white/12 bg-white/[0.05] text-[var(--text-primary)] text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
+                  className="h-8 sm:h-9 rounded-xl border border-white/12 bg-white/[0.05] text-[var(--text-primary)] text-[11px] sm:text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
                 >
-                  <span className="inline-flex items-center gap-1">Próximo <ChevronRight size={13} /></span>
+                  <span className="inline-flex items-center gap-1">PrÃ³ximo <ChevronRight size={13} /></span>
                 </button>
               </div>
               <div className="mt-3 space-y-1.5 text-[11px] text-[var(--text-muted)]">
-                <p className="flex items-center justify-between gap-2"><span>Série</span><span className="text-[var(--text-primary)] font-bold truncate max-w-[140px]">{data.anime.title}</span></p>
+                <p className="flex items-center justify-between gap-2"><span>SÃ©rie</span><span className="text-[var(--text-primary)] font-bold truncate max-w-[140px]">{data.anime.title}</span></p>
                 <p className="flex items-center justify-between gap-2"><span>Fonte</span><span className="text-[var(--text-primary)] font-bold">{data.episode.sourceLabel || data.sourceType.replace("_", " ")}</span></p>
               </div>
             </div>
@@ -1788,7 +1822,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <p className="text-[var(--text-muted)] text-xs uppercase tracking-[0.2em]">Playlist</p>
-                <h2 className="text-lg font-black text-[var(--text-primary)]">{data.playlist.length} episódios</h2>
+                <h2 className="text-lg font-black text-[var(--text-primary)]">{data.playlist.length} episÃ³dios</h2>
               </div>
               {currentPlaylistIndex >= 0 && (
                 <span className="text-[11px] font-black text-[var(--text-secondary)] px-2.5 py-1 rounded-lg border border-white/12 bg-white/[0.04]">
@@ -1797,12 +1831,12 @@ export default function WatchPage({ params }: { params: { id: string } }) {
               )}
             </div>
 
-            <div className="mb-3 space-y-2 sticky top-0 z-10 bg-[var(--bg-surface)]/92 backdrop-blur-md py-2">
+            <div className="mb-3 space-y-2 sticky top-0 z-10 bg-[var(--bg-surface)]/92 backdrop-blur-md py-1.5">
               <input
                 value={playlistQuery}
                 onChange={(e) => setPlaylistQuery(e.target.value)}
-                placeholder="Buscar episódio..."
-                className="kdr-input w-full rounded-xl px-3 py-2 text-xs"
+                placeholder="Buscar episÃ³dio..."
+                className="kdr-input w-full rounded-xl px-3 py-1.5 text-[11px] sm:text-xs"
               />
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
                 <button
@@ -1823,42 +1857,35 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-[var(--text-muted)] font-bold">Mostrando {filteredEpisodeTotal} de {data.playlist.length} episódios</p>
+              <p className="text-[10px] text-[var(--text-muted)] font-bold">Mostrando {filteredEpisodeTotal} de {data.playlist.length} episÃ³dios</p>
             </div>
 
-            <div className="space-y-4 max-h-[68vh] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[66vh] overflow-y-auto pr-1">
               {Object.keys(filteredEpisodeGroups).length === 0 && (
-                <p className="text-xs text-[var(--text-muted)]">Nenhum episódio encontrado para esse filtro.</p>
+                <p className="text-xs text-[var(--text-muted)]">Nenhum episÃ³dio encontrado para esse filtro.</p>
               )}
 
               {Object.entries(filteredEpisodeGroups).map(([season, episodes]) => (
                 <div key={season}>
                   <p className="text-xs font-black text-[var(--text-muted)] uppercase tracking-[0.18em] mb-2">Temporada {season}</p>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {episodes.map((episode) => {
                       const active = episode.id === data.episode.id;
                       return (
                         <Link prefetch={false}
                           key={episode.id}
                           href={`/watch/${episode.id}`}
-                          className={`block rounded-xl border px-2.5 py-2 transition ${
+                          className={`block rounded-xl border px-2 py-1.5 transition ${
                             active
                               ? "border-[var(--accent-border)] bg-[var(--accent-soft)]"
                               : "border-[var(--border-subtle)] bg-[var(--bg-card)]/40 hover:border-[var(--border-strong)] hover:bg-white/[0.06]"
                           }`}
                         >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-black text-xs ${
-                                active ? "bg-[var(--accent)] text-[var(--accent-contrast)]" : "bg-[var(--bg-card)] text-[var(--text-secondary)]"
-                              }`}
-                            >
-                              {episode.number}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="font-bold text-[var(--text-primary)] text-[13px] truncate">{episode.title}</p>
-                              <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{formatSeasonLabel(episode)}</p>
-                            </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-bold text-[var(--text-primary)] text-[12px] truncate">
+                              EpisÃ³dio {episode.number}
+                            </p>
+                            <span className="text-[10px] text-[var(--text-muted)]">{formatSeasonLabel(episode)}</span>
                           </div>
                         </Link>
                       );

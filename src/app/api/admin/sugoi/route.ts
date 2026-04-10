@@ -499,3 +499,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Erro interno no proxy Sugoi" }, { status: 500 });
   }
 }
+/**
+ * Admin provider route: Sugoi API integration.
+ */

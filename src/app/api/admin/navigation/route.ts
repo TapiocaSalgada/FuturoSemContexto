@@ -30,8 +30,11 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json();
   const state = await setNavigationState({
     animeTabEnabled: Boolean(body?.animeTabEnabled),
-    mangaTabEnabled: Boolean(body?.mangaTabEnabled),
+    mangaTabEnabled: false,
   });
 
   return NextResponse.json({ ok: true, state });
 }
+/**
+ * Admin runtime navigation toggles endpoint.
+ */

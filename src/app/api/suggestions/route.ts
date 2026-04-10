@@ -56,3 +56,6 @@ export async function DELETE(req: NextRequest) {
   await prisma.suggestion.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }
+/**
+ * Suggestion submission/list endpoint.
+ */

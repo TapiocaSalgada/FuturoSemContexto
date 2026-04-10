@@ -133,3 +133,6 @@ export async function GET() {
     },
   });
 }
+/**
+ * Social/activity feed endpoint.
+ */

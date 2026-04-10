@@ -309,7 +309,7 @@ export default function SuggestionButton({
                     placeholder={mode === "suggest_anime" ? "Ex: por que esse anime combina com o catálogo." : "Explique como reproduzir, aparelho e o que esperava acontecer."} />
                 </div>
 
-                {error && <p className="text-xs font-bold text-red-400">{error}</p>}
+                {error && <p className="text-xs font-bold text-purple-400">{error}</p>}
 
                 <button type="submit" disabled={loading}
                   className="kdr-btn-primary w-full h-12 text-sm">

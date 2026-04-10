@@ -100,3 +100,6 @@ export async function GET(req: NextRequest) {
     histories: historiesList,
   });
 }
+/**
+ * Profile read/update endpoint.
+ */

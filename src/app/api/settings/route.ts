@@ -77,3 +77,6 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ ok: true, settings: next });
 }
+/**
+ * User settings read/update endpoint.
+ */

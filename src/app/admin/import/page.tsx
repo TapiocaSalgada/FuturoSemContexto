@@ -568,17 +568,17 @@ export default function AnimeImportPage() {
       <div className="p-6 lg:p-10 pb-24 max-w-7xl mx-auto space-y-8">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <Link href="/admin" className="text-zinc-500 hover:text-red-400 flex items-center gap-1 text-sm mb-2 transition">
+            <Link href="/admin" className="text-zinc-500 hover:text-purple-400 flex items-center gap-1 text-sm mb-2 transition">
               <ChevronLeft size={16} /> Voltar ao painel
             </Link>
             <h1 className="text-3xl font-black flex items-center gap-3">
-              <Download className="text-red-400" /> Importador <span className="text-red-400">multi-API</span>
+              <Download className="text-purple-400" /> Importador <span className="text-purple-400">multi-API</span>
             </h1>
             <p className="text-zinc-500 text-sm mt-1">Cada API tem seu espaço próprio para buscar e importar.</p>
           </div>
           <div className="hidden md:flex items-center gap-3 text-xs text-zinc-500">
             <div className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-black/35 px-3 py-2">
-              <Sparkles size={14} className="text-red-300" />
+              <Sparkles size={14} className="text-purple-300" />
               Kappa principal • Sugoi/AnimesBrasil fallback
             </div>
             <div className="inline-flex items-center gap-2 rounded-xl border border-white/12 bg-black/35 px-3 py-2">
@@ -608,19 +608,19 @@ export default function AnimeImportPage() {
         </div>
 
         {msg.text && (
-          <div className={`p-4 rounded-2xl text-sm font-bold border ${msg.type === "ok" ? "bg-green-500/10 text-green-400 border-green-500/30" : "bg-red-500/10 text-red-400 border-red-500/30"}`}>
+          <div className={`p-4 rounded-2xl text-sm font-bold border ${msg.type === "ok" ? "bg-green-500/10 text-green-400 border-green-500/30" : "bg-purple-500/10 text-purple-400 border-purple-500/30"}`}>
             {msg.text}
           </div>
         )}
 
         {importStatus && (
-          <div className="p-4 rounded-2xl text-sm font-bold border bg-red-500/10 text-red-200 border-red-500/20 flex items-center gap-2">
+          <div className="p-4 rounded-2xl text-sm font-bold border bg-purple-500/10 text-purple-200 border-purple-500/20 flex items-center gap-2">
             <Loader2 size={14} className="animate-spin" /> {importStatus}
           </div>
         )}
 
         <section className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-6 space-y-4">
-          <h2 className="text-white font-black flex items-center gap-2"><Layers size={18} className="text-red-300" /> Fontes de busca/importação</h2>
+          <h2 className="text-white font-black flex items-center gap-2"><Layers size={18} className="text-purple-300" /> Fontes de busca/importação</h2>
           <div className="flex md:hidden gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {(Object.keys(SOURCE_LABELS) as SourceKey[]).map((source) => (
               <button
@@ -629,7 +629,7 @@ export default function AnimeImportPage() {
                 onClick={() => setActiveSource(source)}
                 className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-black transition ${
                   activeSource === source
-                    ? "bg-red-600 text-white"
+                    ? "bg-purple-600 text-white"
                     : "bg-zinc-800 text-zinc-400"
                 }`}
               >
@@ -644,7 +644,7 @@ export default function AnimeImportPage() {
                 className={`p-4 rounded-2xl bg-zinc-950/70 border border-zinc-800 space-y-3 ${activeSource === source ? "block" : "hidden md:block"}`}
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-black text-white flex items-center gap-2"><Server size={14} className="text-red-300" /> {SOURCE_LABELS[source]}</p>
+                  <p className="text-sm font-black text-white flex items-center gap-2"><Server size={14} className="text-purple-300" /> {SOURCE_LABELS[source]}</p>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] px-2 py-1 rounded-lg border border-white/12 bg-black/35 text-zinc-300 font-black">
                       {resultsBySource[source].length}
@@ -681,13 +681,13 @@ export default function AnimeImportPage() {
                       value={queries[source]}
                       onChange={(e) => setQueries((prev) => ({ ...prev, [source]: e.target.value }))}
                       placeholder={SOURCE_PLACEHOLDER[source]}
-                      className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-red-500 rounded-xl px-3 py-2 text-sm text-white"
+                      className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-purple-500 rounded-xl px-3 py-2 text-sm text-white"
                     />
                   <button
                     type="button"
                     onClick={() => searchSource(source)}
                     disabled={loadingBySource[source] || !!importingId}
-                    className="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold"
+                    className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold"
                     >
                       {loadingBySource[source] ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
                     </button>
@@ -712,7 +712,7 @@ export default function AnimeImportPage() {
                       type="button"
                       disabled={sugoiImportingAll || !queries.sugoi.trim()}
                       onClick={importAllSugoiEpisodes}
-                      className="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-black text-sm"
+                      className="px-3 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-black text-sm"
                     >
                       {sugoiImportingAll ? "Importando..." : "Importar todos ep"}
                     </button>
@@ -760,7 +760,7 @@ export default function AnimeImportPage() {
                           type="button"
                           disabled={!!importingId}
                           onClick={() => (source === "kappa" ? importAnimeFromKappa(item) : importBasicAnime(item, source))}
-                          className="px-2.5 py-1.5 rounded-lg bg-white text-black hover:bg-red-500 hover:text-white text-xs font-black"
+                          className="px-2.5 py-1.5 rounded-lg bg-white text-black hover:bg-purple-500 hover:text-white text-xs font-black"
                         >
                           Importar
                         </button>
@@ -831,7 +831,7 @@ export default function AnimeImportPage() {
 
         <section className="bg-zinc-900/30 border border-zinc-800 rounded-3xl p-6 space-y-2">
           <h3 className="text-white font-black">Resumo geral</h3>
-          <p className="text-zinc-400 text-sm">Resultados carregados: <span className="text-red-300 font-bold">{allResults.length}</span></p>
+          <p className="text-zinc-400 text-sm">Resultados carregados: <span className="text-purple-300 font-bold">{allResults.length}</span></p>
           <p className="text-zinc-500 text-xs">Importação agora tenta sincronizar episódios em todas as fontes. Se aparecer badge de fallback, a busca veio de rota espelho para manter funcionamento.</p>
         </section>
       </div>

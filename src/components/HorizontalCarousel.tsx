@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -14,78 +14,77 @@ export default function HorizontalCarousel({ children, className = "" }: Props) 
   const [canRight, setCanRight] = useState(false);
 
   const updateButtons = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    const { scrollLeft, clientWidth, scrollWidth } = el;
+    const element = containerRef.current;
+    if (!element) return;
+
+    const { scrollLeft, clientWidth, scrollWidth } = element;
     setCanLeft(scrollLeft > 8);
     setCanRight(scrollLeft + clientWidth < scrollWidth - 8);
   };
 
   const scroll = (direction: "left" | "right") => {
-    const el = containerRef.current;
-    if (!el) return;
-    const amount = Math.max(220, el.clientWidth * 0.74) * (direction === "left" ? -1 : 1);
-    el.scrollBy({ left: amount, behavior: "smooth" });
+    const element = containerRef.current;
+    if (!element) return;
+
+    const amount = Math.max(240, element.clientWidth * 0.76) * (direction === "left" ? -1 : 1);
+    element.scrollBy({ left: amount, behavior: "smooth" });
   };
 
   useEffect(() => {
-    const el = containerRef.current;
+    const element = containerRef.current;
     updateButtons();
-    if (!el) return;
+    if (!element) return;
 
     const onScroll = () => updateButtons();
-    el.addEventListener("scroll", onScroll, { passive: true });
+    element.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", updateButtons);
 
-    // Observe children changes
     const observer = new MutationObserver(updateButtons);
-    observer.observe(el, { childList: true, subtree: true });
+    observer.observe(element, { childList: true, subtree: true });
 
     return () => {
-      el.removeEventListener("scroll", onScroll);
+      element.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", updateButtons);
       observer.disconnect();
     };
   }, []);
 
   return (
-    <div className="relative group/carousel">
+    <div className="group/carousel relative">
       <div
         ref={containerRef}
-        className={`flex gap-3 sm:gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory ${className}`}
+        className={`flex gap-3.5 sm:gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory ${className}`}
       >
         {children}
       </div>
 
-      {/* Left fade */}
-      {canLeft && (
-        <div className="hidden md:block absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-[var(--background)] to-transparent pointer-events-none z-10" />
-      )}
+      {canLeft ? (
+        <div className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 hidden w-20 bg-gradient-to-r from-[var(--background)] via-[var(--background)]/72 to-transparent md:block" />
+      ) : null}
 
-      {/* Right fade */}
-      {canRight && (
-        <div className="hidden md:block absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-[var(--background)] to-transparent pointer-events-none z-10" />
-      )}
+      {canRight ? (
+        <div className="pointer-events-none absolute bottom-0 right-0 top-0 z-10 hidden w-20 bg-gradient-to-l from-[var(--background)] via-[var(--background)]/72 to-transparent md:block" />
+      ) : null}
 
-      {canLeft && (
+      {canLeft ? (
         <button
           onClick={() => scroll("left")}
-          className="hidden md:flex absolute left-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-white/18 bg-black/70 text-white items-center justify-center shadow-xl opacity-0 group-hover/carousel:opacity-100 transition-all duration-300 hover:bg-red-600 hover:border-red-400 z-20"
           aria-label="Anterior"
+          className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-xl opacity-0 transition-all duration-250 group-hover/carousel:opacity-100 hover:border-[var(--accent-border)] hover:bg-[var(--accent)] md:flex"
         >
           <ChevronLeft size={20} />
         </button>
-      )}
+      ) : null}
 
-      {canRight && (
+      {canRight ? (
         <button
           onClick={() => scroll("right")}
-          className="hidden md:flex absolute right-1 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border border-white/18 bg-black/70 text-white items-center justify-center shadow-xl opacity-0 group-hover/carousel:opacity-100 transition-all duration-300 hover:bg-red-600 hover:border-red-400 z-20"
-          aria-label="Próximo"
+          aria-label="Proximo"
+          className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-xl opacity-0 transition-all duration-250 group-hover/carousel:opacity-100 hover:border-[var(--accent-border)] hover:bg-[var(--accent)] md:flex"
         >
           <ChevronRight size={20} />
         </button>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -28,3 +28,7 @@ export async function GET() {
     );
   }
 }
+/**
+ * Admin alerts endpoint.
+ * Returns dashboard alert counters used by the admin overview cards.
+ */

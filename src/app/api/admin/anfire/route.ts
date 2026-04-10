@@ -275,3 +275,6 @@ export async function GET(req: NextRequest) {
   const results = await searchProviderWithFallback("anfire", q, { allowKappaFallback: false });
   return NextResponse.json(results);
 }
+/**
+ * Admin provider route: Anfire lookup/proxy integration.
+ */

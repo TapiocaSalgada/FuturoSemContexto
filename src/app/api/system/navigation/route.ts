@@ -20,10 +20,10 @@ export async function GET() {
   return NextResponse.json(
     {
       animeTabEnabled: state.animeTabEnabled,
-      mangaTabEnabled: state.mangaTabEnabled,
+      mangaTabEnabled: false,
       isAdmin,
       canAccessAnimeTab: isAdmin || state.animeTabEnabled,
-      canAccessMangaTab: isAdmin || state.mangaTabEnabled,
+      canAccessMangaTab: false,
       updatedAt: state.updatedAt,
     },
     {
@@ -33,3 +33,6 @@ export async function GET() {
     },
   );
 }
+/**
+ * Public runtime navigation-state reader endpoint.
+ */

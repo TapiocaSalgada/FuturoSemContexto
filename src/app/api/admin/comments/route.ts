@@ -45,3 +45,6 @@ export async function DELETE(req: NextRequest) {
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
+/**
+ * Admin comments moderation endpoint.
+ */

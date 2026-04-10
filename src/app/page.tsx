@@ -41,44 +41,6 @@ type HomeRecentEpisode = {
 
 const ROW_SIZE = 20;
 
-const CATALOG_BLOCK_PRESETS = [
-  {
-    title: "Faixa Abertura",
-    hint: "Abertura do catálogo com escolhas variadas.",
-    borderClass: "border-l-4 border-red-600",
-    iconClass: "text-red-300",
-    chipClass: "bg-red-500/18 text-red-100 border border-red-400/25",
-  },
-  {
-    title: "Faixa Sessão",
-    hint: "Mais 20 para continuar sem repetição chata.",
-    borderClass: "border-l-4 border-orange-500",
-    iconClass: "text-orange-300",
-    chipClass: "bg-orange-500/18 text-orange-100 border border-orange-400/25",
-  },
-  {
-    title: "Faixa Intermissão",
-    hint: "Mix de títulos para maratona rápida.",
-    borderClass: "border-l-4 border-amber-500",
-    iconClass: "text-amber-300",
-    chipClass: "bg-amber-500/18 text-amber-100 border border-amber-400/25",
-  },
-  {
-    title: "Faixa Madrugada",
-    hint: "Pacote extra com corte fresco do catálogo.",
-    borderClass: "border-l-4 border-rose-600",
-    iconClass: "text-rose-300",
-    chipClass: "bg-rose-500/18 text-rose-100 border border-rose-400/25",
-  },
-  {
-    title: "Faixa Arquivo",
-    hint: "Continuação aleatória para achar anime escondido.",
-    borderClass: "border-l-4 border-zinc-500",
-    iconClass: "text-zinc-300",
-    chipClass: "bg-zinc-700/60 text-zinc-100 border border-zinc-500/40",
-  },
-];
-
 function dedupeById<T extends { id: string }>(items: T[]) {
   const seen = new Set<string>();
   const output: T[] = [];
@@ -94,13 +56,8 @@ function shuffle<T>(items: T[]) {
   return [...items].sort(() => Math.random() - 0.5);
 }
 
-function chunkItems<T>(items: T[], size: number) {
-  if (size <= 0) return [items];
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
+function randomRow<T>(items: T[], size = ROW_SIZE) {
+  return shuffle(items).slice(0, size);
 }
 
 function franchiseKey(title: string) {
@@ -138,10 +95,8 @@ function pickDiverseHeroes(pool: HomeAnime[], count = 4) {
 
 function CardRow({
   items,
-  subtitle,
 }: {
   items: Pick<HomeAnime, "id" | "title" | "coverImage">[];
-  subtitle?: (item: Pick<HomeAnime, "id" | "title" | "coverImage">) => ReactNode;
 }) {
   return (
     <HorizontalCarousel>
@@ -151,8 +106,8 @@ function CardRow({
             href={`/anime/${anime.id}`}
             title={anime.title || "Sem titulo"}
             image={anime.coverImage}
+            hideTitle={true}
             className="w-[140px] sm:w-[150px] md:w-[165px]"
-            subTitle={subtitle ? subtitle(anime) : undefined}
           />
         </div>
       ))}
@@ -163,12 +118,10 @@ function CardRow({
 function SectionHeader({
   icon,
   title,
-  subtitle,
   highlight,
 }: {
   icon: ReactNode;
   title: string;
-  subtitle?: string;
   highlight?: string;
 }) {
   return (
@@ -179,7 +132,6 @@ function SectionHeader({
           <span className="truncate">{title}</span>
           {highlight ? <span className="kdr-section-title-accent">{highlight}</span> : null}
         </h2>
-        {subtitle ? <p className="text-[11px] text-[var(--text-muted)] mt-1.5">{subtitle}</p> : null}
       </div>
     </div>
   );
@@ -375,10 +327,10 @@ export default async function HomePage() {
       if (items.some((item) => item.animeId === episode.animeId)) return items;
       items.push(episode);
       return items;
-    }, [])
-    .slice(0, ROW_SIZE);
+    }, []);
+  const trendingTop = randomRow(trendingAnimes);
 
-  const mostLiked = [...validAnimes]
+  const mostLikedPool = [...validAnimes]
     .map((anime) => ({
       ...anime,
       avg: anime.ratings.length
@@ -386,10 +338,10 @@ export default async function HomePage() {
         : 0,
     }))
     .sort((a, b) => b.avg - a.avg)
-    .slice(0, ROW_SIZE);
+    .slice(0, ROW_SIZE * 3);
+  const mostLiked = randomRow(mostLikedPool);
 
-  const ongoing = validAnimes.filter((anime) => anime.status === "ongoing");
-  const completed = validAnimes.filter((anime) => anime.status === "completed");
+  const completed = randomRow(validAnimes.filter((anime) => anime.status === "completed"));
 
   const watchedAnime = watchedForRec
     .map((item) => item.episode?.anime)
@@ -427,8 +379,8 @@ export default async function HomePage() {
   const fallbackRecommended = dedupeById(
     shuffle(validAnimes).filter((anime) => !watchedAnimeIds.has(anime.id)),
   );
-  const recommended = dedupeById([...genreRecommended, ...fallbackRecommended]).slice(0, 16);
-  const recommendedTop = recommended.slice(0, ROW_SIZE);
+  const recommended = dedupeById([...genreRecommended, ...fallbackRecommended]);
+  const recommendedTop = randomRow(recommended);
 
   const categorySections = (() => {
     const buckets = new Map<string, { name: string; items: HomeAnime[] }>();
@@ -441,18 +393,16 @@ export default async function HomePage() {
       }
     }
 
-    return Array.from(buckets.values())
+    return shuffle(
+      Array.from(buckets.values())
       .map((section) => ({
         ...section,
         items: dedupeById(shuffle(section.items)),
       }))
       .filter((section) => section.items.length >= 6)
-      .sort((a, b) => b.items.length - a.items.length)
-      .slice(0, 10);
+      .slice(0, 10),
+    );
   })();
-
-  const catalogGroups = chunkItems(shuffle(validAnimes), ROW_SIZE);
-
   return (
     <AppLayout>
       <div className="pb-28 md:pb-24">
@@ -462,7 +412,7 @@ export default async function HomePage() {
           <div className="h-[40vh] flex items-center justify-center text-[var(--text-muted)]">
             <div className="text-center space-y-2">
               <Sparkles size={32} className="mx-auto text-[var(--text-accent)] opacity-50" />
-              <p className="text-sm font-bold">Catálogo vazio</p>
+              <p className="text-sm font-bold">Catalogo vazio</p>
             </div>
           </div>
         )}
@@ -470,7 +420,7 @@ export default async function HomePage() {
         <div className="px-4 sm:px-6 lg:px-10 mt-8 relative z-20 space-y-10 lg:space-y-12">
           <section className="rounded-3xl border border-white/12 bg-black/35 backdrop-blur-md p-4 sm:p-5 grid grid-cols-2 lg:grid-cols-3 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Catálogo total</p>
+              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Catalogo total</p>
               <p className="text-xl sm:text-2xl font-black text-white mt-1">{validAnimes.length}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
@@ -478,7 +428,7 @@ export default async function HomePage() {
               <p className="text-xl sm:text-2xl font-black text-white mt-1">{continueWatching.length}</p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Faixas por gênero</p>
+              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Faixas por genero</p>
               <p className="text-xl sm:text-2xl font-black text-white mt-1">{categorySections.length}</p>
             </div>
           </section>
@@ -487,31 +437,22 @@ export default async function HomePage() {
 
 
 
-          {trendingAnimes.length > 0 && (
-            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+          {trendingTop.length > 0 && (
+            <section className="animate-fadeInUp">
               <SectionHeader
                 icon={<TrendingUp size={16} className="kdr-section-title-accent" />}
                 title="Em alta"
                 highlight="Agora"
-                subtitle="Episódios com maior giro recente na plataforma."
               />
               <HorizontalCarousel>
-                {trendingAnimes.map((episode, index) => (
+                {trendingTop.map((episode) => (
                   <div key={episode.animeId} className="snap-start shrink-0">
                     <AnimeCard
                       href={`/anime/${episode.animeId}`}
                       title={episode.anime?.title || ""}
                       image={episode.anime?.coverImage}
+                      hideTitle={true}
                       className="w-[140px] sm:w-[155px] md:w-[170px]"
-                      badgeTopLeft={
-                        <div
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-black text-white border border-white/15"
-                          style={{ background: "linear-gradient(135deg, var(--accent), #7f1d1d)", boxShadow: `0 4px 12px var(--accent-glow)` }}
-                        >
-                          {index + 1}
-                        </div>
-                      }
-                      overlayText={<p className="text-[10px] text-[var(--text-secondary)]">T{episode.season} Ep {episode.number}</p>}
                     />
                   </div>
                 ))}
@@ -520,99 +461,44 @@ export default async function HomePage() {
           )}
 
           {recommendedTop.length > 0 && (
-            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+            <section className="animate-fadeInUp">
               <SectionHeader
                 icon={<Sparkles size={16} className="kdr-section-title-accent" />}
                 title={becauseWatchedAnime?.title
-                  ? `Porque você assistiu ${becauseWatchedAnime.title}`
-                  : "Recomendados para você"}
-                subtitle="Curadoria automática baseada no que você já terminou."
+                  ? `Porque voce assistiu ${becauseWatchedAnime.title}`
+                  : "Recomendados para voce"}
               />
-              <CardRow
-                items={recommendedTop}
-                subtitle={() => (
-                  <span className="text-[11px] text-[var(--text-accent)]">
-                    {topCategory ? `Baseado em ${topCategory.name}` : "Sugestão personalizada"}
-                  </span>
-                )}
-              />
+              <CardRow items={recommendedTop} />
             </section>
           )}
 
           {mostLiked.length > 0 && (
-            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+            <section className="animate-fadeInUp">
               <SectionHeader
                 icon={<Heart size={16} className="kdr-section-title-accent" />}
                 title="Mais curtidos"
-                subtitle="Notas mais altas da comunidade, em ordem de impacto."
               />
-              <CardRow
-                items={mostLiked}
-                subtitle={(anime) => {
-                  const found = mostLiked.find((item) => item.id === anime.id);
-                  return (
-                    <span className="flex items-center gap-1 text-[11px] text-yellow-400">
-                      ★ {found?.avg?.toFixed(1) || "0.0"}
-                    </span>
-                  );
-                }}
-              />
-            </section>
-          )}
-
-          {ongoing.length > 0 && (
-            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
-              <SectionHeader
-                icon={<Layers size={16} className="kdr-section-title-accent" />}
-                title="Em lançamento"
-                subtitle="Séries quentes que ainda estão ganhando episódio."
-              />
-              <CardRow items={ongoing.slice(0, ROW_SIZE)} />
+              <CardRow items={mostLiked} />
             </section>
           )}
 
           {completed.length > 0 && (
-            <section className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+            <section className="animate-fadeInUp">
               <SectionHeader
                 icon={<Layers size={16} className="kdr-section-title-accent" />}
                 title="Finalizados"
-                subtitle="Perfeitos para maratonar do começo ao fim."
               />
-              <CardRow items={completed.slice(0, ROW_SIZE)} subtitle={() => <span className="text-[11px] kdr-badge kdr-badge-info">Pronto para maratona</span>} />
+              <CardRow items={completed} />
             </section>
           )}
 
           {categorySections.map((section) => (
-            <section key={section.name} className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
+            <section key={section.name} className="animate-fadeInUp">
               <SectionHeader
                 icon={<Sparkles size={16} className="kdr-section-title-accent" />}
                 title={section.name}
-                subtitle="Recorte por categoria com rotações frequentes."
               />
               <CardRow items={section.items.slice(0, ROW_SIZE)} />
-            </section>
-          ))}
-
-          {catalogGroups.map((group, groupIndex) => (
-            <section key={`catalog-group-${groupIndex}`} className="animate-fadeInUp rounded-3xl border border-white/10 bg-black/[0.22] p-4 sm:p-5 lg:p-6">
-              {(() => {
-                const preset = CATALOG_BLOCK_PRESETS[groupIndex % CATALOG_BLOCK_PRESETS.length];
-                return (
-                  <div className={`mb-4 pl-4 ${preset.borderClass} rounded-r-lg`}>
-                    <h2 className="text-lg font-black flex items-center gap-2">
-                      <Layers size={18} className={preset.iconClass} />
-                      {preset.title}
-                      <span className={`ml-1 text-[10px] font-black px-2 py-0.5 rounded-full ${preset.chipClass}`}>
-                        {groupIndex + 1}/{catalogGroups.length}
-                      </span>
-                    </h2>
-                    <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                      {preset.hint} • {ROW_SIZE} por faixa • total {validAnimes.length}
-                    </p>
-                  </div>
-                );
-              })()}
-              <CardRow items={group} />
             </section>
           ))}
         </div>

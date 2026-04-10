@@ -14,6 +14,7 @@ interface AnimeCardProps {
   overlayText?: React.ReactNode;
   subTitle?: React.ReactNode;
   rating?: number | null;
+  hideTitle?: boolean;
   className?: string;
 }
 
@@ -25,6 +26,7 @@ export default function AnimeCard({
   overlayText,
   subTitle,
   rating,
+  hideTitle = false,
   className = "",
 }: AnimeCardProps) {
   const hasImage = Boolean(image);
@@ -38,69 +40,60 @@ export default function AnimeCard({
   const currentImage = imageCandidates[Math.min(imageIndex, imageCandidates.length - 1)] || "/logo.png";
 
   return (
-    <Link
-      prefetch={true}
-      href={href}
-      className={`block shrink-0 snap-start group ${className}`}
-    >
-      <div className="aspect-[2/3] rounded-2xl overflow-hidden relative border border-white/[0.06] group-hover:border-white/20 transition-all duration-300 group-hover:shadow-[0_12px_40px_rgba(0,0,0,0.55)] group-active:scale-[0.97] bg-[var(--bg-card)]">
+    <Link prefetch={true} href={href} className={`group block shrink-0 snap-start ${className}`}>
+      <article className="relative aspect-[2/3] overflow-hidden rounded-2xl border border-white/12 bg-[var(--surface-1)] transition-all duration-300 group-hover:-translate-y-1.5 group-hover:border-white/35 group-hover:shadow-[0_26px_45px_rgba(0,0,0,0.62)] group-active:scale-[0.985]">
         {hasImage ? (
-            <img
-              src={currentImage}
-              alt={title}
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.06] transition-transform duration-500 ease-out"
-              loading="lazy"
-              onError={(event) => {
-                const nextIndex = imageIndex + 1;
-                if (nextIndex < imageCandidates.length) {
-                  setImageIndex(nextIndex);
-                }
-              }}
-            />
+          <img
+            src={currentImage}
+            alt={title}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+            loading="lazy"
+            onError={() => {
+              const nextIndex = imageIndex + 1;
+              if (nextIndex < imageCandidates.length) {
+                setImageIndex(nextIndex);
+              }
+            }}
+          />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[var(--bg-card)] to-[var(--bg-surface)]">
-            <Play size={36} className="text-[var(--text-accent)] opacity-50" />
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#1f2028] to-[#0f1014]">
+            <Play size={30} className="text-white/55" />
           </div>
         )}
 
-        {/* Hover play overlay */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-          <div className="w-11 h-11 rounded-full bg-white/90 flex items-center justify-center shadow-lg shadow-black/30">
-            <Play size={18} className="text-black fill-black ml-0.5" />
-          </div>
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/36 to-transparent" />
 
-        {/* Badge top left */}
-        {badgeTopLeft && (
-          <div className="absolute top-2 left-2 z-10">
-            {badgeTopLeft}
-          </div>
-        )}
+        {badgeTopLeft ? <div className="absolute left-2.5 top-2.5 z-10">{badgeTopLeft}</div> : null}
 
-        {/* Rating badge top right */}
-        {typeof rating === "number" && rating > 0 && (
-          <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10">
-            <Star size={10} className="text-yellow-400 fill-yellow-400" />
+        {typeof rating === "number" && rating > 0 ? (
+          <div className="absolute right-2.5 top-2.5 z-10 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/62 px-2 py-1">
+            <Star size={10} className="fill-yellow-400 text-yellow-400" />
             <span className="text-[10px] font-bold text-white">{rating.toFixed(1)}</span>
           </div>
-        )}
+        ) : null}
 
-        {/* Bottom gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent pointer-events-none" />
+        {overlayText ? (
+          <div className="absolute bottom-12 left-2.5 right-2.5 z-10">
+            <div className="inline-flex rounded-full border border-white/16 bg-black/62 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/92">
+              {overlayText}
+            </div>
+          </div>
+        ) : null}
 
-        {/* Bottom text */}
-        <div className="absolute bottom-0 inset-x-0 p-2.5 pointer-events-none">
-          <p className="text-white font-bold text-[11px] sm:text-xs truncate drop-shadow-md leading-tight">
-            {title}
-          </p>
+        {!hideTitle ? (
+          <div className="absolute bottom-0 left-0 right-0 z-10 p-3">
+            <p className="truncate text-[12px] font-extrabold tracking-[0.01em] text-white drop-shadow">{title}</p>
+          </div>
+        ) : null}
+
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-250 group-hover:opacity-100">
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-white text-black shadow-lg">
+            <Play size={17} className="ml-0.5" fill="currentColor" />
+          </span>
         </div>
-      </div>
+      </article>
 
-      {subTitle && (
-        <div className="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition mt-1.5 truncate w-full px-0.5">
-          {subTitle}
-        </div>
-      )}
+      {subTitle ? <div className="mt-2 truncate px-0.5 text-[11px] text-[var(--text-muted)]">{subTitle}</div> : null}
     </Link>
   );
 }

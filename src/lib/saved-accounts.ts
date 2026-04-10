@@ -2,7 +2,6 @@ export type SavedAccount = {
   email: string;
   name: string;
   avatar?: string;
-  handoffHash?: string;
   role?: string;
 };
 
@@ -25,14 +24,12 @@ function normalizeSavedAccount(value: unknown): SavedAccount | null {
 
   const name = normalizeText(input.name) || email;
   const avatar = normalizeText(input.avatar);
-  const handoffHash = normalizeText(input.handoffHash);
   const role = normalizeText(input.role);
 
   return {
     email,
     name,
     ...(avatar ? { avatar } : {}),
-    ...(handoffHash ? { handoffHash } : {}),
     ...(role ? { role } : {}),
   };
 }

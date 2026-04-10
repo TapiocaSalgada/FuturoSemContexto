@@ -43,12 +43,12 @@ export default function RegisterPage() {
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/90 to-[var(--background)]/60 z-10" />
         <img
-          src="https://images.unsplash.com/photo-1618773928120-192518e95085?auto=format&fit=crop&q=80"
+          src="/stitch/explore-noir.png"
           className="w-full h-full object-cover opacity-24"
-          alt="bg"
+          alt="Fundo Futuro Noir"
         />
         <div className="absolute top-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse" style={{ backgroundColor: "color-mix(in srgb, var(--accent) 18%, transparent)" }} />
-        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl animate-pulse delay-700" />
+        <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-slate-400/10 rounded-full blur-3xl animate-pulse delay-700" />
       </div>
 
       <div className="relative z-20 w-full max-w-md p-8 mx-4 glass-surface-heavy rounded-3xl shadow-2xl animate-fadeInUp" style={{ boxShadow: "0 0 60px color-mix(in srgb, var(--accent) 18%, transparent)" }}>
@@ -61,7 +61,7 @@ export default function RegisterPage() {
         </div>
 
         {error && (
-          <div className="p-3 bg-red-500/20 border border-red-500/50 text-red-400 rounded-xl mb-6 text-sm text-center font-bold">
+          <div className="p-3 bg-purple-500/20 border border-purple-500/50 text-purple-400 rounded-xl mb-6 text-sm text-center font-bold">
             {error}
           </div>
         )}

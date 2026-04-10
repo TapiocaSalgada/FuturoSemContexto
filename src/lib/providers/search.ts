@@ -439,6 +439,59 @@ export async function getKappaEpisodes(animeId: string) {
   return [] as KappaEpisode[];
 }
 
+function extractVideoUrlFromPayload(payload: any, depth = 0): string | null {
+  if (!payload || depth > 3) return null;
+
+  if (typeof payload === "string") {
+    const trimmed = payload.trim();
+    return trimmed.startsWith("http") ? trimmed : null;
+  }
+
+  if (Array.isArray(payload)) {
+    for (const item of payload) {
+      const nested = extractVideoUrlFromPayload(item, depth + 1);
+      if (nested) return nested;
+    }
+    return null;
+  }
+
+  const directCandidates = [
+    payload?.video_url,
+    payload?.videoUrl,
+    payload?.url,
+    payload?.link,
+    payload?.file,
+    payload?.stream,
+    payload?.src,
+  ];
+
+  for (const candidate of directCandidates) {
+    if (typeof candidate === "string" && candidate.trim().startsWith("http")) {
+      return candidate.trim();
+    }
+  }
+
+  const nestedCandidates = [
+    payload?.data,
+    payload?.dados,
+    payload?.result,
+    payload?.results,
+    payload?.item,
+    payload?.episode,
+    payload?.source,
+    payload?.sources,
+    payload?.streams,
+    payload?.links,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    const nested = extractVideoUrlFromPayload(candidate, depth + 1);
+    if (nested) return nested;
+  }
+
+  return null;
+}
+
 export async function getKappaEpisodeVideoUrl(episodeId: string) {
   const bases = getProviderBases("kappa");
   const paths = [
@@ -449,8 +502,8 @@ export async function getKappaEpisodeVideoUrl(episodeId: string) {
   for (const base of bases) {
     for (const path of paths) {
       const payload = await fetchJson(`${base}${path}`);
-      const videoUrl = payload?.video_url || payload?.videoUrl;
-      if (typeof videoUrl === "string" && videoUrl.startsWith("http")) {
+      const videoUrl = extractVideoUrlFromPayload(payload);
+      if (videoUrl) {
         return videoUrl;
       }
     }

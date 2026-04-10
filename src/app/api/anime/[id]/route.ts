@@ -33,3 +33,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     matchScore: 80 + (anime.title.length % 20)
   });
 }
+/**
+ * Public anime detail API endpoint.
+ */

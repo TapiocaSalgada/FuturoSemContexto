@@ -58,3 +58,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(report);
 }
+/**
+ * User-facing bug report submit/list endpoint.
+ */

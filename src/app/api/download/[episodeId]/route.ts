@@ -179,3 +179,6 @@ export async function GET(
     headers,
   });
 }
+/**
+ * Episode download access endpoint.
+ */

@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
+
 import { authOptions } from "@/lib/auth";
+import {
+  type ProviderKey,
+  searchProviderWithFallback,
+} from "@/lib/providers/search";
+
+const ALLOWED_PROVIDERS: ProviderKey[] = [
+  "kappa",
+  "sugoi",
+  "anisbr",
+  "anfire",
+  "animefenix",
+  "playanimes",
+];
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,27 +24,23 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url);
-  const keyword = searchParams.get("keyword");
-  if (!keyword) return NextResponse.json([]);
+  const keyword =
+    searchParams.get("keyword")?.trim() ||
+    searchParams.get("q")?.trim() ||
+    searchParams.get("query")?.trim() ||
+    "";
 
-  try {
-    const res = await fetch(`https://api-anime-free.vercel.app/api/search?keyword=${encodeURIComponent(keyword)}`);
-    const data = await res.json();
-    
-    // Transform object results into array if needed (Kappa API sometimes returns entries keyed by ID)
-    if (data && typeof data === "object" && !Array.isArray(data)) {
-        const list = Object.entries(data).map(([id, val]: [string, any]) => ({
-            id,
-            title: val.title,
-            image: val.img || val.image,
-            url: val.url
-        }));
-        return NextResponse.json(list);
-    }
-
-    return NextResponse.json(data);
-  } catch (error) {
-    console.error("Proxy Search Error", error);
-    return new NextResponse("Error fetching from API", { status: 500 });
+  if (!keyword) {
+    return NextResponse.json([]);
   }
+
+  const providerRaw = String(searchParams.get("provider") || "kappa").trim().toLowerCase();
+  const provider = (ALLOWED_PROVIDERS.includes(providerRaw as ProviderKey)
+    ? providerRaw
+    : "kappa") as ProviderKey;
+
+  const allowKappaFallback = provider !== "kappa";
+  const items = await searchProviderWithFallback(provider, keyword, { allowKappaFallback });
+
+  return NextResponse.json(items);
 }

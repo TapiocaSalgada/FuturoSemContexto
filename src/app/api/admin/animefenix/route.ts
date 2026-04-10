@@ -26,3 +26,6 @@ export async function GET(req: NextRequest) {
   const results = await searchProviderWithFallback("animefenix", q, { allowKappaFallback: false });
   return NextResponse.json(results);
 }
+/**
+ * Admin provider route: AnimeFenix integration.
+ */

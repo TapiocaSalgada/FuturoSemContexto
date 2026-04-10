@@ -1,7 +1,7 @@
 import { normalizeTheme } from "@/lib/theme";
 
 export const DEFAULT_SETTINGS = {
-  theme: "kandaraku-dark",
+  theme: "futuro-noir",
   reducedMotion: false,
   neonEffects: false,
   showHistory: true,

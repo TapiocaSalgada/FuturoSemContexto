@@ -33,3 +33,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Falha ao buscar midia para o anime." }, { status: 500 });
   }
 }
+/**
+ * Admin endpoint for anime media assets (cover/banner/source metadata).
+ */

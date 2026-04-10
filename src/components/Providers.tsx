@@ -30,7 +30,7 @@ function VisualSettingsBoot() {
       applyTheme(storedTheme);
       setTheme(storedTheme);
     } catch {
-      applyTheme("kandaraku-dark");
+      applyTheme("futuro-noir");
     }
   }, [setTheme]);
 

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -43,32 +43,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const isAdmin = (session?.user as any)?.role === "admin";
   const isCinemaContext = pathname?.startsWith("/anime/") || pathname?.startsWith("/watch/") || false;
-  const hideBottomNav = false;
+  const hideBottomNav = isCinemaContext;
 
   if (maintenance.enabled && status !== "loading" && !isAdmin) {
     return (
       <div className="min-h-screen bg-[var(--background)] text-white flex items-center justify-center p-6">
-        <div className="w-full max-w-xl rounded-3xl border border-[var(--border-default)] glass-surface-heavy p-8 text-center space-y-4">
-          <p className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: "var(--accent)" }}>Modo Manutenção</p>
-          <h1 className="text-3xl font-black">Estamos ajustando o site</h1>
-          <p className="text-[var(--text-muted)] text-sm">
-            {maintenance.message || "Voltamos em breve. Obrigado pela paciência!"}
+        <div className="w-full max-w-xl rounded-3xl border border-[var(--accent-border)] bg-[var(--surface-0)] p-8 text-center space-y-4 shadow-[0_24px_70px_rgba(0,0,0,0.55)]">
+          <p className="text-xs font-black uppercase tracking-[0.25em]" style={{ color: "var(--accent-strong)" }}>
+            Modo Manutencao
           </p>
-          <p className="text-[11px] text-[var(--text-muted)]/60">Acesso temporário liberado apenas para administradores.</p>
+          <h1 className="text-3xl font-black">Estamos ajustando o Futuro</h1>
+          <p className="text-[var(--text-muted)] text-sm">
+            {maintenance.message || "Voltamos em breve. Obrigado pela paciencia!"}
+          </p>
+          <p className="text-[11px] text-[var(--text-muted)]/60">Acesso temporario liberado apenas para administradores.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="app-shell overflow-hidden">
+    <div className="app-shell text-[var(--text-primary)]">
       <div className="ambient-backdrop" />
-      <div className="relative flex-1 flex flex-col min-w-0">
+
+      <div className="relative z-10 min-h-dvh flex flex-col min-w-0">
         <Header cinematic={isCinemaContext} />
-        <main className={`flex-1 overflow-y-auto scrollbar-hide relative ${isCinemaContext ? "mt-[calc(60px+env(safe-area-inset-top,0px))]" : "mt-[calc(68px+env(safe-area-inset-top,0px))]"} ${hideBottomNav ? "pb-0" : "pb-28 md:pb-0"}`}>
+        <main
+          className={`app-main flex-1 overflow-y-auto scrollbar-hide relative ${
+            isCinemaContext
+              ? "pt-[calc(56px+env(safe-area-inset-top,0px))]"
+              : "pt-[calc(66px+env(safe-area-inset-top,0px))]"
+          } ${
+            hideBottomNav
+              ? "pb-6"
+              : "pb-[calc(86px+env(safe-area-inset-bottom,0px))] md:pb-8"
+          }`}
+        >
           <PageTransition>{children}</PageTransition>
         </main>
       </div>
+
       {!hideBottomNav && <BottomNav />}
     </div>
   );

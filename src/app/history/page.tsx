@@ -130,7 +130,7 @@ export default function HistoryPage() {
           <button
             onClick={clearAll}
             disabled={clearing || uniqueHistory.length === 0}
-            className="w-full sm:w-auto px-4 py-2 rounded-full text-xs font-black uppercase bg-red-600/20 border border-red-500/30 text-red-300 hover:bg-red-600 hover:text-white disabled:opacity-50"
+            className="w-full sm:w-auto px-4 py-2 rounded-full text-xs font-black uppercase bg-purple-600/20 border border-purple-500/30 text-purple-300 hover:bg-purple-600 hover:text-white disabled:opacity-50"
           >
             {clearing ? "Limpando..." : "Limpar histórico"}
           </button>
@@ -172,7 +172,7 @@ export default function HistoryPage() {
                     <p className="text-[10px] sm:text-[11px] text-zinc-500 font-medium uppercase tracking-wider">{new Date(h.updatedAt).toLocaleDateString("pt-BR")}</p>
                     <button
                       onClick={() => removeByAnime(anime.id)}
-                      className="p-2 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition"
+                      className="p-2 rounded-lg text-zinc-500 hover:text-purple-400 hover:bg-purple-500/10 transition"
                       title="Remover do histórico"
                     >
                       <Trash2 size={14} />

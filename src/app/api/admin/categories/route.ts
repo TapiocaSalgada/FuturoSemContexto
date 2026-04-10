@@ -70,3 +70,6 @@ export async function DELETE(req: NextRequest) {
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
+/**
+ * Admin category management/listing endpoint.
+ */

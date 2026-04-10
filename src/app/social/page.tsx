@@ -54,6 +54,18 @@ export default function SocialFeedPage() {
   return (
     <AppLayout>
       <div className="p-4 lg:p-10 pb-28 md:pb-24 max-w-6xl mx-auto space-y-6">
+        <div className="glass-surface rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <p className="text-xs sm:text-sm text-[var(--text-secondary)] font-semibold">
+            Rota legada ativa: o Social foi removido da navegação principal, mas continua disponível por link direto.
+          </p>
+          <Link
+            href="/explore"
+            className="inline-flex items-center justify-center rounded-xl border border-[var(--border-default)] px-3 py-2 text-xs font-black uppercase tracking-[0.08em] text-[var(--text-primary)] hover:bg-white/10 transition"
+          >
+            Ir para Explorar
+          </Link>
+        </div>
+
         <header className="max-w-3xl mx-auto w-full">
           <div className="flex items-center justify-between gap-3 mb-3">
             <h1 className="text-3xl sm:text-4xl font-black tracking-tight flex items-center gap-2">

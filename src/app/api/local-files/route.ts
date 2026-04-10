@@ -77,3 +77,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ files: [], folders: [], error: error?.message }, { status: 200 });
   }
 }
+/**
+ * Local file support endpoint for operational tooling.
+ */

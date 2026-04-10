@@ -328,3 +328,6 @@ export async function GET() {
     return new NextResponse("Internal Error", { status: 500 });
   }
 }
+/**
+ * Admin anime catalog CRUD endpoint.
+ */

@@ -68,3 +68,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
+/**
+ * Profile social/external connections endpoint.
+ */

@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 
+/**
+ * Watch payload resolver.
+ *
+ * High-level pipeline:
+ * 1) Resolve target episode (requested id or resume fallback)
+ * 2) Build playable source list and normalize source kinds
+ * 3) Apply provider-specific fallbacks (kappa, sugoi, mirrors)
+ * 4) Filter unsafe/unusable sources
+ * 5) Attach user viewer settings + history resume
+ * 6) Attach runtime player config from admin-controlled store
+ */
+
 import { authOptions } from "@/lib/auth";
 import {
   getKappaEpisodeVideoUrl,
@@ -19,6 +31,10 @@ import {
   toEmbeddableVideoUrl,
 } from "@/lib/video";
 import { isPublicVisibility } from "@/lib/visibility";
+import {
+  WATCH_PLAYER_DEFAULT_CONFIG,
+} from "@/lib/watch-player-config";
+import { getWatchPlayerConfigState } from "@/lib/watch-player-config-store";
 
 const DEFAULT_SUGOI_BASES = [
   "https://sugoiapi.vercel.app",
@@ -899,6 +915,15 @@ export async function GET(
       }
     }
 
+    // Promote source to direct when URL actually responds as media even if provider labeled it as embed.
+    if (resolvedVideoUrl && resolvedSourceType !== "direct") {
+      const maybeDirect = await probeSourceUrl(resolvedVideoUrl, 4200);
+      if (maybeDirect) {
+        resolvedSourceType = "direct";
+        pushSource("Principal direto", resolvedVideoUrl, "direct");
+      }
+    }
+
     if (resolvedVideoUrl && resolvedSourceType === "direct") {
       const currentLooksDownloadOnly = isLikelyDownloadOnlyUrl(resolvedVideoUrl);
       let healthy = !currentLooksDownloadOnly && await probeSourceUrl(resolvedVideoUrl);
@@ -1047,6 +1072,11 @@ export async function GET(
       });
     }
 
+    const watchPlayerConfig = await getWatchPlayerConfigState().catch(() => ({
+      ...WATCH_PLAYER_DEFAULT_CONFIG,
+      updatedAt: null,
+    }));
+
     return NextResponse.json({
       anime: animeData,
       episode: currentEpisode,
@@ -1066,6 +1096,7 @@ export async function GET(
           ? history
           : null,
       viewerSettings,
+      watchPlayerConfig,
       sourceType: resolvedSourceType,
       isDirectSource: resolvedSourceType === "direct",
     });

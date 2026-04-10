@@ -14,16 +14,16 @@ import {
   Play,
   Search,
   Settings2,
+  Shield,
   UserCircle,
   UserPlus,
   X,
 } from "lucide-react";
 
-import { readSavedAccounts, writeSavedAccounts } from "@/lib/saved-accounts";
+import { readSavedAccounts } from "@/lib/saved-accounts";
 
 interface SearchResult {
   animes: { id: string; title: string; coverImage?: string }[];
-  mangas: { id: string; title: string; coverImage?: string }[];
   users: { id: string; name: string; avatarUrl?: string }[];
 }
 
@@ -40,8 +40,7 @@ interface NotificationItem {
 
 type NavigationState = {
   canAccessAnimeTab?: boolean;
-  canAccessMangaTab?: boolean;
-};
+  };
 
 function formatNotificationDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -76,7 +75,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
   const [switchingEmail, setSwitchingEmail] = useState<string | null>(null);
   const [navigation, setNavigation] = useState<NavigationState>({});
   const [savedAccounts, setSavedAccounts] = useState<
-    { email: string; name: string; avatar?: string; handoffHash?: string }[]
+    { email: string; name: string; avatar?: string }[]
   >([]);
 
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -93,8 +92,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         if (!alive || !data) return;
         setNavigation({
           canAccessAnimeTab: Boolean(data.canAccessAnimeTab),
-          canAccessMangaTab: Boolean(data.canAccessMangaTab),
-        });
+                  });
       })
       .catch(() => {});
 
@@ -169,12 +167,11 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         const data = await res.json();
         setSearchResults({
           animes: Array.isArray(data?.animes) ? data.animes : [],
-          mangas: Array.isArray(data?.mangas) ? data.mangas : [],
-          users: Array.isArray(data?.users) ? data.users : [],
+                    users: Array.isArray(data?.users) ? data.users : [],
         });
         setSearchOpen(true);
       } catch (e) {
-        setSearchResults({ animes: [], mangas: [], users: [] });
+        setSearchResults({ animes: [], users: [] });
       } finally {
         setSearching(false);
       }
@@ -212,9 +209,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         .map((item) => ({
           email: item.email,
           name: item.name || item.email,
-          avatar: item.avatar,
-          handoffHash: item.handoffHash,
-        })),
+          avatar: item.avatar,        })),
     );
   }, [session?.user?.email]);
 
@@ -224,51 +219,11 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
     setShowAccountSwitcher(true);
   };
 
-  const handleQuickSwitchAccount = async (account: {
-    email: string;
-    handoffHash?: string;
-  }) => {
+  const handleQuickSwitchAccount = async (account: { email: string }) => {
     if (!account.email) return;
     setSwitchingEmail(account.email);
 
     try {
-      if (account.handoffHash) {
-        const quick = await signIn("credentials", {
-          email: account.email,
-          password: account.handoffHash,
-          isQuick: "true",
-          redirect: false,
-        });
-
-        if (!quick?.error) {
-          setShowAccountSwitcher(false);
-          router.push("/");
-          router.refresh();
-          return;
-        }
-
-        const sanitized = writeSavedAccounts(
-          readSavedAccounts(8).map((item) =>
-            item.email === account.email
-              ? { ...item, handoffHash: undefined }
-              : item,
-          ),
-          8,
-        );
-
-        const currentEmail = String(session?.user?.email || "").trim().toLowerCase();
-        setSavedAccounts(
-          sanitized
-            .filter((item) => item.email !== currentEmail)
-            .map((item) => ({
-              email: item.email,
-              name: item.name || item.email,
-              avatar: item.avatar,
-              handoffHash: item.handoffHash,
-            })),
-        );
-      }
-
       await signOut({ callbackUrl: `/login?email=${encodeURIComponent(account.email)}` });
     } finally {
       setSwitchingEmail(null);
@@ -328,18 +283,17 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
     )}&background=334155&color=fff`;
 
   const canAccessAnimeTab = navigation.canAccessAnimeTab ?? true;
-  const canAccessMangaTab = navigation.canAccessMangaTab ?? false;
+  const isAdmin = (session?.user as any)?.role === "admin";
   const navLinks = [
-    ...(canAccessAnimeTab ? [{ href: "/", label: "Explorar" }] : []),
-    ...(canAccessMangaTab ? [{ href: "/mangas", label: "Mangás" }] : []),
-    { href: "/social", label: "Social" },
+    ...(canAccessAnimeTab ? [{ href: "/", label: "Inicio" }] : []),
+    { href: "/explore", label: "Explorar" },
     { href: "/favorites", label: "Favoritos" },
     { href: "/settings", label: "Configurações" },
   ];
 
   return (
     <header
-      className="fixed inset-x-0 top-0 z-40 px-2 sm:px-4 lg:px-6"
+      className="kdr-header fixed inset-x-0 top-0 z-40 px-2 sm:px-4 lg:px-6"
       style={{
         paddingTop: `calc(env(safe-area-inset-top, 0px) + ${cinematic ? "4px" : "6px"})`,
       }}
@@ -347,13 +301,13 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
       <div className={`kdr-topbar pointer-events-auto mx-auto flex ${cinematic ? "h-[50px]" : "h-[56px]"} max-w-[1580px] items-center gap-2 rounded-2xl ${cinematic ? "px-2 sm:px-2.5 md:px-3" : "px-2.5 sm:px-3 md:px-4"}`}>
         {/* Logo */}
         <div className="hidden md:flex items-center gap-2 mr-1">
-          <Link prefetch={true} href="/" className="inline-flex items-center gap-2 rounded-full px-2 py-1 hover:bg-white/5 transition">
+          <Link prefetch={true} href="/" className="inline-flex items-center gap-2 rounded-full px-2 py-1 hover:bg-white/10 transition">
             <Image src="/logo.png" alt="Futuro sem Contexto" width={24} height={24} className="rounded-md object-cover" />
             <span className={`font-black tracking-tight text-[var(--text-primary)] ${cinematic ? "text-xs lg:text-sm" : "text-sm"} hidden lg:inline`}>Futuro</span>
           </Link>
         </div>
 
-        {/* Nav Links — Desktop */}
+        {/* Nav Links - Desktop */}
         <nav className={`${cinematic ? "hidden md:flex" : "hidden lg:flex"} items-center gap-0.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50 px-1 py-0.5`}>
           {navLinks.map((item) => {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
@@ -417,7 +371,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                 value={query}
                 onChange={(event) => handleSearch(event.target.value)}
                 onFocus={() => query && setSearchOpen(true)}
-                placeholder="Buscar anime, manga ou perfil..."
+                placeholder="Buscar anime ou perfil..."
                 className="bg-transparent text-[var(--text-primary)] text-[15px] md:text-sm flex-1 focus:outline-none placeholder:text-[var(--text-muted)] min-w-0 w-full"
               />
               {(query || searchExpanded) && (
@@ -447,7 +401,6 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                 ) :
                   !searchResults ||
                   (searchResults.animes.length === 0 &&
-                    searchResults.mangas.length === 0 &&
                     searchResults.users.length === 0) ? (
                   <p className="text-[var(--text-muted)] text-sm p-6 text-center">
                     Nenhum resultado encontrado.
@@ -485,51 +438,14 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                             <p className="text-sm text-[var(--text-primary)] font-semibold truncate">
                               {anime.title}
                             </p>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-
-                    {searchResults.mangas.length > 0 && (
-                      <div className={searchResults.animes.length > 0 ? "border-t border-[var(--border-subtle)]" : ""}>
-                        <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider px-4 py-2.5 border-b border-[var(--border-subtle)]">
-                          Mangás
-                        </p>
-                        {searchResults.mangas.map((manga) => (
-                          <Link
-                            prefetch={true}
-                            key={manga.id}
-                            href={`/mangas/${manga.id}`}
-                            onClick={() => {
-                              setSearchOpen(false);
-                              setQuery("");
-                              setSearchExpanded(false);
-                            }}
-                            className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.05] transition"
-                          >
-                            <div className="w-9 h-12 rounded-lg overflow-hidden shrink-0 bg-[var(--bg-card)] relative border border-[var(--border-subtle)]">
-                              {manga.coverImage && (
-                                <Image
-                                  src={manga.coverImage}
-                                  fill
-                                  sizes="36px"
-                                  className="object-cover"
-                                  alt=""
-                                />
-                              )}
-                            </div>
-                            <p className="text-sm text-[var(--text-primary)] font-semibold truncate">
-                              {manga.title}
-                            </p>
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-
-                    {searchResults.users.length > 0 && (
-                      <div className={searchResults.animes.length > 0 || searchResults.mangas.length > 0 ? "border-t border-[var(--border-subtle)]" : ""}>
-                        <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider px-4 py-2.5 border-b border-[var(--border-subtle)]">
-                          Perfis
+	                          </Link>
+	                        ))}
+	                      </div>
+	                    )}
+	                    {searchResults.users.length > 0 && (
+	                      <div className={searchResults.animes.length > 0 ? "border-t border-[var(--border-subtle)]" : ""}>
+	                        <p className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider px-4 py-2.5 border-b border-[var(--border-subtle)]">
+	                          Perfis
                         </p>
                         {searchResults.users.map((user) => (
                           <Link
@@ -578,7 +494,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
             <button
               onClick={handleOpenNotifications}
               className="relative w-10 h-10 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/10 transition"
-              title="Notificações"
+              title="Notificacoes"
             >
               <Bell size={16} />
               {unreadCount > 0 && (
@@ -613,7 +529,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       <div className="flex flex-col items-center justify-center py-10 gap-2">
                         <Bell size={28} className="text-[var(--text-muted)]" />
                         <p className="text-[var(--text-muted)] text-sm font-medium">
-                          Nenhuma notificação ainda.
+                          Nenhuma notificacao ainda.
                         </p>
                       </div>
                     ) : (
@@ -754,7 +670,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       onClick={() => setShowProfile(false)}
                       className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
-                      <Clock3 size={17} className="text-[var(--text-accent)]" /> Histórico
+                      <Clock3 size={17} className="text-[var(--text-accent)]" /> Historico
                     </Link>
                     <Link
                       prefetch={true}
@@ -762,8 +678,18 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       onClick={() => setShowProfile(false)}
                       className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
-                      <Settings2 size={17} className="text-[var(--text-accent)]" /> Configurações
+                      <Settings2 size={17} className="text-[var(--text-accent)]" /> Configuracoes
                     </Link>
+                    {isAdmin && (
+                      <Link
+                        prefetch={true}
+                        href="/admin"
+                        onClick={() => setShowProfile(false)}
+                        className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
+                      >
+                        <Shield size={17} className="text-[var(--text-accent)]" /> Painel Admin
+                      </Link>
+                    )}
                     <Link
                       prefetch={true}
                       href="/settings?section=feedback"
@@ -871,4 +797,3 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
     </header>
   );
 }
-
