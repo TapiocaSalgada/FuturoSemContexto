@@ -103,19 +103,19 @@ export async function GET(
     },
   });
 
-  if (!episode) return new NextResponse("Episodio nao encontrado.", { status: 404 });
+  if (!episode) return new NextResponse("Episódio não encontrado.", { status: 404 });
   if (!isAdmin && String(episode.anime.visibility || "").toLowerCase() !== "public") {
-    return new NextResponse("Nao encontrado.", { status: 404 });
+    return new NextResponse("Não encontrado.", { status: 404 });
   }
   if (!episode.videoUrl) {
-    return new NextResponse("Episodio sem link de video.", { status: 404 });
+    return new NextResponse("Episódio sem link de vídeo.", { status: 404 });
   }
 
   const normalizedVideoUrl = normalizePlaybackUrl(episode.videoUrl);
   const sourceKind = detectVideoSource(normalizedVideoUrl, episode.sourceType || undefined);
   if (sourceKind === "embed" || sourceKind === "external" || sourceKind === "youtube") {
     return new NextResponse(
-      "Essa fonte nao permite download direto. Tente uma fonte MP4/HLS.",
+      "Essa fonte não permite download direto. Tente uma fonte MP4/HLS.",
       { status: 409 },
     );
   }
@@ -147,7 +147,7 @@ export async function GET(
       },
     });
   } catch {
-    return new NextResponse("Falha ao conectar na fonte do video.", { status: 502 });
+    return new NextResponse("Falha ao conectar na fonte do vídeo.", { status: 502 });
   }
 
   if (!upstream.ok || !upstream.body) {

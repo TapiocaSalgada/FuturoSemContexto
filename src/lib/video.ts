@@ -177,6 +177,11 @@ export function detectVideoSource(
     return "youtube";
   }
 
+  const isBloggerGateway = host.includes("blogger.com") && pathname.startsWith("/video.g");
+  if (isBloggerGateway) {
+    return "embed";
+  }
+
   if (sourceType === "google_drive") return "google_drive";
   if (sourceType === "youtube") return "youtube";
 
@@ -189,7 +194,6 @@ export function detectVideoSource(
     host.includes("wasabisys.com") ||
     host.includes("backblazeb2.com") ||
     host.includes("storage.googleapis.com") ||
-    (host.includes("blogger.com") && pathname.startsWith("/video.g")) ||
     (host.includes("blogspot.com") && pathname.includes("videoplayback")) ||
     normalized.startsWith("/") ||
     /\.(mp4|m4v|webm|ogg|mov|m3u8|mpd|ts)(\?|#|$)/.test(normalized) ||

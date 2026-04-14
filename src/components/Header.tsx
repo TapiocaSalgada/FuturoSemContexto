@@ -285,7 +285,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
   const canAccessAnimeTab = navigation.canAccessAnimeTab ?? true;
   const isAdmin = (session?.user as any)?.role === "admin";
   const navLinks = [
-    ...(canAccessAnimeTab ? [{ href: "/", label: "Inicio" }] : []),
+    ...(canAccessAnimeTab ? [{ href: "/", label: "Início" }] : []),
     { href: "/explore", label: "Explorar" },
     { href: "/favorites", label: "Favoritos" },
     { href: "/settings", label: "Configurações" },
@@ -308,7 +308,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         </div>
 
         {/* Nav Links - Desktop */}
-        <nav className={`${cinematic ? "hidden md:flex" : "hidden lg:flex"} items-center gap-0.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50 px-1 py-0.5`}>
+        <nav className="hidden md:flex items-center gap-0.5 rounded-full border border-[var(--border-subtle)] bg-[var(--bg-surface)]/50 px-1 py-0.5">
           {navLinks.map((item) => {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
@@ -327,7 +327,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         <div className={`${cinematic ? "hidden md:block" : "hidden lg:block"} kdr-topbar-divider`} />
 
         {/* Search + Right actions */}
-        <div className={`flex items-center gap-2 flex-1 min-w-0 ${cinematic ? "justify-end" : "justify-end lg:justify-start"}`}>
+        <div className={`flex items-center gap-2 flex-1 min-w-0 ${cinematic ? "justify-end" : "justify-end md:justify-start"}`}>
           {/* Search */}
           <div className="flex-1 max-w-full sm:max-w-md relative" ref={searchRef}>
             {searchExpanded && (
@@ -488,13 +488,13 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
         </div>
 
         {/* Right side actions */}
-        <div className={`flex items-center gap-1.5 shrink-0 pl-1 rounded-full border border-white/12 bg-[var(--glass-bg)] backdrop-blur-md px-1.5 py-1 ${searchExpanded ? "hidden md:flex" : "flex"}`}>
+        <div className={`flex items-center gap-1 shrink-0 pl-1 rounded-full border border-white/14 bg-[var(--glass-bg)] backdrop-blur-md px-1.5 py-1 ${searchExpanded ? "hidden md:flex" : "flex"}`}>
           {/* Notifications */}
           <div className="relative" ref={notificationRef}>
             <button
               onClick={handleOpenNotifications}
               className="relative w-10 h-10 md:w-8 md:h-8 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/10 transition"
-              title="Notificacoes"
+              title="Notificações"
             >
               <Bell size={16} />
               {unreadCount > 0 && (
@@ -670,7 +670,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       onClick={() => setShowProfile(false)}
                       className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
-                      <Clock3 size={17} className="text-[var(--text-accent)]" /> Historico
+                      <Clock3 size={17} className="text-[var(--text-accent)]" /> Histórico
                     </Link>
                     <Link
                       prefetch={true}
@@ -678,7 +678,7 @@ export default function Header({ cinematic = false }: { cinematic?: boolean }) {
                       onClick={() => setShowProfile(false)}
                       className="flex items-center gap-3 px-5 md:px-4 py-3 md:py-2.5 text-[15px] md:text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.05] transition min-h-[44px]"
                     >
-                      <Settings2 size={17} className="text-[var(--text-accent)]" /> Configuracoes
+                      <Settings2 size={17} className="text-[var(--text-accent)]" /> Configurações
                     </Link>
                     {isAdmin && (
                       <Link

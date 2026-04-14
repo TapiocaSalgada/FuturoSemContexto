@@ -412,7 +412,7 @@ function normalizeEpisodes(payload: any): KappaEpisode[] {
       return {
         id: String(item?.id || item?.episode_id || item?.episodio_id || `${index + 1}`),
         number: Number.isFinite(number) ? number : index + 1,
-        title: item?.episode_name || item?.title || `Episodio ${numberRaw}`,
+        title: item?.episode_name || item?.title || `Episódio ${numberRaw}`,
         thumbnail: item?.imagem || item?.image || item?.thumb || undefined,
         raw: item,
       };

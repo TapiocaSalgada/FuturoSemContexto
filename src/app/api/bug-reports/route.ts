@@ -33,14 +33,14 @@ export async function POST(req: NextRequest) {
   if (animeId) {
     const anime = await prisma.anime.findUnique({ where: { id: animeId }, select: { id: true } });
     if (!anime) {
-      return NextResponse.json({ error: "Anime nao encontrado." }, { status: 404 });
+      return NextResponse.json({ error: "Anime não encontrado." }, { status: 404 });
     }
   }
 
   if (episodeId) {
     const episode = await prisma.episode.findUnique({ where: { id: episodeId }, select: { id: true } });
     if (!episode) {
-      return NextResponse.json({ error: "Episodio nao encontrado." }, { status: 404 });
+      return NextResponse.json({ error: "Episódio não encontrado." }, { status: 404 });
     }
   }
 

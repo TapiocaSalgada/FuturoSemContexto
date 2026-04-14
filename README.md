@@ -51,6 +51,7 @@ Open `http://localhost:3000`.
 
 ## Important Documentation
 
+- `docs/MAPA_CODIGO_E_ROTAS.md` - snapshot completo de páginas e endpoints API com acesso/métodos
 - `docs/CODEBASE_GUIDE.md` - complete architecture and code navigation map
 - `docs/API_INDEX.md` - API endpoint index grouped by domain
 - `docs/OPERATIONS.md` - production operation checklist

@@ -87,7 +87,7 @@ const SOURCE_RULES: Record<SourceKey, SourceRules> = {
     hosts: ["https://anime-api-kappa-one.vercel.app/api"],
   },
   sugoi: {
-    params: ["q (nome/slug)", "season + episode (na leitura de episodio)"],
+    params: ["q (nome/slug)", "season + episode (na leitura de episódio)"],
     endpoint: "/api/admin/sugoi?q=<texto>",
     hosts: ["https://sugoiapi.vercel.app", "https://sugoi-api.vercel.app"],
     cloneNotes: "Se a API cair, rode sua propria instancia Sugoi e aponte o .env.",
@@ -309,7 +309,7 @@ export default function AnimeImportPage() {
         const typedError = error as CreateAnimeError;
         if (typedError.code === "ANIME_EXISTS" && typedError.existingId) {
           animeId = typedError.existingId;
-          setImportStatus("Anime ja existe. Sincronizando episodios...");
+          setImportStatus("Anime já existe. Sincronizando episódios...");
         } else {
           throw error;
         }
@@ -393,7 +393,7 @@ export default function AnimeImportPage() {
         }
       }
 
-      setImportStatus(`Sincronizando episodios via ${SOURCE_LABELS[source]}...`);
+      setImportStatus(`Sincronizando episódios via ${SOURCE_LABELS[source]}...`);
       const syncRes = await fetch("/api/admin/anime/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -408,7 +408,7 @@ export default function AnimeImportPage() {
       const syncData = await syncRes.json().catch(() => ({}));
 
       if (syncRes.ok && Number(syncData?.imported || 0) > 0) {
-        showMsg(`Anime + ${syncData.imported} episodio(s) importado(s) em ${item.source}: ${item.title}`, "ok");
+        showMsg(`Anime + ${syncData.imported} episódio(s) importado(s) em ${item.source}: ${item.title}`, "ok");
       } else {
         showMsg(`Anime importado (${item.source}): ${item.title}`, "ok");
       }
@@ -588,7 +588,7 @@ export default function AnimeImportPage() {
                 onChange={(event) => setImportVisibility(event.target.value as "public" | "admin_only")}
                 className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-[11px] text-white font-bold"
               >
-                <option value="public">Publico</option>
+                <option value="public">Público</option>
                 <option value="admin_only">So admin</option>
               </select>
             </div>
@@ -602,7 +602,7 @@ export default function AnimeImportPage() {
             onChange={(event) => setImportVisibility(event.target.value as "public" | "admin_only")}
             className="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-[11px] text-white font-bold"
           >
-            <option value="public">Publico</option>
+            <option value="public">Público</option>
             <option value="admin_only">So admin</option>
           </select>
         </div>

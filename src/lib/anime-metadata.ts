@@ -199,7 +199,7 @@ function buildFindMyAnimeDescription(entry: FindMyAnimeEntry) {
   }
 
   if (episodes > 0) {
-    pieces.push(`Episodios: ${episodes}`);
+    pieces.push(`Episódios: ${episodes}`);
   }
 
   return pieces.join(". ");

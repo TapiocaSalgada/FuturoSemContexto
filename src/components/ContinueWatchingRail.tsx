@@ -59,11 +59,11 @@ export default function ContinueWatchingRail({ items }: { items: ContinueItem[] 
   if (!visible.length) return null;
 
   return (
-    <section className="animate-fadeInUp rounded-2xl border border-white/10 bg-[var(--surface-1)] p-4 sm:p-5 lg:p-6">
+    <section className="animate-fadeInUp rounded-2xl border border-white/10 bg-[var(--surface-1)]/88 backdrop-blur-sm p-4 sm:p-5 lg:p-6">
       <h2 className="kdr-section-title mb-1.5">
         <Play size={16} className="kdr-section-title-accent" /> Continue assistindo
       </h2>
-      <p className="mb-4 text-[11px] text-[var(--text-muted)]">Retome sem perder o ritmo.</p>
+      <p className="mb-4 text-[11px] sm:text-xs text-[var(--text-muted)]">Retome sem perder o ritmo.</p>
 
       <HorizontalCarousel>
         {visible.map((history) => {
@@ -86,7 +86,7 @@ export default function ContinueWatchingRail({ items }: { items: ContinueItem[] 
           return (
             <article
               key={history.id}
-              className={`w-[178px] sm:w-[205px] lg:w-[228px] shrink-0 snap-start ${isRemoving ? "opacity-45" : ""}`}
+              className={`w-[168px] sm:w-[205px] lg:w-[228px] shrink-0 snap-start ${isRemoving ? "opacity-45" : ""}`}
             >
               <Link prefetch={true} href={`/watch/${history.episode.id}`} className="group block">
                 <div className="relative aspect-video overflow-hidden rounded-xl border border-white/14 bg-[var(--surface-0)] transition-all duration-300 group-hover:-translate-y-1 group-hover:border-white/30 group-hover:shadow-[0_18px_38px_rgba(0,0,0,0.5)]">
@@ -127,7 +127,7 @@ export default function ContinueWatchingRail({ items }: { items: ContinueItem[] 
                   onClick={() => removeItem(anime.id)}
                   disabled={isRemoving}
                   title="Remover"
-                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-purple-500/12 hover:text-purple-300 disabled:opacity-40"
+                  className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition hover:bg-purple-500/12 hover:text-purple-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-strong)] disabled:opacity-40"
                 >
                   <Trash2 size={12} />
                 </button>

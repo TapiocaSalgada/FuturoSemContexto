@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -37,7 +37,7 @@ export default function BottomNav() {
   const canAccessAnimeTab = navigation.canAccessAnimeTab ?? true;
 
   const navItems = [
-    ...(canAccessAnimeTab ? [{ href: "/", icon: Home, label: "Inicio" }] : []),
+    ...(canAccessAnimeTab ? [{ href: "/", icon: Home, label: "Início" }] : []),
     { href: "/explore", icon: Search, label: "Explorar" },
     { href: "/favorites", icon: Heart, label: "Favoritos" },
     { href: "/settings", icon: Menu, label: "Configurações" },
@@ -68,7 +68,7 @@ export default function BottomNav() {
                     className="absolute top-1.5 h-1 w-7 rounded-full"
                     style={{
                       background: "linear-gradient(90deg, #8f67ff 0%, #5536d9 100%)",
-                      boxShadow: "0 0 16px rgba(229,9,20,0.6)",
+                      boxShadow: "0 0 14px rgba(109,74,255,0.55)",
                     }}
                   />
                 ) : null}
@@ -83,3 +83,4 @@ export default function BottomNav() {
     </nav>
   );
 }
+

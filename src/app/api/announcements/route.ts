@@ -58,7 +58,7 @@ export async function DELETE(req: NextRequest) {
   const { id } = await req.json();
   const existing = await prisma.announcement.findUnique({ where: { id }, select: { title: true } });
   if (isSystemAnnouncementTitle(existing?.title)) {
-    return NextResponse.json({ error: "Registro de sistema nao pode ser removido aqui." }, { status: 400 });
+    return NextResponse.json({ error: "Registro de sistema não pode ser removido aqui." }, { status: 400 });
   }
   await prisma.announcement.delete({ where: { id } });
   return NextResponse.json({ ok: true });

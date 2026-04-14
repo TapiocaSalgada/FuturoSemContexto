@@ -1,5 +1,5 @@
-import { getServerSession } from "next-auth";
-import { Heart, Layers, Sparkles, TrendingUp } from "lucide-react";
+﻿import { getServerSession } from "next-auth";
+import { Clock3, Heart, Play, Sparkles, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { authOptions } from "@/lib/auth";
@@ -37,6 +37,24 @@ type HomeRecentEpisode = {
     coverImage?: string | null;
     visibility?: string | null;
   };
+};
+
+type HomeTrendEpisode = {
+  id: string;
+  animeId: string;
+  anime: {
+    id: string;
+    title: string;
+    coverImage?: string | null;
+    visibility?: string | null;
+  };
+};
+
+type HomeAnimeCard = Pick<HomeAnime, "id" | "title" | "coverImage">;
+
+type SectionItem = {
+  episodeId: string;
+  views: number;
 };
 
 const ROW_SIZE = 20;
@@ -93,21 +111,16 @@ function pickDiverseHeroes(pool: HomeAnime[], count = 4) {
   return picked;
 }
 
-function CardRow({
-  items,
-}: {
-  items: Pick<HomeAnime, "id" | "title" | "coverImage">[];
-}) {
+function CardRow({ items }: { items: HomeAnimeCard[] }) {
   return (
-    <HorizontalCarousel>
+    <HorizontalCarousel className="pb-1">
       {items.map((anime) => (
         <div key={anime.id} className="snap-start shrink-0">
           <AnimeCard
             href={`/anime/${anime.id}`}
-            title={anime.title || "Sem titulo"}
+            title={anime.title || "Sem título"}
             image={anime.coverImage}
-            hideTitle={true}
-            className="w-[140px] sm:w-[150px] md:w-[165px]"
+            className="w-[144px] sm:w-[162px] md:w-[174px]"
           />
         </div>
       ))}
@@ -118,23 +131,83 @@ function CardRow({
 function SectionHeader({
   icon,
   title,
+  subtitle,
   highlight,
 }: {
   icon: ReactNode;
   title: string;
+  subtitle?: string;
   highlight?: string;
 }) {
   return (
-    <div className="mb-5 flex items-end justify-between gap-4">
+    <div className="mb-4 sm:mb-5 flex items-end justify-between gap-4">
       <div className="min-w-0">
         <h2 className="kdr-section-title">
           {icon}
           <span className="truncate">{title}</span>
           {highlight ? <span className="kdr-section-title-accent">{highlight}</span> : null}
         </h2>
+        {subtitle ? <p className="mt-1 text-xs sm:text-sm text-[var(--text-muted)]">{subtitle}</p> : null}
       </div>
     </div>
   );
+}
+
+function HomeRail({
+  title,
+  subtitle,
+  icon,
+  highlight,
+  items,
+  emptyMessage,
+}: {
+  title: string;
+  subtitle?: string;
+  icon: ReactNode;
+  highlight?: string;
+  items: HomeAnimeCard[];
+  emptyMessage?: string;
+}) {
+  if (!items.length && !emptyMessage) return null;
+
+  return (
+    <section className="animate-fadeInUp">
+      <SectionHeader icon={icon} title={title} subtitle={subtitle} highlight={highlight} />
+
+      {items.length ? (
+        <CardRow items={items} />
+      ) : (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-6 sm:px-5 sm:py-7">
+          <p className="text-sm text-[var(--text-muted)]">{emptyMessage}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function toSectionItems(
+  rows: { episodeId: string; _count: { episodeId: number } }[],
+): SectionItem[] {
+  return rows.map((row) => ({ episodeId: row.episodeId, views: row._count.episodeId }));
+}
+
+function buildTrendAnimeRow(items: SectionItem[], episodesById: Map<string, HomeTrendEpisode>) {
+  const animeRows: HomeAnimeCard[] = [];
+  const seenAnime = new Set<string>();
+
+  for (const item of items) {
+    const episode = episodesById.get(item.episodeId);
+    if (!episode?.anime?.id || !episode.anime.title || seenAnime.has(episode.anime.id)) continue;
+    seenAnime.add(episode.anime.id);
+    animeRows.push({
+      id: episode.anime.id,
+      title: episode.anime.title,
+      coverImage: episode.anime.coverImage,
+    });
+    if (animeRows.length >= ROW_SIZE) break;
+  }
+
+  return animeRows;
 }
 
 export default async function HomePage() {
@@ -145,14 +218,25 @@ export default async function HomePage() {
   const sixtyDaysAgo = new Date();
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
 
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
   let allAnimes: HomeAnime[] = [];
-  let trendingData: any[] = [];
+  let trendingData: SectionItem[] = [];
+  let weeklyTrendingData: SectionItem[] = [];
   let recentHistory: any[] = [];
   let watchedForRec: any[] = [];
   let recentEpisodesData: HomeRecentEpisode[] = [];
 
   try {
-    [allAnimes, trendingData, recentHistory, watchedForRec, recentEpisodesData] = await Promise.all([
+    const [
+      allAnimesData,
+      trendingRaw,
+      weeklyTrendingRaw,
+      recentHistoryData,
+      watchedForRecData,
+      recentEpisodesRaw,
+    ] = await Promise.all([
       prisma.anime.findMany({
         select: {
           id: true,
@@ -175,7 +259,14 @@ export default async function HomePage() {
         by: ["episodeId"],
         _count: { episodeId: true },
         orderBy: { _count: { episodeId: "desc" } },
-        take: 40,
+        take: 70,
+      }),
+      prisma.watchHistory.groupBy({
+        by: ["episodeId"],
+        where: { updatedAt: { gte: sevenDaysAgo } },
+        _count: { episodeId: true },
+        orderBy: { _count: { episodeId: "desc" } },
+        take: 70,
       }),
       userId
         ? prisma.watchHistory.findMany({
@@ -212,12 +303,9 @@ export default async function HomePage() {
         : Promise.resolve([]),
       userId
         ? prisma.watchHistory.findMany({
-            where: {
-              userId,
-              watched: true,
-            },
+            where: { userId, watched: true },
             orderBy: { updatedAt: "desc" },
-            take: 140,
+            take: 150,
             select: {
               episode: {
                 select: {
@@ -236,7 +324,7 @@ export default async function HomePage() {
         : Promise.resolve([]),
       prisma.episode.findMany({
         orderBy: [{ season: "desc" }, { number: "desc" }],
-        take: 120,
+        take: 140,
         select: {
           id: true,
           number: true,
@@ -252,15 +340,21 @@ export default async function HomePage() {
         },
       }),
     ]);
+
+    allAnimes = allAnimesData;
+    trendingData = toSectionItems(trendingRaw);
+    weeklyTrendingData = toSectionItems(weeklyTrendingRaw);
+    recentHistory = recentHistoryData;
+    watchedForRec = watchedForRecData;
+    recentEpisodesData = recentEpisodesRaw;
   } catch (error) {
     console.error("home-data-load-error", error);
   }
 
   const visibleAnimes = isAdmin
-    ? (allAnimes as HomeAnime[])
-    : (allAnimes as HomeAnime[]).filter((anime) => isPublicVisibility(anime.visibility));
-
-  const validAnimes = dedupeById(visibleAnimes.filter((a) => a?.id && a?.title));
+    ? allAnimes
+    : allAnimes.filter((anime) => isPublicVisibility(anime.visibility));
+  const validAnimes = dedupeById(visibleAnimes.filter((anime) => anime?.id && anime?.title));
 
   const heroItems = pickDiverseHeroes(validAnimes, 8).map((anime) => ({
     ...anime,
@@ -274,8 +368,8 @@ export default async function HomePage() {
       if (items.some((item) => item.episode?.anime?.id === animeId)) return items;
       return [...items, history];
     }, [] as typeof recentHistory)
-      .filter((item) => isAdmin || isPublicVisibility(item.episode?.anime?.visibility))
-      .slice(0, 8)
+    .filter((item) => isAdmin || isPublicVisibility(item.episode?.anime?.visibility))
+    .slice(0, 8)
     .map((item) => ({
       ...item,
       episode: {
@@ -288,84 +382,73 @@ export default async function HomePage() {
       },
     }));
 
-  const trendingEpisodeIds = trendingData.map((item) => item.episodeId);
-  let trendingEpisodes: any[] = [];
+  const trendingEpisodeIds = [
+    ...new Set([
+      ...trendingData.map((item) => item.episodeId),
+      ...weeklyTrendingData.map((item) => item.episodeId),
+    ]),
+  ];
+
+  let trendEpisodes: HomeTrendEpisode[] = [];
   if (trendingEpisodeIds.length > 0) {
     try {
-      trendingEpisodes = await prisma.episode.findMany({
+      trendEpisodes = await prisma.episode.findMany({
         where: { id: { in: trendingEpisodeIds } },
         select: {
           id: true,
           animeId: true,
-          number: true,
-          season: true,
           anime: { select: { id: true, title: true, coverImage: true, visibility: true } },
         },
       });
     } catch (error) {
       console.error("home-trending-load-error", error);
-      trendingEpisodes = [];
+      trendEpisodes = [];
     }
   }
 
-  const trendingVisibleEpisodes = isAdmin
-    ? trendingEpisodes
-    : trendingEpisodes.filter((episode) => isPublicVisibility(episode?.anime?.visibility));
+  const trendEpisodesVisible = isAdmin
+    ? trendEpisodes
+    : trendEpisodes.filter((episode) => isPublicVisibility(episode?.anime?.visibility));
+  const trendEpisodesById = new Map(trendEpisodesVisible.map((episode) => [episode.id, episode]));
 
-  const recentEpisodes = dedupeById(
+  const trendingTop = buildTrendAnimeRow(trendingData, trendEpisodesById);
+  const weeklyTrending = buildTrendAnimeRow(weeklyTrendingData, trendEpisodesById);
+
+  const recentlyAdded = dedupeById(
     (isAdmin
       ? recentEpisodesData
       : recentEpisodesData.filter((episode) => isPublicVisibility(episode?.anime?.visibility))
-    ).filter((episode) => Boolean(episode?.id && episode?.anime?.id && episode?.anime?.title)),
+    )
+      .filter((episode) => episode?.anime?.id && episode.anime.title)
+      .map((episode) => ({
+        id: episode.anime.id,
+        title: episode.anime.title,
+        coverImage: episode.anime.coverImage,
+      })),
   ).slice(0, ROW_SIZE);
-
-  const trendingAnimes = trendingEpisodeIds
-    .map((episodeId) => trendingVisibleEpisodes.find((episode) => episodeId === episode.id))
-    .filter(Boolean)
-    .reduce<typeof trendingEpisodes>((items, episode) => {
-      if (!episode) return items;
-      if (items.some((item) => item.animeId === episode.animeId)) return items;
-      items.push(episode);
-      return items;
-    }, []);
-  const trendingTop = randomRow(trendingAnimes);
-
-  const mostLikedPool = [...validAnimes]
-    .map((anime) => ({
-      ...anime,
-      avg: anime.ratings.length
-        ? anime.ratings.reduce((acc, item) => acc + item.rating, 0) / anime.ratings.length
-        : 0,
-    }))
-    .sort((a, b) => b.avg - a.avg)
-    .slice(0, ROW_SIZE * 3);
-  const mostLiked = randomRow(mostLikedPool);
-
-  const completed = randomRow(validAnimes.filter((anime) => anime.status === "completed"));
 
   const watchedAnime = watchedForRec
     .map((item) => item.episode?.anime)
     .filter((anime) => Boolean(anime) && (isAdmin || isPublicVisibility((anime as any)?.visibility))) as {
-      id: string;
-      title: string;
-      visibility?: string | null;
-      categories: { id: string; name: string }[];
-    }[];
+    id: string;
+    title: string;
+    categories: { id: string; name: string }[];
+  }[];
   const watchedAnimeIds = new Set(watchedAnime.map((item) => item.id));
 
   const categoryCounter = new Map<string, { id: string; name: string; count: number }>();
   for (const anime of watchedAnime) {
     for (const category of anime.categories) {
-      const prev = categoryCounter.get(category.id);
+      const previous = categoryCounter.get(category.id);
       categoryCounter.set(category.id, {
         id: category.id,
         name: category.name,
-        count: (prev?.count || 0) + 1,
+        count: (previous?.count || 0) + 1,
       });
     }
   }
-  const topCategory = Array.from(categoryCounter.values()).sort((a, b) => b.count - a.count)[0];
 
+  const topCategory = Array.from(categoryCounter.values()).sort((a, b) => b.count - a.count)[0];
   const becauseWatchedAnime = topCategory
     ? watchedAnime.find((anime) => anime.categories.some((category) => category.id === topCategory.id))
     : null;
@@ -376,13 +459,30 @@ export default async function HomePage() {
       return anime.categories.some((category) => category.id === topCategory.id) && !watchedAnimeIds.has(anime.id);
     }),
   );
-  const fallbackRecommended = dedupeById(
-    shuffle(validAnimes).filter((anime) => !watchedAnimeIds.has(anime.id)),
-  );
-  const recommended = dedupeById([...genreRecommended, ...fallbackRecommended]);
-  const recommendedTop = randomRow(recommended);
+  const fallbackRecommended = dedupeById(shuffle(validAnimes).filter((anime) => !watchedAnimeIds.has(anime.id)));
+  const recommendedTop = randomRow(dedupeById([...genreRecommended, ...fallbackRecommended]));
 
-  const categorySections = (() => {
+  const mostLikedPool = [...validAnimes]
+    .map((anime) => ({
+      ...anime,
+      avg: anime.ratings.length
+        ? anime.ratings.reduce((acc, rating) => acc + rating.rating, 0) / anime.ratings.length
+        : 0,
+    }))
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, ROW_SIZE * 3);
+  const mostLiked = randomRow(mostLikedPool);
+
+  const dubbedPattern = /\bdub(lado|bed)?\b|dublado/i;
+  const dubbed = randomRow(
+    validAnimes.filter((anime) => {
+      if (dubbedPattern.test(anime.title || "")) return true;
+      if (dubbedPattern.test(anime.description || "")) return true;
+      return anime.categories.some((category) => dubbedPattern.test(category.name || ""));
+    }),
+  );
+
+  const curatedCategorySections = (() => {
     const buckets = new Map<string, { name: string; items: HomeAnime[] }>();
     for (const anime of validAnimes) {
       for (const category of anime.categories) {
@@ -393,117 +493,97 @@ export default async function HomePage() {
       }
     }
 
-    return shuffle(
-      Array.from(buckets.values())
+    return Array.from(buckets.values())
+      .map((section) => ({ ...section, items: dedupeById(section.items) }))
+      .filter((section) => section.items.length >= 9)
+      .sort((a, b) => b.items.length - a.items.length)
+      .slice(0, 2)
       .map((section) => ({
-        ...section,
-        items: dedupeById(shuffle(section.items)),
-      }))
-      .filter((section) => section.items.length >= 6)
-      .slice(0, 10),
-    );
+        name: section.name,
+        items: randomRow(section.items),
+      }));
   })();
+
   return (
     <AppLayout>
-      <div className="pb-28 md:pb-24">
+      <div className="pb-2 md:pb-4">
         {heroItems.length > 0 ? (
           <HomeHeroRotator items={heroItems} />
         ) : (
           <div className="h-[40vh] flex items-center justify-center text-[var(--text-muted)]">
             <div className="text-center space-y-2">
               <Sparkles size={32} className="mx-auto text-[var(--text-accent)] opacity-50" />
-              <p className="text-sm font-bold">Catalogo vazio</p>
+              <p className="text-sm font-bold">Catálogo indisponível no momento</p>
             </div>
           </div>
         )}
 
-        <div className="px-4 sm:px-6 lg:px-10 mt-8 relative z-20 space-y-10 lg:space-y-12">
-          <section className="rounded-3xl border border-white/12 bg-black/35 backdrop-blur-md p-4 sm:p-5 grid grid-cols-2 lg:grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Catalogo total</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-1">{validAnimes.length}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Continue vendo</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-1">{continueWatching.length}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3">
-              <p className="text-[10px] uppercase tracking-[0.15em] text-zinc-500 font-black">Faixas por genero</p>
-              <p className="text-xl sm:text-2xl font-black text-white mt-1">{categorySections.length}</p>
-            </div>
-          </section>
-
+        <div className="relative z-20 mx-auto mt-8 w-full max-w-[1600px] space-y-10 px-4 sm:px-6 lg:space-y-12 lg:px-10">
           <ContinueWatchingRail items={continueWatching as any} />
 
+          <HomeRail
+            title="Recomendados para você"
+            subtitle={
+              becauseWatchedAnime?.title
+                ? `Com base em ${becauseWatchedAnime.title}`
+                : "Seleção personalizada para sua próxima maratona"
+            }
+            icon={<Sparkles size={16} className="kdr-section-title-accent" />}
+            highlight="Para você"
+            items={recommendedTop}
+          />
 
+          <HomeRail
+            title="Em alta"
+            subtitle="Os títulos com mais visualizações na plataforma"
+            icon={<TrendingUp size={16} className="kdr-section-title-accent" />}
+            highlight="Agora"
+            items={trendingTop}
+          />
 
-          {trendingTop.length > 0 && (
-            <section className="animate-fadeInUp">
-              <SectionHeader
-                icon={<TrendingUp size={16} className="kdr-section-title-accent" />}
-                title="Em alta"
-                highlight="Agora"
-              />
-              <HorizontalCarousel>
-                {trendingTop.map((episode) => (
-                  <div key={episode.animeId} className="snap-start shrink-0">
-                    <AnimeCard
-                      href={`/anime/${episode.animeId}`}
-                      title={episode.anime?.title || ""}
-                      image={episode.anime?.coverImage}
-                      hideTitle={true}
-                      className="w-[140px] sm:w-[155px] md:w-[170px]"
-                    />
-                  </div>
-                ))}
-              </HorizontalCarousel>
-            </section>
-          )}
+          <HomeRail
+            title="Tendências da semana"
+            subtitle="O que mais cresceu nos últimos dias"
+            icon={<Clock3 size={16} className="kdr-section-title-accent" />}
+            items={weeklyTrending}
+            emptyMessage="Ainda não há dados suficientes de tendência semanal."
+          />
 
-          {recommendedTop.length > 0 && (
-            <section className="animate-fadeInUp">
-              <SectionHeader
-                icon={<Sparkles size={16} className="kdr-section-title-accent" />}
-                title={becauseWatchedAnime?.title
-                  ? `Porque voce assistiu ${becauseWatchedAnime.title}`
-                  : "Recomendados para voce"}
-              />
-              <CardRow items={recommendedTop} />
-            </section>
-          )}
+          <HomeRail
+            title="Mais curtidos"
+            subtitle="Ranking por avaliação média da comunidade"
+            icon={<Heart size={16} className="kdr-section-title-accent" />}
+            items={mostLiked}
+          />
 
-          {mostLiked.length > 0 && (
-            <section className="animate-fadeInUp">
-              <SectionHeader
-                icon={<Heart size={16} className="kdr-section-title-accent" />}
-                title="Mais curtidos"
-              />
-              <CardRow items={mostLiked} />
-            </section>
-          )}
+          <HomeRail
+            title="Adicionados recentemente"
+            subtitle="Novidades alimentadas pelo catálogo de episódios"
+            icon={<Play size={16} className="kdr-section-title-accent" />}
+            items={recentlyAdded}
+          />
 
-          {completed.length > 0 && (
-            <section className="animate-fadeInUp">
-              <SectionHeader
-                icon={<Layers size={16} className="kdr-section-title-accent" />}
-                title="Finalizados"
-              />
-              <CardRow items={completed} />
-            </section>
-          )}
+          <HomeRail
+            title="Dublados"
+            subtitle="Seleção rápida para assistir sem legendas"
+            icon={<Play size={16} className="kdr-section-title-accent" />}
+            items={dubbed}
+            emptyMessage="Esta trilha já está pronta e será preenchida conforme novos títulos dublados forem cadastrados."
+          />
 
-          {categorySections.map((section) => (
-            <section key={section.name} className="animate-fadeInUp">
-              <SectionHeader
-                icon={<Sparkles size={16} className="kdr-section-title-accent" />}
-                title={section.name}
-              />
-              <CardRow items={section.items.slice(0, ROW_SIZE)} />
-            </section>
+          {curatedCategorySections.map((section) => (
+            <HomeRail
+              key={section.name}
+              title={section.name}
+              subtitle="Curadoria por gênero"
+              icon={<Sparkles size={16} className="kdr-section-title-accent" />}
+              items={section.items.slice(0, ROW_SIZE)}
+            />
           ))}
         </div>
-
       </div>
     </AppLayout>
   );
 }
+
+

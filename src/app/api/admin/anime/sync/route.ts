@@ -278,7 +278,7 @@ async function resolveKappaEpisodes(
 
     imported.push({
       number: episode.number,
-      title: episode.title || `Episodio ${episode.number}`,
+      title: episode.title || `Episódio ${episode.number}`,
       videoUrl,
       sourceLabel: "Kappa API",
     });
@@ -358,7 +358,7 @@ async function resolveAtv2Episodes(
 
     imported.push({
       number,
-      title: item?.title || `Episodio ${number}`,
+      title: item?.title || `Episódio ${number}`,
       videoUrl,
       sourceLabel: providerLabel,
     });
@@ -434,7 +434,7 @@ async function resolveAnfireEpisodes(
 
     imported.push({
       number,
-      title: `Episodio ${number}`,
+      title: `Episódio ${number}`,
       videoUrl,
       sourceLabel: "AnFire API",
     });
@@ -657,7 +657,7 @@ async function resolveSugoiEpisodes(
 
     imported.push({
       number: episodeNumber,
-      title: `Episodio ${episodeNumber}`,
+      title: `Episódio ${episodeNumber}`,
       videoUrl: best.url,
       sourceLabel: `Sugoi API (${best.provider})`,
     });

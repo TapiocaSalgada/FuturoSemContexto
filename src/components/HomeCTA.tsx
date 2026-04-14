@@ -1,4 +1,5 @@
 "use client";
+
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 
@@ -6,6 +7,7 @@ export default function HomeCTA() {
   const { data: session } = useSession();
   const isAdmin = (session?.user as any)?.role === "admin";
   if (!isAdmin) return null;
+
   return (
     <div className="px-6 lg:px-14 py-4">
       <Link

@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
   });
   if (!targetUser) return NextResponse.json({ error: "Target not found" }, { status: 404 });
   if (targetUser.settings?.allowFollow === false) {
-    return NextResponse.json({ error: "Este perfil nao aceita novos seguidores." }, { status: 403 });
+    return NextResponse.json({ error: "Este perfil não aceita novos seguidores." }, { status: 403 });
   }
 
   try {

@@ -8,6 +8,7 @@ import { Heart, Edit3, Check, UploadCloud, Lock, Film, X, Users, Play, Sparkles,
 import Link from "next/link";
 import AnimeCard from "@/components/AnimeCard";
 import Image from "next/image";
+import CinematicBannerImage from "@/components/CinematicBannerImage";
 
 interface ProfileUser {
   id: string; name: string; avatarUrl?: string; bannerUrl?: string; bio?: string; isPrivate: boolean;
@@ -280,7 +281,7 @@ export default function ProfilePage() {
 
   const profileStats = [
     { label: "Favoritos", value: profile.favorites?.length || 0, icon: Heart },
-    { label: "Episodios", value: profile.histories?.length || 0, icon: Play },
+    { label: "Episódios", value: profile.histories?.length || 0, icon: Play },
     { label: "Seguidores", value: followData.followersCount || 0, icon: Users },
     { label: "Seguindo", value: followData.followingCount || 0, icon: Users },
   ];
@@ -312,11 +313,20 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
-      <div className="pb-28 md:pb-24">
+      <div className="pb-2 md:pb-4">
         {/* Banner */}
-        <div className="relative w-full h-[36vh] sm:h-[44vh] lg:h-[52vh] overflow-hidden rounded-none lg:rounded-[30px] border-0 lg:border lg:border-[var(--border-subtle)]">
+        <div className="relative w-full h-[34vh] sm:h-[44vh] lg:h-[52vh] overflow-hidden rounded-none lg:rounded-[30px]">
           <div className={`absolute inset-0 ${profile.bannerUrl ? "" : "bg-gradient-to-br from-black/55 via-[var(--bg-card)] to-slate-900/40"}`}>
-            {profile.bannerUrl && <img src={profile.bannerUrl} className="w-full h-full object-cover [filter:saturate(1.1)_brightness(0.8)]" alt="Banner" />}
+            {profile.bannerUrl ? (
+              <CinematicBannerImage
+                src={profile.bannerUrl}
+                alt={`Banner de ${profile.name}`}
+                loading="eager"
+                fetchPriority="high"
+                shadeClassName="bg-black/20"
+                imageClassName="[filter:saturate(1.08)_brightness(0.9)]"
+              />
+            ) : null}
             <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, transparent 0%, var(--hero-overlay-mid) 54%, var(--hero-overlay-bottom) 100%)" }} />
             <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, var(--hero-overlay-side) 0%, var(--hero-overlay-side-mid) 42%, transparent 75%)" }} />
           </div>

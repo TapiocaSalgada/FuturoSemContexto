@@ -388,7 +388,7 @@ export default function TomatoVideoPlayer({
 
             <div className="absolute left-1/2 -translate-x-1/2 top-[26px] pointer-events-none">
               <span className="inline-flex items-center rounded-full border border-white/20 bg-white/12 px-3 py-[3px] text-[9px] font-semibold text-white/92 backdrop-blur-sm">
-                <Cast size={10} className="mr-1" /> Video On
+                <Cast size={10} className="mr-1" /> Vídeo On
               </span>
             </div>
 
@@ -465,10 +465,10 @@ export default function TomatoVideoPlayer({
                         event.stopPropagation();
                         onNextEpisode();
                       }}
-                      className="h-6 px-1.5 rounded-md border border-white/15 bg-black/20 inline-flex items-center justify-center gap-1 text-[9px] font-semibold text-white/90"
-                      title="Proximo Episodio"
+                      className="h-6 min-w-[102px] px-3 rounded-md border border-white/15 bg-black/20 inline-flex items-center justify-center gap-1 text-[9px] font-semibold text-white/90"
+                      title="Próximo Episódio"
                     >
-                      <SkipForward size={10} /> Proximo
+                      <SkipForward size={10} /> Próximo
                     </button>
                   )}
                 </div>
@@ -538,7 +538,7 @@ export default function TomatoVideoPlayer({
               </button>
               <div className="ml-3 mt-1 z-30 flex-1 truncate pr-4">
                 <h1 className="text-white font-bold text-sm sm:text-lg drop-shadow-md truncate">{title || "Assistindo"}</h1>
-                {episodeNumber && <p className="text-white/70 text-xs sm:text-sm drop-shadow-md">Episodio {episodeNumber}</p>}
+                {episodeNumber && <p className="text-white/70 text-xs sm:text-sm drop-shadow-md">Episódio {episodeNumber}</p>}
               </div>
             </div>
 
@@ -612,10 +612,10 @@ export default function TomatoVideoPlayer({
                         event.stopPropagation();
                         onNextEpisode();
                       }}
-                      className="inline-flex items-center gap-1.5 text-sm font-bold text-white/95 hover:text-white transition ml-1"
-                      title="Proximo Episodio"
+                      className="inline-flex items-center justify-center min-w-[172px] h-9 px-4 rounded-xl border border-white/20 bg-white/5 gap-1.5 text-sm font-bold text-white/95 hover:text-white hover:bg-white/10 transition ml-1"
+                      title="Próximo Episódio"
                     >
-                      <SkipForward size={19} /> Proximo
+                      <SkipForward size={19} /> Próximo
                     </button>
                   )}
                 </div>
@@ -672,9 +672,9 @@ export default function TomatoVideoPlayer({
                 playerRef.current?.currentTime(outroEndSec);
               }
             }}
-            className="absolute bottom-24 sm:bottom-28 right-3 sm:right-8 bg-white hover:bg-gray-200 text-black font-extrabold text-xs sm:text-sm px-3.5 sm:px-6 py-2 sm:py-3 rounded shadow-2xl transition-all hover:scale-105 pointer-events-auto"
+            className="absolute bottom-24 sm:bottom-28 right-3 sm:right-8 w-[min(88vw,360px)] sm:w-auto bg-white hover:bg-gray-200 text-black font-extrabold text-xs sm:text-sm px-3.5 sm:px-6 py-2 sm:py-3 rounded shadow-2xl transition-all hover:scale-105 pointer-events-auto text-center"
           >
-            Proximo Episodio
+            Próximo Episódio
           </button>
         )}
       </div>

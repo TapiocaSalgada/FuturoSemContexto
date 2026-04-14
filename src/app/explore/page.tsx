@@ -53,14 +53,14 @@ export default function ExplorePage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-10 pb-28 md:pb-24 max-w-6xl mx-auto space-y-8">
-        <div className="glass-surface-heavy rounded-3xl p-5 sm:p-6 md:p-8">
+      <div className="kdr-page-shell max-w-6xl kdr-page-stack">
+        <div className="kdr-page-hero">
           <div className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.25em] text-[var(--text-accent)] font-black">Descobrir</p>
+            <p className="kdr-page-eyebrow">Descobrir</p>
             <h1 className="text-4xl sm:text-5xl font-black tracking-tight mt-1">Explorar</h1>
-            <p className="text-[var(--text-secondary)] text-sm mt-1">Busque animes e usuarios da plataforma.</p>
+            <p className="kdr-page-lead">Busque animes e usuários da plataforma.</p>
             <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className="kdr-badge kdr-badge-accent">Tendencias</span>
+              <span className="kdr-badge kdr-badge-accent">Tendências</span>
               <span className="kdr-badge">Lançamentos</span>
               <span className="kdr-badge">Comunidade</span>
             </div>
@@ -73,41 +73,41 @@ export default function ExplorePage() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar animes e usuarios..."
+            placeholder="Buscar animes e usuários..."
             autoFocus
             className="kdr-input pl-11 pr-5 py-3.5 rounded-xl"
           />
-          {loading && (
+          {loading ? (
             <div className="absolute right-4 top-1/2 -translate-y-1/2">
               <div
                 className="w-4 h-4 border-2 border-t-transparent rounded-full animate-spin"
                 style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }}
               />
             </div>
-          )}
+          ) : null}
         </div>
 
-        {!query && (
+        {!query ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <Sparkles size={36} className="text-[var(--text-muted)] opacity-40" />
             <p className="text-[var(--text-muted)] text-sm font-medium">Digite algo para pesquisar...</p>
           </div>
-        )}
+        ) : null}
 
-        {error && (
+        {error ? (
           <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-6 text-center">
             <p className="text-purple-400 text-sm font-bold">{error}</p>
           </div>
-        )}
+        ) : null}
 
-        {query && !loading && !hasResults && !error && (
+        {query && !loading && !hasResults && !error ? (
           <div className="text-center py-16 space-y-2">
             <Search size={32} className="mx-auto text-[var(--text-muted)] opacity-40" />
             <p className="font-bold text-[var(--text-muted)]">Nenhum resultado para &quot;{query}&quot;</p>
           </div>
-        )}
+        ) : null}
 
-        {results.animes.length > 0 && (
+        {results.animes.length > 0 ? (
           <section className="animate-fadeInUp">
             <h2 className="kdr-section-title mb-5">
               <Play size={16} className="kdr-section-title-accent" /> Animes
@@ -124,12 +124,12 @@ export default function ExplorePage() {
               ))}
             </div>
           </section>
-        )}
+        ) : null}
 
-        {results.users.length > 0 && (
+        {results.users.length > 0 ? (
           <section className="animate-fadeInUp">
             <h2 className="kdr-section-title mb-5">
-              <UserCircle size={16} className="kdr-section-title-accent" /> Usuarios
+              <UserCircle size={16} className="kdr-section-title-accent" /> Usuários
             </h2>
             <div className="space-y-2">
               {results.users.map((user) => (
@@ -149,13 +149,13 @@ export default function ExplorePage() {
                   </div>
                   <div>
                     <p className="font-bold text-white text-sm group-hover:text-[var(--text-accent)] transition">{user.name}</p>
-                    <p className="text-xs text-[var(--text-muted)]">Perfil publico</p>
+                    <p className="text-xs text-[var(--text-muted)]">Perfil público</p>
                   </div>
                 </Link>
               ))}
             </div>
           </section>
-        )}
+        ) : null}
       </div>
     </AppLayout>
   );

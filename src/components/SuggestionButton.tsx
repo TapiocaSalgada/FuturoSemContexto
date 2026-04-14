@@ -178,7 +178,7 @@ export default function SuggestionButton({
                 setError("");
               }}
               className="fixed bottom-[calc(86px+env(safe-area-inset-bottom,0px))] md:bottom-6 right-3 md:right-6 z-[9999] inline-flex items-center gap-2 text-white font-black px-4 py-2.5 rounded-full shadow-[0_12px_30px_rgba(0,0,0,0.5)] transition text-xs uppercase tracking-wide border border-white/25 hover:translate-y-[-1px]"
-              style={{ background: "linear-gradient(140deg, #c1121f, #7f1d1d)" }}
+              style={{ background: "linear-gradient(140deg, #5b21b6, #3b0764)" }}
               title="Sugerir anime ou reportar bug"
             >
             <Bug size={14} />

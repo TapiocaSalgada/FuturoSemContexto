@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { Play, Heart, MessageSquare, Send, CornerDownRight, Edit3, Trash2, Check, X, FolderOpen, ChevronDown, Star, Loader2, Clock3, AlertTriangle, Eye, Bookmark } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import CinematicBannerImage from "@/components/CinematicBannerImage";
 
 interface Comment {
   id: string; content: string; createdAt: string; updatedAt: string;
@@ -123,7 +124,7 @@ function CommentItem({ comment, animeId, currentUserId, onRefresh }: {
     setEditing(false); onRefresh();
   };
   const handleDelete = async () => {
-    if (!confirm("Apagar comentario?")) return;
+    if (!confirm("Apagar comentário?")) return;
     await fetch("/api/comments", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: comment.id }) });
     onRefresh();
   };
@@ -498,7 +499,7 @@ export default function AnimePageClient() {
   const viewerCount = Math.max(0, Number(anime.viewerCount || 0));
   const pseudoLikes = Math.max(1, Math.round((ratingData.total || 1) * 0.65));
   const ratingOutOf10 = ratingData.average ? Number((ratingData.average * 2).toFixed(1)) : 0;
-  const mediaTypeLabel = anime.episodes.length >= 12 ? "Serie de TV" : "Especial";
+  const mediaTypeLabel = anime.episodes.length >= 12 ? "Série de TV" : "Especial";
 
   return (
     <AppLayout>
@@ -543,31 +544,31 @@ export default function AnimePageClient() {
 
             <form onSubmit={handleBugReportSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-zinc-400 mb-1 block">Titulo</label>
+                <label className="text-xs font-bold text-zinc-400 mb-1 block">Título</label>
                 <input
                   value={bugForm.title}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, title: e.target.value }))}
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-400"
-                  placeholder="Ex: Video nao carrega no episodio 3"
+                  placeholder="Ex: Vídeo não carrega no episódio 3"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-zinc-400 mb-1 block">Episodio (opcional)</label>
+                <label className="text-xs font-bold text-zinc-400 mb-1 block">Episódio (opcional)</label>
                 <select
                   value={bugForm.episodeId}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, episodeId: e.target.value }))}
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-amber-400"
                 >
-                  <option value="">Sem episodio especifico</option>
+                  <option value="">Sem episódio específico</option>
                   {anime.episodes.map((episode) => (
                     <option key={episode.id} value={episode.id}>
-                      T{episode.season}E{episode.number} - {episode.title || `Episodio ${episode.number}`}
+                      T{episode.season}E{episode.number} - {episode.title || `Episódio ${episode.number}`}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold text-zinc-400 mb-1 block">Descricao *</label>
+                <label className="text-xs font-bold text-zinc-400 mb-1 block">Descrição *</label>
                 <textarea
                   value={bugForm.description}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, description: e.target.value }))}
@@ -600,7 +601,7 @@ export default function AnimePageClient() {
           <div className="relative glass-surface-heavy border border-white/12 rounded-2xl p-5 w-full max-w-xl space-y-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-black text-lg flex items-center gap-2">
-                <MessageSquare size={18} className="kdr-section-title-accent" /> Comentarios recentes
+                <MessageSquare size={18} className="kdr-section-title-accent" /> Comentários recentes
               </h3>
               <button onClick={() => setShowCommentsQuickModal(false)} className="text-zinc-500 hover:text-white transition">
                 <X size={18} />
@@ -608,7 +609,7 @@ export default function AnimePageClient() {
             </div>
 
             {comments.length === 0 ? (
-              <p className="text-sm text-zinc-400">Ainda nao existem comentarios para este anime.</p>
+              <p className="text-sm text-zinc-400">Ainda não existem comentários para este anime.</p>
             ) : (
               <div className="max-h-[52vh] overflow-y-auto space-y-2 pr-1">
                 {comments.slice(0, 8).map((comment) => (
@@ -646,12 +647,16 @@ export default function AnimePageClient() {
         </div>
       )}
 
-      <div className="pb-28 md:pb-24">
-        <div className="relative w-full overflow-hidden rounded-none lg:rounded-[30px] border-0 lg:border lg:border-[var(--border-subtle)] aspect-[16/12] sm:aspect-[16/9] lg:aspect-[16/7] max-h-[82vh]">
-          <img
-            src={anime.bannerImage || anime.coverImage || ""}
-            className="w-full h-full object-cover [filter:saturate(1.04)_brightness(0.68)]"
+      <div className="pb-2 md:pb-4">
+        <div className="relative w-full overflow-hidden rounded-none lg:rounded-[30px] aspect-[16/12] sm:aspect-[16/9] lg:aspect-[16/7] max-h-[82vh]">
+          <CinematicBannerImage
+            src={anime.bannerImage || anime.coverImage}
+            fallbackSrc={anime.coverImage}
             alt={anime.title}
+            loading="eager"
+            fetchPriority="high"
+            shadeClassName="bg-black/18"
+            imageClassName="[filter:saturate(1.04)_brightness(0.86)]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/45 to-black/8" />
           <div className="absolute inset-0 bg-gradient-to-r from-[var(--background)]/72 via-[var(--background)]/24 to-transparent" />
@@ -668,7 +673,7 @@ export default function AnimePageClient() {
               <div className="rounded-3xl border border-white/10 bg-black/46 backdrop-blur-md p-4 sm:p-5 lg:p-6 shadow-[0_16px_44px_rgba(0,0,0,0.42)]">
                 <div className="flex flex-wrap items-center gap-2 mb-3">
                   <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black border uppercase tracking-[0.05em] ${anime.status === "ongoing" ? "bg-emerald-500/20 text-emerald-100 border-emerald-400/35" : "bg-violet-500/20 text-violet-100 border-violet-300/35"}`}>
-                    {anime.status === "ongoing" ? "Em lancamento" : "Finalizado"}
+                    {anime.status === "ongoing" ? "Em lançamento" : "Finalizado"}
                   </span>
                   <span className="px-2.5 py-1 rounded-lg text-[11px] font-black border border-white/18 bg-white/5 text-zinc-200 uppercase tracking-[0.05em]">
                     {mediaTypeLabel}
@@ -788,7 +793,7 @@ export default function AnimePageClient() {
                     type="button"
                     onClick={openCommentsQuickModal}
                     className="w-9 h-9 rounded-lg border border-white/12 bg-white/5 text-zinc-200 hover:text-white hover:bg-white/12 transition"
-                    title="Comentarios"
+                    title="Comentários"
                   >
                     <MessageSquare size={16} className="mx-auto" />
                   </button>
@@ -850,7 +855,7 @@ export default function AnimePageClient() {
                 onClick={openCommentsQuickModal}
                 className="mt-4 w-full h-10 rounded-xl border border-white/15 bg-white/10 hover:bg-white/18 text-white text-sm font-black transition"
               >
-                Avaliar e comentarios
+                Avaliar e comentários
               </button>
 
               {ratingData.userRating && session && (
@@ -866,12 +871,12 @@ export default function AnimePageClient() {
           {anime.episodes.length > 0 && (
             <div id="anime-episodios" className="scroll-mt-28">
               <div className="mb-5 space-y-3">
-                <h2 className="kdr-section-title"><Play size={16} className="kdr-section-title-accent" /> Episodios</h2>
+                <h2 className="kdr-section-title"><Play size={16} className="kdr-section-title-accent" /> Episódios</h2>
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
                   <input
                     value={episodeFilter}
                     onChange={(event) => setEpisodeFilter(event.target.value)}
-                    placeholder="Buscar episodio por titulo/numero..."
+                    placeholder="Buscar episódio por título/número..."
                     className="kdr-input w-full sm:max-w-sm rounded-xl px-3 py-2.5 text-sm"
                   />
                   <p className="text-xs font-bold text-[var(--text-muted)]">Layout simplificado de episódios</p>
@@ -880,7 +885,7 @@ export default function AnimePageClient() {
 
               {!hasEpisodeResults && (
                 <p className="text-sm text-[var(--text-muted)] mb-6">
-                  Nenhum episodio encontrado para esse filtro.
+                  Nenhum episódio encontrado para esse filtro.
                 </p>
               )}
 
@@ -891,7 +896,7 @@ export default function AnimePageClient() {
                 return (
                   <div key={season} className="mb-8">
                     <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-4">
-                      {seasons.length > 1 ? `Temporada ${season}` : "Episodios"}
+                      {seasons.length > 1 ? `Temporada ${season}` : "Episódios"}
                     </h3>
 
                     {episodeLayout === "list" ? (
@@ -928,7 +933,7 @@ export default function AnimePageClient() {
                                     />
                                   </div>
                                   <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-[0.08em]">
-                                    {progressItem?.watched ? "Concluido" : `${progressPct}% assistido`}
+                                    {progressItem?.watched ? "Concluído" : `${progressPct}% assistido`}
                                   </p>
                                 </div>
                               )}
@@ -963,8 +968,8 @@ export default function AnimePageClient() {
                               </Link>
                               <div className="p-3 space-y-2">
                                 <div className="min-w-0">
-                                  <p className="font-bold text-white text-sm truncate">{ep.title || `Episodio ${ep.number}`}</p>
-                                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{ep.duration || "--"} • Episodio {ep.number}</p>
+                                  <p className="font-bold text-white text-sm truncate">{ep.title || `Episódio ${ep.number}`}</p>
+                                  <p className="text-xs text-[var(--text-muted)] mt-0.5">{ep.duration || "--"} • Episódio {ep.number}</p>
                                 </div>
                                 {progressPct > 0 && (
                                   <div className="space-y-1">
@@ -975,7 +980,7 @@ export default function AnimePageClient() {
                                       />
                                     </div>
                                     <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-[0.08em]">
-                                      {progressItem?.watched ? "Concluido" : `${progressPct}% assistido`}
+                                      {progressItem?.watched ? "Concluído" : `${progressPct}% assistido`}
                                     </p>
                                   </div>
                                 )}
@@ -995,7 +1000,7 @@ export default function AnimePageClient() {
           {/* Comments */}
           <div id="anime-comments" className="scroll-mt-24">
               <h2 className="kdr-section-title text-xl mb-6 border-l-4 pl-4 rounded-r" style={{ borderColor: accentColor }}>
-                <MessageSquare size={20} className="kdr-section-title-accent" /> Comentarios ({comments.length})
+                <MessageSquare size={20} className="kdr-section-title-accent" /> Comentários ({comments.length})
               </h2>
 
             {session ? (
@@ -1014,7 +1019,7 @@ export default function AnimePageClient() {
                     <Image src={(session.user as any)?.avatarUrl || session.user?.image || `https://ui-avatars.com/api/?name=${encodeURIComponent(session.user?.name || "U")}&background=111827&color=fff`} fill sizes="44px" className="object-cover" alt="avatar" />
                   </div>
                   <div className="flex-1 flex items-center gap-2 bg-[var(--bg-card)]/50 border border-[var(--border-default)] hover:border-[var(--border-strong)] rounded-xl px-4 py-2.5 transition focus-within:border-[var(--accent-border)]">
-                    <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Deixe um comentario..."
+                    <input value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Deixe um comentário..."
                       className="flex-1 bg-transparent text-white text-sm focus:outline-none placeholder:text-[var(--text-muted)] min-w-0" />
                     <button type="submit" disabled={!newComment.trim()} className="text-[var(--text-accent)] hover:text-white disabled:opacity-30 transition">
                       <Send size={16} />

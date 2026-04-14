@@ -4,7 +4,7 @@
  * Watch page orchestration layer.
  *
  * This file coordinates:
- * - source loading/fallback (direct + embed)
+ * - source loading/fallback (direct + compatibility embed)
  * - player lifecycle and mobile immersive behavior
  * - history persistence and telemetry
  * - autoplay/next-episode gating with source-aware thresholds
@@ -23,13 +23,11 @@ import {
   Play,
   RotateCcw,
   RotateCw,
-  SkipForward,
   X,
 } from "lucide-react";
 
 import AppLayout from "@/components/AppLayout";
 import TomatoVideoPlayer from "@/components/TomatoVideoPlayer";
-import { toEmbeddableVideoUrl } from "@/lib/video";
 import {
   WATCH_PLAYER_DEFAULT_CONFIG,
   normalizeWatchPlayerConfig,
@@ -81,7 +79,7 @@ type WatchPayload = {
 };
 
 function formatSeasonLabel(episode: EpisodeItem) {
-  return `T${episode.season} Â· Ep ${episode.number}`;
+  return `T${episode.season} · Ep ${episode.number}`;
 }
 
 function isHlsUrl(url: string) {
@@ -126,6 +124,176 @@ function getUrlHost(value: string) {
   } catch {
     return "";
   }
+}
+
+function looksDirectPlaybackUrl(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw.startsWith("http")) return false;
+
+  const normalized = raw.toLowerCase();
+  if (/\.(mp4|m4v|webm|ogg|mov|m3u8|mpd|ts)(\?|#|$)/.test(normalized)) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    const pathname = parsed.pathname.toLowerCase();
+    const search = parsed.search.toLowerCase();
+
+    return (
+      pathname.startsWith("/api/watch/proxy") ||
+      host.includes("googlevideo.com") ||
+      host.includes("akamaized.net") ||
+      host.includes("cloudfront.net") ||
+      host.includes("bunnycdn") ||
+      host.includes("storage.googleapis.com") ||
+      host.includes("wasabisys.com") ||
+      host.includes("backblazeb2.com") ||
+      (host.includes("blogspot.com") && pathname.includes("videoplayback")) ||
+      /(?:^|[?&])(format|mime)=video/.test(search) ||
+      /(?:^|[?&])type=video/.test(search)
+    );
+  } catch {
+    return false;
+  }
+}
+
+const WATCH_PROXY_HOST_HINTS = [
+  "blogger.com",
+  "blogspot.com",
+  "googlevideo.com",
+  "drive.google.com",
+  "drive.usercontent.google.com",
+  "storage.googleapis.com",
+  "akamaized.net",
+  "cloudfront.net",
+  "bunnycdn",
+  "wasabisys.com",
+  "backblazeb2.com",
+];
+
+function isProxyEligiblePlaybackUrl(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return false;
+  if (raw.startsWith("/api/watch/proxy")) return true;
+  if (!raw.startsWith("http")) return false;
+
+  try {
+    const host = new URL(raw).hostname.toLowerCase();
+    return WATCH_PROXY_HOST_HINTS.some((hint) => host.includes(hint));
+  } catch {
+    return false;
+  }
+}
+
+function buildLocalWatchProxyUrl(value: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("/api/watch/proxy")) return raw;
+  return `/api/watch/proxy?src=${encodeURIComponent(raw)}`;
+}
+
+function toTomatoPlayableSource(url: string, type?: string) {
+  const normalizedUrl = String(url || "").trim();
+  if (!normalizedUrl) return null;
+
+  const normalizedType = String(type || "").toLowerCase();
+
+  // Preserve explicit embed sources so fallback can actually switch out of direct/proxy mode.
+  if (normalizedType === "embed" && normalizedUrl.startsWith("http")) {
+    return { url: normalizedUrl, type: "embed" as const };
+  }
+
+  if (normalizedUrl.startsWith("/api/watch/proxy")) {
+    return { url: normalizedUrl, type: "direct" as const };
+  }
+
+  if (isProxyEligiblePlaybackUrl(normalizedUrl)) {
+    return { url: buildLocalWatchProxyUrl(normalizedUrl), type: "direct" as const };
+  }
+
+  if (normalizedType === "direct" || looksDirectPlaybackUrl(normalizedUrl)) {
+    return { url: normalizedUrl, type: "direct" as const };
+  }
+
+  if (normalizedUrl.startsWith("http")) {
+    return { url: normalizedUrl, type: "embed" as const };
+  }
+
+  return null;
+}
+
+function pickPreferredDirectSource(
+  sources?: { label?: string; url: string; type: string }[] | null,
+  fallbackUrl?: string | null,
+  fallbackType?: string | null,
+) {
+  const listedSources = Array.isArray(sources)
+    ? sources.filter((source) => Boolean(String(source?.url || "").trim()))
+    : [];
+
+  const prioritized = [
+    ...listedSources.filter((source) => {
+      const sourceType = String(source.type || "").toLowerCase();
+      return sourceType === "direct" || looksDirectPlaybackUrl(source.url);
+    }),
+    ...listedSources,
+  ];
+
+  for (const source of prioritized) {
+    const playable = toTomatoPlayableSource(source.url, source.type);
+    if (playable) return playable;
+  }
+
+  const fallback = String(fallbackUrl || "").trim();
+  const fallbackResolvedType = String(fallbackType || "").toLowerCase();
+  const fallbackPlayable = toTomatoPlayableSource(fallback, fallbackResolvedType);
+  if (fallbackPlayable) {
+    return fallbackPlayable;
+  }
+
+  return null;
+}
+
+function isSourceDirectLike(source: { url: string; type: string }) {
+  const sourceType = String(source.type || "").toLowerCase();
+  if (sourceType === "direct") return true;
+  return looksDirectPlaybackUrl(source.url);
+}
+
+function getNextTomatoSource(
+  sources: { label?: string; url: string; type: string }[],
+  failedKeys: Set<string>,
+  failedHosts: Set<string>,
+  currentSource: { url: string; type: string },
+) {
+  if (!sources.length) return null;
+
+  const currentKey = `${currentSource.type}:${currentSource.url}`;
+  failedKeys.add(currentKey);
+
+  const currentHost = getUrlHost(currentSource.url);
+  if (currentHost) {
+    failedHosts.add(currentHost);
+  }
+
+  const available = sources.filter((source) => {
+    const key = `${source.type}:${source.url}`;
+    return !failedKeys.has(key);
+  });
+  if (!available.length) return null;
+
+  const preferred = available.filter((source) => isSourceDirectLike(source));
+  const pool = preferred.length ? preferred : available;
+
+  const withDifferentHost = pool.filter((source) => {
+    const host = getUrlHost(source.url);
+    if (!host) return true;
+    return !failedHosts.has(host);
+  });
+
+  return withDifferentHost.length ? withDifferentHost[0] : pool[0];
 }
 
 const HISTORY_QUEUE_KEY_BASE = "futuro-watch-history-queue-v1";
@@ -348,8 +516,18 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
   const findSourceLabel = useCallback((url?: string, type?: string) => {
     if (!data?.sources?.length || !url) return "";
-    const match = data.sources.find((source) => source.url === url && source.type === type);
-    return String(match?.label || "").trim();
+    const target = toTomatoPlayableSource(url, type);
+
+    const exact = data.sources.find((source) => source.url === url && source.type === type);
+    if (exact?.label) return String(exact.label).trim();
+
+    if (!target) return "";
+
+    const normalized = data.sources.find((source) => {
+      const playable = toTomatoPlayableSource(source.url, source.type);
+      return playable?.url === target.url && playable?.type === target.type;
+    });
+    return String(normalized?.label || "").trim();
   }, [data?.sources]);
 
   const trackPlaybackEvent = useCallback((payload: WatchTelemetryEventPayload) => {
@@ -455,8 +633,8 @@ export default function WatchPage({ params }: { params: { id: string } }) {
         );
 
         if (!validPayload) {
-          const apiError = String(payload?.error || "Esse episodio nao esta disponivel agora.").trim();
-          throw new Error(apiError || "Esse episodio nao esta disponivel agora.");
+          const apiError = String(payload?.error || "Esse episódio não está disponível agora.").trim();
+          throw new Error(apiError || "Esse episódio não está disponível agora.");
         }
 
         if (cancelled) return;
@@ -465,33 +643,27 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           ? payload.sources.filter((source: { url?: string }) => Boolean(source?.url))
           : [];
 
-        const preferredSource =
-          listedSources.find((source: { type?: string }) => source?.type === "direct") ||
-          (payload?.videoToPlay
-            ? {
-                url: String(payload.videoToPlay),
-                type: String(payload?.sourceType || "embed"),
-              }
-            : null) ||
-          listedSources[0] ||
-          null;
-
-        if (!preferredSource?.url) {
-          throw new Error("Este episodio nao possui nenhuma fonte disponivel no momento.");
-        }
+        const preferredSource = pickPreferredDirectSource(
+          listedSources as { label?: string; url: string; type: string }[],
+          payload?.videoToPlay,
+          payload?.sourceType,
+        );
 
         setData(payload as WatchPayload);
-        setCurrentSource({
-          url: String(preferredSource.url),
-          type: String(preferredSource.type || payload?.sourceType || "embed"),
-        });
+        if (preferredSource?.url) {
+          setCurrentSource(preferredSource);
+          setPlayerError("");
+        } else {
+          setCurrentSource({ url: "", type: "direct" });
+          setPlayerError("Este episódio não possui fonte disponível no momento.");
+        }
         setLoading(false);
       } catch (error) {
         if (cancelled || controller.signal.aborted) return;
         setData(null);
         setCurrentSource({ url: "", type: "direct" });
         setLoading(false);
-        setLoadError(error instanceof Error ? error.message : "Erro ao carregar o episodio.");
+        setLoadError(error instanceof Error ? error.message : "Erro ao carregar o episódio.");
       }
     };
 
@@ -685,17 +857,17 @@ export default function WatchPage({ params }: { params: { id: string } }) {
       failedHostsRef.current.clear();
       endHandledRef.current = false;
       setPlayerError("");
-      const preferredSource =
-        data.sources?.find((source) => source.url === data.videoToPlay) ||
-        data.sources?.[0] ||
-        {
-          url: data.videoToPlay,
-          type: data.sourceType || "embed",
-        };
-      setCurrentSource({
-        url: preferredSource.url,
-        type: preferredSource.type || data.sourceType || "embed",
-      });
+      const resolvedPreferred = pickPreferredDirectSource(
+        data.sources,
+        data.videoToPlay,
+        data.sourceType,
+      );
+      if (resolvedPreferred?.url) {
+        setCurrentSource(resolvedPreferred);
+      } else {
+        setCurrentSource({ url: "", type: "direct" });
+        setPlayerError("Sem fonte disponível para reproduzir este episódio.");
+      }
     }
   }, [data?.videoToPlay, data?.sourceType, data?.sources]);
 
@@ -713,7 +885,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     };
   }, [allowNextPrefetch, data?.nextEpisode, prefetchedNext]);
 
-  // â”€â”€ Playback speed â”€â”€
+  // ── Playback speed ──
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isCurrentDirect || !data) return;
@@ -721,7 +893,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     video.playbackRate = Number.isFinite(speed) ? speed : 1;
   }, [data, isCurrentDirect]);
 
-  // â”€â”€ Resume playback â”€â”€
+  // ── Resume playback ──
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isCurrentDirect || !data?.history || resumeApplied) return;
@@ -734,7 +906,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     return () => video.removeEventListener("loadedmetadata", applyResume);
   }, [data, resumeApplied, isCurrentDirect]);
 
-  // â”€â”€ Save progress every 10s â”€â”€
+  // ── Save progress every 10s ──
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !isCurrentDirect || !data?.episodeId || !session?.user) return;
@@ -853,7 +1025,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     };
   }, [data?.episodeId, isCurrentDirect]);
 
-  // â”€â”€ Keyboard shortcuts (MP4 only) â”€â”€
+  // ── Keyboard shortcuts (MP4 only) ──
   useEffect(() => {
     if (!isCurrentDirect) return;
     const video = videoRef.current;
@@ -938,7 +1110,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           }
           break;
         default:
-          // 0-9 â†’ jump to % of video
+          // 0-9 → jump to % of video
           if (e.code.startsWith("Digit")) {
             e.preventDefault();
             const pct = parseInt(e.code.replace("Digit", "")) / 10;
@@ -1009,9 +1181,34 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   }, [filteredEpisodeGroups]);
 
   const playbackSources = useMemo(() => {
-    if (!data?.sources?.length) return [] as { label?: string; url: string; type: string }[];
-    return data.sources.filter((source) => Boolean(source?.url));
-  }, [data?.sources]);
+    const listedSources = Array.isArray(data?.sources)
+      ? data.sources.filter((source) => Boolean(source?.url))
+      : [];
+
+    const prepared = listedSources
+      .map((source) => {
+        const playable = toTomatoPlayableSource(source.url, source.type);
+        if (!playable) return null;
+        return {
+          label: source.label,
+          url: playable.url,
+          type: playable.type,
+        };
+      })
+      .filter((source): source is { label?: string; url: string; type: string } => Boolean(source));
+
+    const deduped = Array.from(
+      new Map(prepared.map((source) => [`${source.type}:${source.url}`, source])).values(),
+    );
+    if (deduped.length > 0) return deduped;
+
+    const fallback = toTomatoPlayableSource(data?.videoToPlay || "", data?.sourceType);
+    if (fallback) {
+      return [{ label: "Principal", url: fallback.url, type: fallback.type }];
+    }
+
+    return [] as { label?: string; url: string; type: string }[];
+  }, [data?.sources, data?.videoToPlay, data?.sourceType]);
 
   const applySource = useCallback((next: { url: string; type: string }, preservePosition = false) => {
     if (!next.url) return;
@@ -1026,38 +1223,16 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     }
 
     setPlayerError("");
-    setCurrentSource({ url: next.url, type: next.type || "embed" });
+    setCurrentSource({ url: next.url, type: next.type || "direct" });
   }, [currentSource.type]);
 
   const pickNextSource = useCallback(() => {
-    if (!playbackSources.length) return null;
-
-    const currentKey = `${currentSource.type}:${currentSource.url}`;
-    failedSourcesRef.current.add(currentKey);
-
-    const currentHost = getUrlHost(currentSource.url);
-    if (currentHost) {
-      failedHostsRef.current.add(currentHost);
-    }
-
-    const available = playbackSources.filter((source) => {
-      const key = `${source.type}:${source.url}`;
-      return !failedSourcesRef.current.has(key);
-    });
-
-    if (!available.length) return null;
-
-    const preferred = available.some((source) => source.type === "direct")
-      ? available.filter((source) => source.type === "direct")
-      : available;
-
-    const withDifferentHost = preferred.filter((source) => {
-      const host = getUrlHost(source.url);
-      if (!host) return true;
-      return !failedHostsRef.current.has(host);
-    });
-
-    return withDifferentHost.length ? withDifferentHost[0] : preferred[0];
+    return getNextTomatoSource(
+      playbackSources,
+      failedSourcesRef.current,
+      failedHostsRef.current,
+      currentSource,
+    );
   }, [currentSource.type, currentSource.url, playbackSources]);
 
   const handleSourceFailure = useCallback((message: string) => {
@@ -1130,11 +1305,11 @@ export default function WatchPage({ params }: { params: { id: string } }) {
         hls.attachMedia(video);
         hls.on(Hls.Events.ERROR, (_, errorData) => {
           if (errorData?.fatal) {
-            handleSourceFailure("Nao foi possivel reproduzir esta fonte.");
+            handleSourceFailure("Não foi possível reproduzir esta fonte.");
           }
         });
       } else {
-        handleSourceFailure("Seu navegador nao suporta este stream.");
+        handleSourceFailure("Seu navegador não suporta este stream.");
       }
     } else {
       video.src = currentSource.url;
@@ -1258,7 +1433,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
     const description = bugForm.description.trim();
     if (description.length < 8) {
-      setBugMsg({ type: "err", text: "Descreva melhor o problema (mÃ­nimo 8 caracteres)." });
+      setBugMsg({ type: "err", text: "Descreva melhor o problema (mínimo 8 caracteres)." });
       return;
     }
 
@@ -1383,8 +1558,8 @@ export default function WatchPage({ params }: { params: { id: string } }) {
     return (
       <AppLayout>
         <div className="min-h-[70vh] bg-[var(--background)] flex flex-col justify-center items-center text-white px-6 text-center gap-4">
-          <p className="font-black text-xl">NÃ£o foi possÃ­vel abrir este episÃ³dio.</p>
-          <p className="text-[var(--text-muted)] text-sm max-w-md">{loadError || "VÃ­deo nÃ£o encontrado."}</p>
+          <p className="font-black text-xl">Não foi possível abrir este episódio.</p>
+          <p className="text-[var(--text-muted)] text-sm max-w-md">{loadError || "Vídeo não encontrado."}</p>
           <Link prefetch={true} href="/" className="kdr-btn-primary h-10 px-6 text-sm">
             Voltar para home
           </Link>
@@ -1394,13 +1569,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
   }
 
   const tomatoTitle = `${data.episode.number}. ${
-    String(data.episode.title || data.epTitle || `Episodio ${data.episode.number}`).trim()
+    String(data.episode.title || data.epTitle || `Episódio ${data.episode.number}`).trim()
   }`;
-  const currentEmbedUrl = !isCurrentDirect
-    ? toEmbeddableVideoUrl(currentSource.url || data.videoToPlay || "", currentSource.type || data.sourceType)
-    : "";
   const mobileOnlyEpisodeMode = isMobileViewport && mobileImmersive;
-  const forceLandscapeMobile = mobileOnlyEpisodeMode && isPortraitOrientation;
 
   return (
     <AppLayout>
@@ -1410,7 +1581,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
           <div className="relative glass-surface-heavy border border-white/12 rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] sm:pb-6 w-full max-w-lg space-y-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-black text-lg flex items-center gap-2">
-                <AlertTriangle size={18} className="text-[var(--text-primary)]" /> Reportar bug do episÃ³dio
+                <AlertTriangle size={18} className="text-[var(--text-primary)]" /> Reportar bug do episódio
               </h3>
               <button onClick={() => setShowBugModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition">
                 <X size={18} />
@@ -1419,16 +1590,16 @@ export default function WatchPage({ params }: { params: { id: string } }) {
 
             <form onSubmit={handleBugReportSubmit} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">TÃ­tulo</label>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Título</label>
                 <input
                   value={bugForm.title}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, title: e.target.value }))}
                   className="kdr-input w-full rounded-lg px-3 py-2.5 text-sm"
-                  placeholder="Ex: player travando no episÃ³dio"
+                  placeholder="Ex: player travando no episódio"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">DescriÃ§Ã£o *</label>
+                <label className="text-xs font-bold text-[var(--text-muted)] mb-1 block">Descrição *</label>
                 <textarea
                   value={bugForm.description}
                   onChange={(e) => setBugForm((prev) => ({ ...prev, description: e.target.value }))}
@@ -1460,27 +1631,25 @@ export default function WatchPage({ params }: { params: { id: string } }) {
         <div className={`${mobileOnlyEpisodeMode ? "max-w-none mx-0 px-0 py-0" : "max-w-[1620px] mx-auto px-0 lg:px-6 py-0 md:py-6 space-y-0 md:space-y-6"} relative z-10`}>
           <div className={`grid grid-cols-1 ${mobileOnlyEpisodeMode ? "gap-0" : "xl:grid-cols-[minmax(0,1fr)_340px] gap-0 md:gap-6"} items-start`}>
             <section className="space-y-0 md:space-y-4 pt-0">
-            {/* â”€â”€ Player â”€â”€ */}
+            {/* ── Player ── */}
             <div
               id="watch-player"
               ref={playerWrapRef}
               className={`relative overflow-hidden bg-black ${mobileOnlyEpisodeMode ? "rounded-none border-0 shadow-none scroll-mt-0" : "rounded-none lg:rounded-[30px] border-0 lg:border lg:border-white/15 shadow-[0_24px_56px_rgba(0,0,0,0.55)] scroll-mt-28"}`}
               style={
-                forceLandscapeMobile
+                mobileOnlyEpisodeMode
                   ? {
                       position: "fixed",
                       inset: "0px",
-                      width: "100vh",
-                      height: "100vw",
-                      transform: "rotate(90deg) translateY(-100%)",
-                      transformOrigin: "top left",
+                      width: "100vw",
+                      height: "100dvh",
                       zIndex: 95,
                     }
                   : undefined
               }
             >
               <div
-                className={forceLandscapeMobile ? "relative w-full h-full" : "aspect-video relative"}
+                className={mobileOnlyEpisodeMode ? "relative w-full h-full" : "aspect-video relative"}
                 onTouchStart={() => revealMobileChrome()}
                 onMouseMove={() => {
                   if (isMobileViewport) {
@@ -1488,7 +1657,8 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   }
                 }}
               >
-                {isCurrentDirect ? (
+                {currentSource.url ? (
+                  isCurrentDirect ? (
                   <TomatoVideoPlayer
                     videoRef={videoRef}
                     poster={data.anime.bannerImage || data.anime.coverImage || ""}
@@ -1497,7 +1667,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     onTimeUpdate={handleTimeUpdate}
                     onEnded={handleEnded}
                     onLoadedData={() => setPlayerError("")}
-                    onError={() => handleSourceFailure("Essa fonte falhou ao carregar o video.")}
+                    onError={() => handleSourceFailure("Essa fonte falhou ao carregar o vídeo.")}
                     onSeekBackward={() => seekBySeconds(-10, "back")}
                     onSeekForward={() => seekBySeconds(10, "forward")}
                     onOpenEpisodes={() => openMobilePanel("episodes")}
@@ -1514,30 +1684,25 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     }
                     showNextEpisodeButton={Boolean(data.nextEpisode)}
                   />
-                ) : currentEmbedUrl ? (
-                  <div className="absolute inset-0 bg-black">
-                    <iframe
-                      src={currentEmbedUrl}
-                      className="w-full h-full"
-                      allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-                      allowFullScreen
-                      loading="eager"
-                      referrerPolicy="strict-origin-when-cross-origin"
-                    />
-                    {data.nextEpisode && (
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
-                        className="absolute right-3 bottom-3 h-9 px-3 rounded-lg border border-white/20 bg-black/70 text-white text-xs font-black inline-flex items-center gap-1.5"
-                      >
-                        <SkipForward size={13} /> Proximo episodio
-                      </button>
-                    )}
-                  </div>
+                  ) : (
+                    <div className="absolute inset-0 bg-black">
+                      <iframe
+                        src={currentSource.url}
+                        title={tomatoTitle}
+                        className="w-full h-full border-0"
+                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                        allowFullScreen
+                        referrerPolicy="strict-origin-when-cross-origin"
+                      />
+                      <div className="pointer-events-none absolute left-3 right-3 bottom-3 z-30 rounded-xl border border-white/15 bg-black/65 px-3 py-2 text-[11px] text-white/85 backdrop-blur-sm">
+                        Modo compatibilidade ativo para esta fonte.
+                      </div>
+                    </div>
+                  )
                 ) : (
                   <div className="absolute inset-0 bg-black/80 flex items-center justify-center px-6 text-center">
                     <p className="text-sm text-purple-200 font-bold">
-                      Nao foi possivel montar o player para esta fonte.
+                      Não encontramos fonte disponível para este episódio.
                     </p>
                   </div>
                 )}
@@ -1546,14 +1711,14 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 {autoplayCountdown !== null && data.nextEpisode && (
                   <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6 z-40">
                     <div className="max-w-sm w-full rounded-3xl bg-black/82 border border-[var(--accent-border)] p-6 text-center space-y-4 shadow-[0_22px_56px_rgba(0,0,0,0.58)]">
-                      <p className="text-[var(--text-muted)] text-sm">EpisÃ³dio concluÃ­do</p>
+                      <p className="text-[var(--text-muted)] text-sm">Episódio concluído</p>
                       {/* Countdown ring */}
                       <div className="relative inline-flex items-center justify-center">
                         <CountdownRing total={AUTOPLAY_SECONDS} current={autoplayCountdown} />
                         <span className="absolute text-2xl font-black text-white">{autoplayCountdown}</span>
                       </div>
                       <h3 className="text-xl font-black text-white">{data.nextEpisode.title}</h3>
-                      <p className="text-[var(--text-muted)] text-xs">PrÃ³ximo episÃ³dio iniciando automaticamente...</p>
+                      <p className="text-[var(--text-muted)] text-xs">Próximo episódio iniciando automaticamente...</p>
                       <div className="flex gap-3">
                         <button
                           onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
@@ -1576,7 +1741,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   <div className="absolute left-3 right-3 bottom-3 z-40 rounded-2xl border border-white/20 bg-black/80 backdrop-blur-md p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)] font-black">Proximo episodio</p>
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--text-muted)] font-black">Próximo episódio</p>
                         <p className="text-sm font-black text-white truncate">{data.nextEpisode.title}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -1588,7 +1753,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                         </button>
                         <button
                           onClick={() => router.push(`/watch/${data.nextEpisode?.id}`)}
-                          className="kdr-btn-primary h-9 px-3 rounded-lg text-xs"
+                          className="kdr-btn-primary h-9 min-w-[132px] px-5 rounded-lg text-xs justify-center"
                         >
                           <Play size={12} /> Assistir
                         </button>
@@ -1652,7 +1817,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     onClick={enableEpisodeOnlyMode}
                     className="h-8 px-3 rounded-full border border-[var(--border-default)] text-[11px] font-black text-[var(--text-primary)] bg-[var(--bg-card)]/70"
                   >
-                    SÃ³ episÃ³dio
+                    Só episódio
                   </button>
                 </div>
                 <div className="mt-2 flex items-center justify-end gap-2">
@@ -1660,9 +1825,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                     <button
                       type="button"
                       onClick={() => router.push(`/watch/${nextPlaylistEpisode.id}`)}
-                      className="h-8 px-3 rounded-full border border-[var(--border-default)] text-[11px] font-black text-[var(--text-primary)] bg-[var(--bg-card)]/70"
+                      className="h-8 min-w-[146px] px-5 rounded-full border border-[var(--border-default)] text-[11px] font-black text-[var(--text-primary)] bg-[var(--bg-card)]/70"
                     >
-                      PrÃ³ximo episÃ³dio
+                      Próximo episódio
                     </button>
                   )}
                 </div>
@@ -1689,13 +1854,13 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                       : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/10"
                   }`}
                 >
-                  EpisÃ³dios
+                  Episódios
                 </button>
               </div>
             </div>
             )}
 
-            {/* â”€â”€ Info + Rating â”€â”€ */}
+            {/* ── Info + Rating ── */}
             <div id="watch-detalhes" className={`${mobileOnlyEpisodeMode ? "hidden" : mobilePanel === "details" ? "block" : "hidden"} ${detailsExpanded ? "md:block" : "md:hidden"} bg-transparent md:glass-surface md:border md:border-white/10 rounded-none md:rounded-[30px] p-5 lg:p-6 mt-2 md:mt-0 scroll-mt-28`}>
               <div className="flex items-center gap-3 flex-wrap">
                 <img src="/logo.png" alt="Futuro sem Contexto" className="w-10 h-10 rounded-2xl object-cover" />
@@ -1710,7 +1875,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                 <span className="px-3 py-1 rounded-full bg-[var(--bg-card)] border border-[var(--border-subtle)] text-[var(--text-secondary)]">
                   Fonte: {data.episode.sourceLabel || data.sourceType.replace("_", " ")}
                 </span>
-                {data.nextEpisode && <span className="px-3 py-1 rounded-full bg-[var(--accent-soft)] border border-[var(--accent-border)] text-[var(--text-accent)] font-bold">Auto prÃ³ximo ativo</span>}
+                {data.nextEpisode && <span className="px-3 py-1 rounded-full bg-[var(--accent-soft)] border border-[var(--accent-border)] text-[var(--text-accent)] font-bold">Auto próximo ativo</span>}
                 {pipSupported && isCurrentDirect && (
                   <button
                     onClick={handleEnterPip}
@@ -1733,19 +1898,21 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                       className="bg-[var(--bg-card)] border border-[var(--border-default)] rounded-lg px-2 py-1 text-[var(--text-primary)]"
                       value={`${currentSource.type}:${currentSource.url}`}
                       onChange={(e) => {
-                        const [type, ...rest] = e.target.value.split(":");
+                        const [selectedType, ...rest] = e.target.value.split(":");
                         const url = rest.join(":");
+                        const playable = toTomatoPlayableSource(url, selectedType);
+                        if (!playable) return;
                         trackPlaybackEvent({
                           event: "source_manual_switch",
                           sourceUrl: currentSource.url,
                           sourceType: currentSource.type,
-                          fallbackUrl: url,
-                          fallbackType: type,
+                          fallbackUrl: playable.url,
+                          fallbackType: playable.type,
                           message: "manual-inline",
                         });
                         failedSourcesRef.current.clear();
                         failedHostsRef.current.clear();
-                        applySource({ url, type }, true);
+                        applySource(playable, true);
                       }}
                     >
                       {playbackSources.map((s, idx: number) => (
@@ -1769,9 +1936,9 @@ export default function WatchPage({ params }: { params: { id: string } }) {
               {/* Keyboard shortcut hint (desktop only) */}
               {isCurrentDirect && (
                 <p className="mt-3 text-[11px] text-[var(--text-muted)] hidden md:block">
-                  Atalhos: <kbd className="bg-[var(--bg-card)] px-1 rounded">EspaÃ§o</kbd> pausar &nbsp;
-                  <kbd className="bg-[var(--bg-card)] px-1 rounded">â†/â†’</kbd> Â±5s &nbsp;
-                  <kbd className="bg-[var(--bg-card)] px-1 rounded">J/L</kbd> Â±10s &nbsp;
+                  Atalhos: <kbd className="bg-[var(--bg-card)] px-1 rounded">Espaço</kbd> pausar &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">←/→</kbd> ±5s &nbsp;
+                  <kbd className="bg-[var(--bg-card)] px-1 rounded">J/L</kbd> ±10s &nbsp;
                   <kbd className="bg-[var(--bg-card)] px-1 rounded">F</kbd> tela cheia &nbsp;
                   <kbd className="bg-[var(--bg-card)] px-1 rounded">M</kbd> mudo &nbsp;
                   <kbd className="bg-[var(--bg-card)] px-1 rounded">N/P</kbd> troca ep &nbsp;
@@ -1781,14 +1948,14 @@ export default function WatchPage({ params }: { params: { id: string } }) {
             </div>
           </section>
 
-          {/* â”€â”€ Playlist Sidebar â”€â”€ */}
+          {/* ── Playlist Sidebar ── */}
             <aside id="watch-playlist" className={`${mobileOnlyEpisodeMode ? "hidden" : mobilePanel === "episodes" ? "block" : "hidden"} md:block glass-surface border border-white/10 rounded-[24px] p-3 lg:p-5 xl:sticky xl:top-20 scroll-mt-28`}>
             <div className="mb-3 rounded-2xl border border-white/15 bg-black/25 p-3 sm:p-4">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] font-black">EpisÃ³dio detalhes</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] font-black">Episódio detalhes</p>
               <div className="grid grid-cols-2 gap-3 mt-3 pb-3 border-b border-white/10">
                 <div>
                   <p className="text-3xl sm:text-4xl font-black leading-none text-[var(--text-primary)]">{data.episode.number}</p>
-                  <p className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] mt-1">EpisÃ³dio</p>
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-[var(--text-muted)] mt-1">Episódio</p>
                 </div>
                 <div>
                   <p className="text-3xl sm:text-4xl font-black leading-none text-[var(--text-secondary)]">{data.episode.season}</p>
@@ -1810,11 +1977,11 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   onClick={() => nextPlaylistEpisode && router.push(`/watch/${nextPlaylistEpisode.id}`)}
                   className="h-8 sm:h-9 rounded-xl border border-white/12 bg-white/[0.05] text-[var(--text-primary)] text-[11px] sm:text-xs font-black disabled:opacity-35 disabled:cursor-not-allowed"
                 >
-                  <span className="inline-flex items-center gap-1">PrÃ³ximo <ChevronRight size={13} /></span>
+                  <span className="inline-flex items-center gap-1">Próximo <ChevronRight size={13} /></span>
                 </button>
               </div>
               <div className="mt-3 space-y-1.5 text-[11px] text-[var(--text-muted)]">
-                <p className="flex items-center justify-between gap-2"><span>SÃ©rie</span><span className="text-[var(--text-primary)] font-bold truncate max-w-[140px]">{data.anime.title}</span></p>
+                <p className="flex items-center justify-between gap-2"><span>Série</span><span className="text-[var(--text-primary)] font-bold truncate max-w-[140px]">{data.anime.title}</span></p>
                 <p className="flex items-center justify-between gap-2"><span>Fonte</span><span className="text-[var(--text-primary)] font-bold">{data.episode.sourceLabel || data.sourceType.replace("_", " ")}</span></p>
               </div>
             </div>
@@ -1822,7 +1989,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
             <div className="flex items-center justify-between gap-3 mb-4">
               <div>
                 <p className="text-[var(--text-muted)] text-xs uppercase tracking-[0.2em]">Playlist</p>
-                <h2 className="text-lg font-black text-[var(--text-primary)]">{data.playlist.length} episÃ³dios</h2>
+                <h2 className="text-lg font-black text-[var(--text-primary)]">{data.playlist.length} episódios</h2>
               </div>
               {currentPlaylistIndex >= 0 && (
                 <span className="text-[11px] font-black text-[var(--text-secondary)] px-2.5 py-1 rounded-lg border border-white/12 bg-white/[0.04]">
@@ -1835,7 +2002,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
               <input
                 value={playlistQuery}
                 onChange={(e) => setPlaylistQuery(e.target.value)}
-                placeholder="Buscar episÃ³dio..."
+                placeholder="Buscar episódio..."
                 className="kdr-input w-full rounded-xl px-3 py-1.5 text-[11px] sm:text-xs"
               />
               <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
@@ -1857,12 +2024,12 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-[var(--text-muted)] font-bold">Mostrando {filteredEpisodeTotal} de {data.playlist.length} episÃ³dios</p>
+              <p className="text-[10px] text-[var(--text-muted)] font-bold">Mostrando {filteredEpisodeTotal} de {data.playlist.length} episódios</p>
             </div>
 
             <div className="space-y-3 max-h-[66vh] overflow-y-auto pr-1">
               {Object.keys(filteredEpisodeGroups).length === 0 && (
-                <p className="text-xs text-[var(--text-muted)]">Nenhum episÃ³dio encontrado para esse filtro.</p>
+                <p className="text-xs text-[var(--text-muted)]">Nenhum episódio encontrado para esse filtro.</p>
               )}
 
               {Object.entries(filteredEpisodeGroups).map(([season, episodes]) => (
@@ -1883,7 +2050,7 @@ export default function WatchPage({ params }: { params: { id: string } }) {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-bold text-[var(--text-primary)] text-[12px] truncate">
-                              EpisÃ³dio {episode.number}
+                              Episódio {episode.number}
                             </p>
                             <span className="text-[10px] text-[var(--text-muted)]">{formatSeasonLabel(episode)}</span>
                           </div>

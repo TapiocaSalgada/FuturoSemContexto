@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { KeyboardEventHandler } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Props {
@@ -49,11 +50,25 @@ export default function HorizontalCarousel({ children, className = "" }: Props) 
     };
   }, []);
 
+  const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      scroll("right");
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      scroll("left");
+    }
+  };
+
   return (
     <div className="group/carousel relative">
       <div
         ref={containerRef}
         className={`flex gap-3.5 sm:gap-4 overflow-x-auto scrollbar-hide snap-x snap-mandatory ${className}`}
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        aria-label="Carrossel horizontal"
       >
         {children}
       </div>
@@ -70,7 +85,7 @@ export default function HorizontalCarousel({ children, className = "" }: Props) 
         <button
           onClick={() => scroll("left")}
           aria-label="Anterior"
-          className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-xl opacity-0 transition-all duration-250 group-hover/carousel:opacity-100 hover:border-[var(--accent-border)] hover:bg-[var(--accent)] md:flex"
+          className="absolute left-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-xl opacity-0 transition-all duration-250 group-hover/carousel:opacity-100 hover:border-[var(--accent-border)] hover:bg-[var(--accent)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-strong)] md:flex"
         >
           <ChevronLeft size={20} />
         </button>
@@ -79,8 +94,8 @@ export default function HorizontalCarousel({ children, className = "" }: Props) 
       {canRight ? (
         <button
           onClick={() => scroll("right")}
-          aria-label="Proximo"
-          className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-xl opacity-0 transition-all duration-250 group-hover/carousel:opacity-100 hover:border-[var(--accent-border)] hover:bg-[var(--accent)] md:flex"
+          aria-label="Próximo"
+          className="absolute right-2 top-1/2 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white shadow-xl opacity-0 transition-all duration-250 group-hover/carousel:opacity-100 hover:border-[var(--accent-border)] hover:bg-[var(--accent)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-strong)] md:flex"
         >
           <ChevronRight size={20} />
         </button>
@@ -88,3 +103,4 @@ export default function HorizontalCarousel({ children, className = "" }: Props) 
     </div>
   );
 }
+

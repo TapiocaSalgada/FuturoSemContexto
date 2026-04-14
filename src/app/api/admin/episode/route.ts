@@ -37,13 +37,13 @@ export async function POST(req: Request) {
     } = await req.json();
 
     if (!animeId || !videoUrl?.trim()) {
-      return new NextResponse("Anime e video sao obrigatorios.", { status: 400 });
+      return new NextResponse("Anime e vídeo são obrigatórios.", { status: 400 });
     }
 
     const parsedNumber = parseInt(number, 10);
     const parsedSeason = parseInt(season, 10) || 1;
     if (!Number.isFinite(parsedNumber) || parsedNumber <= 0) {
-      return new NextResponse("Numero do episodio invalido.", { status: 400 });
+      return new NextResponse("Número do episódio inválido.", { status: 400 });
     }
 
     const existing = await prisma.episode.findFirst({
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     });
     if (existing) {
       return new NextResponse(
-        "Ja existe episodio com essa temporada e numero.",
+        "Já existe episódio com essa temporada e número.",
         { status: 409 },
       );
     }
@@ -60,11 +60,11 @@ export async function POST(req: Request) {
       where: { id: animeId },
       select: { id: true, title: true },
     });
-    if (!anime) return new NextResponse("Anime nao encontrado.", { status: 404 });
+    if (!anime) return new NextResponse("Anime não encontrado.", { status: 404 });
 
     const episode = await prisma.episode.create({
       data: {
-        title: title || `Episodio ${parsedNumber}`,
+        title: title || `Episódio ${parsedNumber}`,
         number: parsedNumber,
         season: parsedSeason,
         videoUrl,
@@ -93,8 +93,8 @@ export async function POST(req: Request) {
       {
         actorId: null,
         type: "new_episode",
-        title: `${anime.title} recebeu um novo episodio`,
-        body: `Temporada ${parsedSeason} episodio ${parsedNumber} ja esta disponivel.`,
+        title: `${anime.title} recebeu um novo episódio`,
+        body: `Temporada ${parsedSeason} episódio ${parsedNumber} já está disponível.`,
         link: `/watch/${episode.id}`,
       },
     );

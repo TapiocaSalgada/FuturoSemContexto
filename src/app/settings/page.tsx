@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import AppLayout from "@/components/AppLayout";
 import SuggestionButton from "@/components/SuggestionButton";
@@ -38,10 +38,10 @@ const sectionIcons: Record<Section, React.ElementType> = {
 
 const sectionLabels: Record<Section, string> = {
   conta: "Conta & Perfil",
-  notifications: "Notificacoes",
-  appearance: "Aparencia",
+  notifications: "Notificações",
+  appearance: "Aparência",
   privacy: "Privacidade",
-  playback: "Reproducao",
+  playback: "Reprodução",
   feedback: "Reportar bug",
 };
 
@@ -231,11 +231,11 @@ export default function SettingsPage() {
   const handleChangePassword = async () => {
     setPwMsg("");
     if (pwForm.newPw !== pwForm.confirm) {
-      setPwMsg("As senhas nao coincidem.");
+      setPwMsg("As senhas não coincidem.");
       return;
     }
     if (pwForm.newPw.length < 6) {
-      setPwMsg("Minimo de 6 caracteres.");
+      setPwMsg("Mínimo de 6 caracteres.");
       return;
     }
 
@@ -270,7 +270,7 @@ export default function SettingsPage() {
       }),
     });
     if (res.ok) {
-      setEmailMsg("E-mail atualizado. Faca login novamente.");
+      setEmailMsg("E-mail atualizado. Faça login novamente.");
       setEmailForm({ password: "", newEmail: "" });
     } else {
       const data = await res.json();
@@ -385,10 +385,10 @@ export default function SettingsPage() {
 
   return (
     <AppLayout>
-      <div className="p-4 lg:p-10 pb-24 max-w-6xl mx-auto animate-fadeInUp">
-        <div className="flex items-center justify-between mb-8">
+      <div className="kdr-page-shell max-w-6xl kdr-page-stack animate-fadeInUp">
+        <div className="kdr-page-hero flex items-center justify-between gap-4">
           <h1 className="text-3xl lg:text-5xl font-black tracking-tight flex items-center gap-3">
-            <Settings size={28} className="kdr-section-title-accent" /> Configuracoes
+            <Settings size={28} className="kdr-section-title-accent" /> Configurações
           </h1>
           <div className="flex items-center gap-2">
             {saveState !== "idle" && (
@@ -441,7 +441,7 @@ export default function SettingsPage() {
             <p className="text-xs text-zinc-500 mb-6">
               {section === "conta"
                 ? "Edite seu perfil e credenciais."
-                : "Mudancas salvas automaticamente no servidor."}
+                : "Mudanças salvas automaticamente no servidor."}
             </p>
 
             {section === "conta" && (
@@ -562,10 +562,10 @@ export default function SettingsPage() {
 
                 <div className="space-y-3">
                   <p className="font-bold text-sm text-zinc-300 uppercase tracking-wider text-xs">
-                    Informacoes
+                    Informações
                   </p>
                   <InputField
-                    label="Nome de exibicao"
+                    label="Nome de exibição"
                     value={profileForm.name}
                     onChange={(value) =>
                       setProfileForm((current) => ({ ...current, name: value }))
@@ -702,12 +702,12 @@ export default function SettingsPage() {
               <div>
                 <Toggle
                   label="Novos seguidores"
-                  desc="Avise quando alguem comecar a seguir seu perfil."
+                  desc="Avise quando alguém comecar a seguir seu perfil."
                   settingKey="notifyFollowers"
                 />
                 <Toggle
-                  label="Respostas em comentarios"
-                  desc="Avise quando responderem seus comentarios."
+                  label="Respostas em comentários"
+                  desc="Avise quando responderem seus comentários."
                   settingKey="notifyReplies"
                 />
               </div>
@@ -758,8 +758,8 @@ export default function SettingsPage() {
             {section === "privacy" && (
               <div>
                 <Toggle
-                  label="Perfil publico"
-                  desc="Permite que outras pessoas vejam sua pagina de perfil."
+                  label="Perfil público"
+                  desc="Permite que outras pessoas vejam sua página de perfil."
                   settingKey="publicProfile"
                 />
                 <Toggle
@@ -778,12 +778,12 @@ export default function SettingsPage() {
             {section === "playback" && (
               <div>
                 <Toggle
-                  label="Auto proximo episodio"
-                  desc="Quando um episodio termina, inicia o proximo sozinho."
+                  label="Auto próximo episódio"
+                  desc="Quando um episódio termina, inicia o próximo sozinho."
                   settingKey="autoplay"
                 />
                 <SelectField
-                  label="Velocidade padrao"
+                  label="Velocidade padrão"
                   settingKey="playbackSpeed"
                   options={[
                     { label: "0.5x", value: "0.5x" },
@@ -800,7 +800,7 @@ export default function SettingsPage() {
             {section === "feedback" && (
               <div className="space-y-4">
                 <p className="text-sm text-zinc-400">
-                  Envie sugestoes de anime e reporte bugs do site. Voce tambem encontra esse atalho no menu ao tocar na foto de perfil.
+                  Envie sugestões de anime e reporte bugs do site. Você também encontra esse atalho no menu ao tocar na foto de perfil.
                 </p>
                 <SuggestionButton
                   variant="sidebar"
@@ -818,3 +818,5 @@ export default function SettingsPage() {
     </AppLayout>
   );
 }
+
+

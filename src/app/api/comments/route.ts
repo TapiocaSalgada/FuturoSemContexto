@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       userId: parentComment.userId,
       actorId: user.id,
       type: "comment_reply",
-      title: `${user.name} respondeu seu comentario`,
+      title: `${user.name} respondeu seu comentário`,
       body: content,
       link: `/anime/${animeId}`,
     });

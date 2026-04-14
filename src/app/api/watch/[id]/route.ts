@@ -30,6 +30,7 @@ import {
   normalizePlaybackUrl,
   toEmbeddableVideoUrl,
 } from "@/lib/video";
+import { isBloggerVideoGatewayUrl, resolveBloggerMediaUrls } from "@/lib/blogger";
 import { isPublicVisibility } from "@/lib/visibility";
 import {
   WATCH_PLAYER_DEFAULT_CONFIG,
@@ -434,7 +435,31 @@ async function resolveAnfireEpisodeSource(
   };
 }
 
+function isLocalWatchProxyUrl(url: string) {
+  try {
+    const parsed = new URL(normalizePlaybackUrl(url || ""));
+    return parsed.pathname.startsWith("/api/watch/proxy");
+  } catch {
+    return false;
+  }
+}
+
+function buildWatchProxyUrl(sourceUrl: string, requestUrl: string) {
+  try {
+    const origin = new URL(requestUrl).origin;
+    const proxy = new URL("/api/watch/proxy", origin);
+    proxy.searchParams.set("src", normalizePlaybackUrl(sourceUrl || ""));
+    return proxy.toString();
+  } catch {
+    return sourceUrl;
+  }
+}
+
 async function probeSourceUrl(url: string, timeoutMs = 5000) {
+  if (isLocalWatchProxyUrl(url)) {
+    return true;
+  }
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -668,51 +693,70 @@ export async function GET(
       resolvedVideoUrl,
       currentEpisode?.sourceType,
     );
+    const primaryEpisodeSourceUrl = normalizePlaybackUrl(
+      currentEpisode?.videoUrl || "",
+    );
+    let allowPrimaryBloggerDirect = true;
+    if (primaryEpisodeSourceUrl && isBloggerVideoGatewayUrl(primaryEpisodeSourceUrl)) {
+      const resolvedBloggerMedia = await resolveBloggerMediaUrls(primaryEpisodeSourceUrl, {
+        timeoutMs: 9000,
+      }).catch(() => [] as string[]);
+      allowPrimaryBloggerDirect = resolvedBloggerMedia.length > 0;
+      if (!allowPrimaryBloggerDirect) {
+        // Force provider fallback resolution when Blogger gateway cannot produce playable URLs.
+        resolvedVideoUrl = "";
+        resolvedSourceType = "external";
+      }
+    }
     const sources: { label: string; url: string; type: VideoSourceKind }[] = [];
     const sourceSet = new Set<string>();
+
+    const addSource = (label: string, url: string, type: VideoSourceKind) => {
+      const key = `${type}:${url}`;
+      if (sourceSet.has(key)) return;
+      sourceSet.add(key);
+      sources.push({ label, url, type });
+    };
 
     const pushSource = (label: string, url?: string | null, sourceType?: string | null) => {
       const normalizedUrl = normalizePlaybackUrl(url || "");
       if (!normalizedUrl) return;
-      const type: VideoSourceKind = detectVideoSource(normalizedUrl, sourceType || undefined);
-      const key = `${type}:${normalizedUrl}`;
-      if (sourceSet.has(key)) return;
-      sourceSet.add(key);
-      sources.push({ label, url: normalizedUrl, type });
+
+      const isBloggerGateway = isBloggerVideoGatewayUrl(normalizedUrl);
+      if (isBloggerGateway) {
+        const isPrimaryBlogger = normalizedUrl === primaryEpisodeSourceUrl;
+        if (!isPrimaryBlogger || allowPrimaryBloggerDirect) {
+          // Also try direct playback through local proxy.
+          const proxyUrl = buildWatchProxyUrl(normalizedUrl, req.url);
+          addSource(`${label} direto`, proxyUrl, "direct");
+        }
+
+        // Keep original Blogger embed only as emergency fallback.
+        const embedType: VideoSourceKind = detectVideoSource(normalizedUrl, "embed");
+        addSource(`${label} embed`, normalizedUrl, embedType);
+        return;
+      }
+
+      const effectiveUrl = normalizedUrl;
+      const type: VideoSourceKind = detectVideoSource(effectiveUrl, sourceType || undefined);
+      addSource(label, effectiveUrl, type);
 
       if (type !== "direct") {
-        const nestedMedia = extractNestedMediaUrl(normalizedUrl);
-        if (nestedMedia && nestedMedia !== normalizedUrl) {
+        const nestedMedia = extractNestedMediaUrl(effectiveUrl);
+        if (nestedMedia && nestedMedia !== effectiveUrl) {
           const nestedType: VideoSourceKind = detectVideoSource(nestedMedia, "direct");
           if (nestedType === "direct") {
-            const nestedKey = `${nestedType}:${nestedMedia}`;
-            if (!sourceSet.has(nestedKey)) {
-              sourceSet.add(nestedKey);
-              sources.push({
-                label: `${label} direto`,
-                url: nestedMedia,
-                type: nestedType,
-              });
-            }
+            addSource(`${label} direto`, nestedMedia, nestedType);
           }
         }
       }
 
       if (type === "google_drive") {
-        const driveCandidates = buildGoogleDriveDirectCandidates(normalizedUrl);
+        const driveCandidates = buildGoogleDriveDirectCandidates(effectiveUrl);
         for (const driveUrl of driveCandidates) {
           const driveType: VideoSourceKind = detectVideoSource(driveUrl, "direct");
           if (driveType !== "direct") continue;
-
-          const driveKey = `${driveType}:${driveUrl}`;
-          if (sourceSet.has(driveKey)) continue;
-
-          sourceSet.add(driveKey);
-          sources.push({
-            label: `${label} html5`,
-            url: driveUrl,
-            type: driveType,
-          });
+          addSource(`${label} html5`, driveUrl, driveType);
         }
       }
     };
@@ -1044,6 +1088,18 @@ export async function GET(
       }
     }
 
+    // Prefer direct-safe source whenever available so frontend keeps custom player.
+    const preferredDirectSource =
+      safeSources.find(
+        (source) => source.type === "direct" && !isLikelyDownloadOnlyUrl(source.url),
+      ) ||
+      safeSources.find((source) => source.type === "direct");
+
+    if (preferredDirectSource) {
+      resolvedVideoUrl = preferredDirectSource.url;
+      resolvedSourceType = "direct";
+    }
+
     let history = null;
     let viewerSettings = normalizeSettings();
     if (user) {
@@ -1077,17 +1133,21 @@ export async function GET(
       updatedAt: null,
     }));
 
+    const preferredEmbedSource =
+      safeSources.find((source) => source.type !== "direct") ||
+      sources.find((source) => source.type !== "direct");
+    const resolvedEmbedUrl = preferredEmbedSource
+      ? toEmbeddableVideoUrl(preferredEmbedSource.url, preferredEmbedSource.type)
+      : toEmbeddableVideoUrl(resolvedVideoUrl, resolvedSourceType);
+
     return NextResponse.json({
       anime: animeData,
       episode: currentEpisode,
       episodeId: currentEpisode.id,
       videoToPlay: resolvedVideoUrl || "",
-      embedUrl: toEmbeddableVideoUrl(
-        resolvedVideoUrl,
-        resolvedSourceType,
-      ),
+      embedUrl: resolvedEmbedUrl,
       sources: safeSources,
-      epTitle: `Episodio ${currentEpisode.number} - ${currentEpisode.title}`,
+      epTitle: `Episódio ${currentEpisode.number} - ${currentEpisode.title}`,
       playlist,
       nextEpisode,
       prevEpisode,

@@ -103,7 +103,7 @@ function normalizeEpisodes(payload: any): EpisodeItem[] {
     return {
       id: String(item?.id || item?.episode_id || item?.episodio_id || `ep-${idx}`),
       number: Number.isFinite(number) && number > 0 ? number : idx + 1,
-      title: String(item?.episode_name || item?.title || `Episodio ${rawNumber}`),
+      title: String(item?.episode_name || item?.title || `Episódio ${rawNumber}`),
       link: item?.link || item?.url || null,
       thumbnail: item?.imagem || item?.image || null,
     };
@@ -219,7 +219,7 @@ export async function GET(req: NextRequest) {
   if (!["search", "episodes", "episode-video"].includes(endpointRaw)) {
     return NextResponse.json(
       {
-        error: "Endpoint invalido. Use search, episodes ou episode-video.",
+        error: "Endpoint inválido. Use search, episodes ou episode-video.",
       },
       { status: 400 },
     );
@@ -262,7 +262,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(normalized);
       }
 
-      errors.push(`formato invalido em ${path}`);
+      errors.push(`formato inválido em ${path}`);
     } catch (error) {
       errors.push(`falha em ${path}: ${error instanceof Error ? error.message : "erro"}`);
     }

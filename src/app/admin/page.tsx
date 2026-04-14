@@ -106,11 +106,11 @@ type CategoryRow = { id: string; name: string };
 type MessageState = { type: "ok" | "err"; text: string } | null;
 
 const sectionConfig: Array<{ key: SectionKey; label: string; icon: React.ElementType }> = [
-  { key: "overview", label: "Visao geral", icon: BarChart3 },
-  { key: "catalog", label: "Catalogo anime", icon: Layers },
+  { key: "overview", label: "Visão geral", icon: BarChart3 },
+  { key: "catalog", label: "Catálogo anime", icon: Layers },
   { key: "reports", label: "Relatos de bug", icon: Bug },
-  { key: "suggestions", label: "Sugestoes", icon: Lightbulb },
-  { key: "users", label: "Usuarios", icon: Users },
+  { key: "suggestions", label: "Sugestões", icon: Lightbulb },
+  { key: "users", label: "Usuários", icon: Users },
   { key: "system", label: "Sistema", icon: Shield },
 ];
 
@@ -137,13 +137,13 @@ const suggestionStatusLabels: Record<string, string> = {
 };
 
 function formatAnimeStatus(status: string) {
-  if (status === "ongoing") return "Em lancamento";
+  if (status === "ongoing") return "Em lançamento";
   if (status === "completed") return "Finalizado";
   return status || "Indefinido";
 }
 
 function formatVisibility(visibility: string) {
-  if (visibility === "public") return "Publico";
+  if (visibility === "public") return "Público";
   if (visibility === "admin_only") return "Somente admin";
   return visibility || "Indefinida";
 }
@@ -205,7 +205,7 @@ export default function AdminDashboardPage() {
   const [alerts, setAlerts] = useState({ openBugReportsCount: 0, pendingSuggestionsCount: 0 });
 
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(false);
-  const [maintenanceMessage, setMaintenanceMessage] = useState("Estamos em manutencao. Voltamos em breve.");
+  const [maintenanceMessage, setMaintenanceMessage] = useState("Estamos em manutenção. Voltamos em breve.");
   const [animeTabEnabled, setAnimeTabEnabled] = useState(true);
 
   const [animeForm, setAnimeForm] = useState(createEmptyForm());
@@ -306,7 +306,7 @@ export default function AdminDashboardPage() {
       if (maintenanceResponse.ok) {
         const maintenance = await maintenanceResponse.json();
         setMaintenanceEnabled(Boolean(maintenance?.enabled));
-        setMaintenanceMessage(String(maintenance?.message || "Estamos em manutencao. Voltamos em breve."));
+        setMaintenanceMessage(String(maintenance?.message || "Estamos em manutenção. Voltamos em breve."));
       }
 
       if (navigationResponse.ok) {
@@ -417,7 +417,7 @@ export default function AdminDashboardPage() {
     event.preventDefault();
     const title = animeForm.title.trim();
     if (!title) {
-      showMsg("Titulo obrigatorio.", "err");
+      showMsg("Título obrigatório.", "err");
       return;
     }
 
@@ -479,7 +479,7 @@ export default function AdminDashboardPage() {
   };
 
   const handleDeleteAnime = async (id: string, title: string) => {
-    if (!confirm(`Remover "${title}" do catalogo?`)) return;
+    if (!confirm(`Remover "${title}" do catálogo?`)) return;
 
     try {
       const response = await fetch("/api/admin/anime", {
@@ -522,14 +522,14 @@ export default function AdminDashboardPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || "Falha ao sincronizar episodios.");
+        throw new Error(payload?.error || "Falha ao sincronizar episódios.");
       }
 
       const imported = Number(payload?.imported ?? payload?.importedCount ?? 0);
-      showMsg(imported > 0 ? `Sincronizacao concluida: ${imported} episodio(s) importado(s).` : "Sincronizacao concluida sem novos episodios.");
+      showMsg(imported > 0 ? `Sincronização concluída: ${imported} episódio(s) importado(s).` : "Sincronização concluída sem novos episódios.");
       await Promise.all([loadAnimes(), loadAlerts()]);
     } catch (error) {
-      showMsg(error instanceof Error ? error.message : "Falha ao sincronizar episodios.", "err");
+      showMsg(error instanceof Error ? error.message : "Falha ao sincronizar episódios.", "err");
     } finally {
       setSyncingAnimeId(null);
     }
@@ -546,7 +546,7 @@ export default function AdminDashboardPage() {
       await Promise.all([loadBugReports(), loadAlerts()]);
       showMsg("Status do bug atualizado.");
     } catch {
-      showMsg("Nao foi possivel atualizar o bug report.", "err");
+      showMsg("Não foi possível atualizar o bug report.", "err");
     }
   };
 
@@ -573,27 +573,27 @@ export default function AdminDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, status: nextStatus }),
       });
-      if (!response.ok) throw new Error("Falha ao atualizar sugestao.");
+      if (!response.ok) throw new Error("Falha ao atualizar sugestão.");
       await Promise.all([loadSuggestions(), loadAlerts()]);
-      showMsg("Status da sugestao atualizado.");
+      showMsg("Status da sugestão atualizado.");
     } catch {
-      showMsg("Nao foi possivel atualizar a sugestao.", "err");
+      showMsg("Não foi possível atualizar a sugestão.", "err");
     }
   };
 
   const handleDeleteSuggestion = async (id: string) => {
-    if (!confirm("Remover esta sugestao?")) return;
+    if (!confirm("Remover esta sugestão?")) return;
     try {
       const response = await fetch("/api/suggestions", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      if (!response.ok) throw new Error("Falha ao remover sugestao.");
+      if (!response.ok) throw new Error("Falha ao remover sugestão.");
       await Promise.all([loadSuggestions(), loadAlerts()]);
       showMsg("Sugestao removida.");
     } catch {
-      showMsg("Erro ao remover sugestao.", "err");
+      showMsg("Erro ao remover sugestão.", "err");
     }
   };
 
@@ -610,14 +610,14 @@ export default function AdminDashboardPage() {
         throw new Error(payload?.error || "Falha ao atualizar role.");
       }
       await loadUsers();
-      showMsg(`Role atualizada para ${nextRole === "admin" ? "admin" : "usuario"}.`);
+      showMsg(`Role atualizada para ${nextRole === "admin" ? "admin" : "usuário"}.`);
     } catch (error) {
-      showMsg(error instanceof Error ? error.message : "Nao foi possivel atualizar o usuario.", "err");
+      showMsg(error instanceof Error ? error.message : "Não foi possível atualizar o usuário.", "err");
     }
   };
 
   const handleDeleteUser = async (user: AdminUserRow) => {
-    if (!confirm(`Remover o usuario ${user.name}?`)) return;
+    if (!confirm(`Remover o usuário ${user.name}?`)) return;
     try {
       const response = await fetch("/api/admin/users", {
         method: "DELETE",
@@ -626,12 +626,12 @@ export default function AdminDashboardPage() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error || "Falha ao remover usuario.");
+        throw new Error(payload?.error || "Falha ao remover usuário.");
       }
       await loadUsers();
-      showMsg("Usuario removido.");
+      showMsg("Usuário removido.");
     } catch (error) {
-      showMsg(error instanceof Error ? error.message : "Erro ao remover usuario.", "err");
+      showMsg(error instanceof Error ? error.message : "Erro ao remover usuário.", "err");
     }
   };
 
@@ -652,13 +652,13 @@ export default function AdminDashboardPage() {
       ]);
 
       if (!maintenanceResponse.ok || !navigationResponse.ok) {
-        throw new Error("Falha ao salvar configuracoes de sistema.");
+        throw new Error("Falha ao salvar configurações de sistema.");
       }
 
-      showMsg("Configuracoes de sistema salvas.");
+      showMsg("Configurações de sistema salvas.");
       await Promise.all([loadAlerts(), loadSystemState()]);
     } catch {
-      showMsg("Nao foi possivel salvar configuracoes de sistema.", "err");
+      showMsg("Não foi possível salvar configurações de sistema.", "err");
     } finally {
       setSystemSaving(false);
     }
@@ -667,10 +667,10 @@ export default function AdminDashboardPage() {
   const handleSyncAllAnimes = async () => {
     if (!confirm("Isso consultara a API para TODOS os animes em andamento. Deseja continuar?")) return;
     try {
-      showMsg("Sincronizacao em massa iniciada...");
+      showMsg("Sincronização em massa iniciada...");
       const targets = animes.filter((anime) => String(anime.status).toLowerCase() !== "completed");
       if (!targets.length) {
-        showMsg("Nenhum anime elegivel para sincronizacao.", "err");
+        showMsg("Nenhum anime elegível para sincronização.", "err");
         return;
       }
 
@@ -700,8 +700,8 @@ export default function AdminDashboardPage() {
 
       showMsg(
         failures > 0 && synced === 0
-          ? "Falha na sincronizacao em massa."
-          : `Sincronizacao em massa concluida: ${synced} anime(s), ${importedTotal} episodio(s) importado(s)${failures > 0 ? `, ${failures} falha(s)` : ""}.`,
+          ? "Falha na sincronização em massa."
+          : `Sincronização em massa concluida: ${synced} anime(s), ${importedTotal} episódio(s) importado(s)${failures > 0 ? `, ${failures} falha(s)` : ""}.`,
         failures > 0 && synced === 0 ? "err" : "ok",
       );
       await refreshDashboard();
@@ -768,7 +768,7 @@ export default function AdminDashboardPage() {
             <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-1)] px-4 py-3 mb-3">
               <p className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-muted)] font-black">Futuro Admin</p>
               <p className="text-lg font-black text-[var(--text-primary)] mt-1">Controle Operacional</p>
-              <p className="text-xs text-[var(--text-muted)] mt-1">Catalogo, bugs, usuarios e runtime.</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Catálogo, bugs, usuários e runtime.</p>
             </div>
 
             <nav className="flex xl:flex-col gap-1 overflow-x-auto xl:overflow-visible kdr-hide-scrollbar pb-1 xl:pb-0">
@@ -799,7 +799,7 @@ export default function AdminDashboardPage() {
                 <p className="text-xl font-black text-[var(--text-primary)] mt-0.5">{openBugCount}</p>
               </div>
               <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-1)] px-3 py-2.5">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-muted)] font-black">Sugestoes</p>
+                <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-muted)] font-black">Sugestões</p>
                 <p className="text-xl font-black text-[var(--text-primary)] mt-0.5">{alerts.pendingSuggestionsCount}</p>
               </div>
             </div>
@@ -827,14 +827,14 @@ export default function AdminDashboardPage() {
                     <h1 className="text-2xl sm:text-3xl font-black text-[var(--text-primary)] mt-1">{activeSectionMeta.label}</h1>
                     <p className="text-sm text-[var(--text-muted)] mt-1">
                       {section === "catalog"
-                        ? "Fluxo reformulado de cadastro, edicao e sincronizacao dos animes."
+                        ? "Fluxo reformulado de cadastro, edição e sincronização dos animes."
                         : section === "reports"
-                          ? "Central de bugs com status e contexto tecnico."
+                          ? "Central de bugs com status e contexto técnico."
                           : section === "users"
-                            ? "Permissoes, seguranca e operacao de usuarios."
+                            ? "Permissões, segurança e operação de usuários."
                             : section === "system"
                               ? "Controle global do sistema em tempo real."
-                              : "Visao executiva com atalhos de operacao."}
+                              : "Visão executiva com atalhos de operação."}
                     </p>
                   </div>
                 </div>
@@ -858,7 +858,7 @@ export default function AdminDashboardPage() {
                     href="/admin/import"
                     className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-[var(--border-default)] bg-[var(--surface-1)] hover:bg-white/10 text-[var(--text-primary)] font-bold text-sm transition"
                   >
-                    <Plus size={15} /> Importar episodios
+                    <Plus size={15} /> Importar episódios
                   </Link>
                 </div>
               </div>
@@ -889,7 +889,7 @@ export default function AdminDashboardPage() {
                       <p className="text-2xl font-black text-[var(--text-primary)] mt-1">{openBugCount}</p>
                     </div>
                     <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-1)] p-3">
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-muted)] font-black">Sugestoes</p>
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-muted)] font-black">Sugestões</p>
                       <p className="text-2xl font-black text-[var(--text-primary)] mt-1">{alerts.pendingSuggestionsCount}</p>
                     </div>
                     <div className="rounded-xl border border-[var(--border-default)] bg-[var(--surface-1)] p-3">
@@ -900,8 +900,8 @@ export default function AdminDashboardPage() {
 
                   <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-1)] p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-black text-[var(--text-primary)]">Dinamica de operacao</h3>
-                      <span className="text-xs text-[var(--text-muted)]">Ultimos 7 dias</span>
+                      <h3 className="text-sm font-black text-[var(--text-primary)]">Dinamica de operação</h3>
+                      <span className="text-xs text-[var(--text-muted)]">Últimos 7 dias</span>
                     </div>
                     <div className="h-44 rounded-xl border border-[var(--border-default)] bg-[var(--surface-0)] p-3 flex items-end gap-2">
                       {[32, 54, 42, 78, 48, 84, 62].map((value, idx) => (
@@ -917,7 +917,7 @@ export default function AdminDashboardPage() {
 
                   <div className="rounded-2xl border border-[var(--accent-border)] bg-[var(--accent-soft)] p-4">
                     <p className="text-sm font-black text-[var(--text-primary)]">Create New Anime</p>
-                    <p className="text-xs text-[var(--text-muted)] mt-1">Cadastro guiado com metadados e sincronizacao de episodios.</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">Cadastro guiado com metadados e sincronização de episódios.</p>
                     <div className="flex flex-wrap gap-2 mt-3">
                       <button
                         type="button"
@@ -972,7 +972,7 @@ export default function AdminDashboardPage() {
                 <div className="2xl:col-span-2 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-0)] p-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)] font-black">Catalog workflow</p>
-                    <p className="text-sm text-[var(--text-muted)] mt-1">Cadastro e manutencao do catalogo com foco mobile.</p>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">Cadastro e manutenção do catálogo com foco mobile.</p>
                   </div>
                   <div className="inline-flex items-center rounded-xl border border-[var(--border-default)] bg-[var(--surface-1)] p-1">
                     <button
@@ -1006,7 +1006,7 @@ export default function AdminDashboardPage() {
                         onClick={resetAnimeForm}
                         className="text-xs font-bold text-[var(--text-muted)] hover:text-[var(--text-primary)] transition"
                       >
-                        Limpar formulario
+                        Limpar formulário
                       </button>
                     )}
                   </div>
@@ -1021,7 +1021,7 @@ export default function AdminDashboardPage() {
 
                   <form className="space-y-3" onSubmit={handleSaveAnime}>
                     <div>
-                      <label className="text-xs uppercase tracking-wider font-bold text-zinc-400">Titulo</label>
+                      <label className="text-xs uppercase tracking-wider font-bold text-zinc-400">Título</label>
                       <div className="mt-1 flex gap-2">
                         <input
                           value={animeForm.title}
@@ -1067,7 +1067,7 @@ export default function AdminDashboardPage() {
                                   type="button"
                                   onClick={() => {
                                     applyMetadataOption(option, true);
-                                    showMsg("Metadados aplicados ao formulario.");
+                                    showMsg("Metadados aplicados ao formulário.");
                                   }}
                                   className="px-2 py-1 rounded-md text-[11px] font-bold bg-white text-black hover:bg-zinc-100"
                                 >
@@ -1136,7 +1136,7 @@ export default function AdminDashboardPage() {
                           onChange={(event) => setAnimeForm((current) => ({ ...current, status: event.target.value as StatusType }))}
                           className="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-white/35"
                         >
-                          <option value="ongoing">Em lancamento</option>
+                          <option value="ongoing">Em lançamento</option>
                           <option value="completed">Finalizado</option>
                         </select>
                       </div>
@@ -1147,7 +1147,7 @@ export default function AdminDashboardPage() {
                           onChange={(event) => setAnimeForm((current) => ({ ...current, visibility: event.target.value as VisibilityType }))}
                           className="mt-1 w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-white/35"
                         >
-                          <option value="public">Publico</option>
+                          <option value="public">Público</option>
                           <option value="admin_only">Somente admin</option>
                         </select>
                       </div>
@@ -1220,7 +1220,7 @@ export default function AdminDashboardPage() {
 
                   <div className="space-y-2 max-h-[72vh] overflow-y-auto pr-1">
                     {loading ? (
-                      <p className="text-zinc-500 text-sm">Carregando catalogo...</p>
+                      <p className="text-zinc-500 text-sm">Carregando catálogo...</p>
                     ) : filteredAnimes.length === 0 ? (
                       <p className="text-zinc-500 text-sm">Nenhum anime encontrado.</p>
                     ) : (
@@ -1265,7 +1265,7 @@ export default function AdminDashboardPage() {
                               onClick={() => handleToggleVisibility(anime)}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500"
                             >
-                              {anime.visibility === "public" ? "Somente admin" : "Tornar publico"}
+                              {anime.visibility === "public" ? "Somente admin" : "Tornar público"}
                             </button>
                             <button
                               type="button"
@@ -1274,7 +1274,7 @@ export default function AdminDashboardPage() {
                               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-blue-500/40 text-blue-200 hover:text-blue-100 hover:bg-blue-500/15 disabled:opacity-60"
                             >
                               {syncingAnimeId === anime.id ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                              Atualizar episodios
+                              Atualizar episódios
                             </button>
                             <button
                               type="button"
@@ -1324,7 +1324,7 @@ export default function AdminDashboardPage() {
                           <div className="min-w-0">
                             <p className="text-sm font-black text-white">{report.title}</p>
                             <p className="text-xs text-zinc-500 mt-0.5">
-                              {report.user?.name || "Usuario"}  -  {new Date(report.createdAt).toLocaleString("pt-BR")}
+                              {report.user?.name || "Usuário"}  -  {new Date(report.createdAt).toLocaleString("pt-BR")}
                             </p>
                           </div>
                           <select
@@ -1380,7 +1380,7 @@ export default function AdminDashboardPage() {
             {section === "suggestions" && (
               <section className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-0)] p-4 lg:p-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <h2 className="text-white font-black text-lg">Sugestoes dos usuarios</h2>
+                  <h2 className="text-white font-black text-lg">Sugestões dos usuários</h2>
                   <div className="flex items-center gap-2">
                     {suggestionStatuses.map((statusValue) => (
                       <button
@@ -1401,7 +1401,7 @@ export default function AdminDashboardPage() {
 
                 <div className="space-y-2 max-h-[74vh] overflow-y-auto pr-1">
                   {filteredSuggestions.length === 0 ? (
-                    <p className="text-sm text-zinc-500">Nenhuma sugestao para o filtro atual.</p>
+                    <p className="text-sm text-zinc-500">Nenhuma sugestão para o filtro atual.</p>
                   ) : (
                     filteredSuggestions.map((suggestion) => (
                       <article key={suggestion.id} className="rounded-xl border border-zinc-800 bg-zinc-950/65 p-3.5">
@@ -1409,7 +1409,7 @@ export default function AdminDashboardPage() {
                           <div className="min-w-0">
                             <p className="text-sm font-black text-white">{suggestion.title}</p>
                             <p className="text-xs text-zinc-500 mt-0.5">
-                              {suggestion.user?.name || "Usuario"}  -  {new Date(suggestion.createdAt).toLocaleString("pt-BR")}
+                              {suggestion.user?.name || "Usuário"}  -  {new Date(suggestion.createdAt).toLocaleString("pt-BR")}
                             </p>
                           </div>
                           <select
@@ -1425,7 +1425,7 @@ export default function AdminDashboardPage() {
                         </div>
 
                         <p className="text-sm text-zinc-200 mt-2 whitespace-pre-wrap">
-                          {suggestion.description?.trim() || "Sem descricao."}
+                          {suggestion.description?.trim() || "Sem descrição."}
                         </p>
 
                         <div className="mt-3">
@@ -1434,7 +1434,7 @@ export default function AdminDashboardPage() {
                             onClick={() => void handleDeleteSuggestion(suggestion.id)}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-purple-500/40 text-purple-300 hover:text-purple-200 hover:bg-purple-500/10"
                           >
-                            <Trash2 size={12} /> Remover sugestao
+                            <Trash2 size={12} /> Remover sugestão
                           </button>
                         </div>
                       </article>
@@ -1448,7 +1448,7 @@ export default function AdminDashboardPage() {
               <section className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-0)] p-4 lg:p-5 space-y-4">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
-                    <h2 className="text-white font-black text-lg">Usuarios</h2>
+                    <h2 className="text-white font-black text-lg">Usuários</h2>
                     <p className="text-xs text-zinc-400 mt-1">
                       {users.length} conta(s)  -  {onlineUsersCount} online agora
                     </p>
@@ -1458,13 +1458,13 @@ export default function AdminDashboardPage() {
                     onClick={() => void loadUsers()}
                     className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-zinc-100 text-sm font-bold"
                   >
-                    <RefreshCw size={14} /> Atualizar usuarios
+                    <RefreshCw size={14} /> Atualizar usuários
                   </button>
                 </div>
 
                 <div className="space-y-2 max-h-[74vh] overflow-y-auto pr-1">
                   {users.length === 0 ? (
-                    <p className="text-sm text-zinc-500">Nenhum usuario encontrado.</p>
+                    <p className="text-sm text-zinc-500">Nenhum usuário encontrado.</p>
                   ) : (
                     users.map((user) => (
                       <article key={user.id} className="rounded-xl border border-zinc-800 bg-zinc-950/65 p-3.5">
@@ -1480,7 +1480,7 @@ export default function AdminDashboardPage() {
                               <p className="text-xs text-zinc-400 truncate">{user.email}</p>
                               <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-zinc-400">
                                 <span className="px-2 py-0.5 rounded-full border border-zinc-700">
-                                  Role: {user.role === "admin" ? "Admin" : "Usuario"}
+                                  Role: {user.role === "admin" ? "Admin" : "Usuário"}
                                 </span>
                                 <span className={`px-2 py-0.5 rounded-full border ${user.onlineNow ? "border-emerald-500/50 text-emerald-300" : "border-zinc-700 text-zinc-400"}`}>
                                   {user.onlineNow ? "Online" : "Offline"}
@@ -1492,7 +1492,7 @@ export default function AdminDashboardPage() {
                                 ) : null}
                               </div>
                               <p className="text-[11px] text-zinc-500 mt-1">
-                                Favoritos: {Number(user._count?.favorites || 0)}  -  Historico: {Number(user._count?.histories || 0)}
+                                Favoritos: {Number(user._count?.favorites || 0)}  -  Histórico: {Number(user._count?.histories || 0)}
                               </p>
                             </div>
                           </div>
@@ -1502,7 +1502,7 @@ export default function AdminDashboardPage() {
                               onClick={() => void handleToggleUserRole(user)}
                               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500"
                             >
-                              {user.role === "admin" ? "Virar usuario" : "Virar admin"}
+                              {user.role === "admin" ? "Virar usuário" : "Virar admin"}
                             </button>
                             <button
                               type="button"
@@ -1527,7 +1527,7 @@ export default function AdminDashboardPage() {
                     <Power size={17} className="text-amber-300" /> Manutencao
                   </h2>
                   <label className="flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-900/55 px-3 py-2.5">
-                    <span className="text-sm font-semibold text-zinc-200">Ativar modo manutencao</span>
+                    <span className="text-sm font-semibold text-zinc-200">Ativar modo manutenção</span>
                     <input
                       type="checkbox"
                       checked={maintenanceEnabled}
@@ -1538,13 +1538,13 @@ export default function AdminDashboardPage() {
                     value={maintenanceMessage}
                     onChange={(event) => setMaintenanceMessage(event.target.value)}
                     className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-zinc-500 min-h-[92px]"
-                    placeholder="Mensagem de manutencao"
+                    placeholder="Mensagem de manutenção"
                   />
                 </article>
 
                 <article className="rounded-2xl border border-[var(--border-default)] bg-[var(--surface-0)] p-4 lg:p-5 space-y-3">
                   <h2 className="text-white font-black text-lg flex items-center gap-2">
-                    <Shield size={17} className="text-emerald-300" /> Abas para usuarios
+                    <Shield size={17} className="text-emerald-300" /> Abas para usuários
                   </h2>
                   <label className="flex items-center justify-between rounded-xl border border-zinc-700 bg-zinc-900/55 px-3 py-2.5">
                     <span className="text-sm font-semibold text-zinc-200">Aba Anime</span>
@@ -1571,7 +1571,7 @@ export default function AdminDashboardPage() {
                     <AlertTriangle size={17} className="text-cyan-300" /> Atalho de reportar bug
                   </h2>
                   <p className="text-sm text-zinc-400 max-w-3xl">
-                    Use este atalho para abrir o formulario de bug sem sair do painel. O mesmo atalho tambem aparece no menu da foto de perfil para usuarios.
+                    Use este atalho para abrir o formulário de bug sem sair do painel. O mesmo atalho também aparece no menu da foto de perfil para usuários.
                   </p>
                   <SuggestionButton
                     variant="sidebar"

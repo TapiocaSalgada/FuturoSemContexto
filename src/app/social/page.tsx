@@ -46,14 +46,14 @@ export default function SocialFeedPage() {
   }, []);
 
   const summary = useMemo(() => {
-    const watches = items.filter((i) => i.type === "watch").length;
-    const ratings = items.filter((i) => i.type === "rating").length;
+    const watches = items.filter((item) => item.type === "watch").length;
+    const ratings = items.filter((item) => item.type === "rating").length;
     return { watches, ratings };
   }, [items]);
 
   return (
     <AppLayout>
-      <div className="p-4 lg:p-10 pb-28 md:pb-24 max-w-6xl mx-auto space-y-6">
+      <div className="kdr-page-shell max-w-6xl kdr-page-stack">
         <div className="glass-surface rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-xs sm:text-sm text-[var(--text-secondary)] font-semibold">
             Rota legada ativa: o Social foi removido da navegação principal, mas continua disponível por link direto.
@@ -93,7 +93,7 @@ export default function SocialFeedPage() {
             </div>
             <div className="glass-card rounded-xl p-2.5 text-center">
               <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Ativos</p>
-              <p className="text-sm font-black text-white">{new Set(items.map((i) => i.user.id)).size}</p>
+              <p className="text-sm font-black text-white">{new Set(items.map((item) => item.user.id)).size}</p>
             </div>
           </div>
         </header>
@@ -163,12 +163,7 @@ export default function SocialFeedPage() {
                   </div>
 
                   <Link href={`/anime/${item.anime.id}`} className="w-12 h-16 rounded-lg overflow-hidden border border-zinc-700 shrink-0 relative">
-                    <Image
-                      src={item.anime.coverImage || "/logo.png"}
-                      alt={item.anime.title}
-                      fill
-                      className="object-cover"
-                    />
+                    <Image src={item.anime.coverImage || "/logo.png"} alt={item.anime.title} fill className="object-cover" />
                   </Link>
                 </div>
               </article>
