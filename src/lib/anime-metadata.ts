@@ -1,8 +1,10 @@
 import { buildImageCandidates } from "@/lib/image-quality";
 import { findAnimeMediaOptionsByTitle } from "@/lib/mal";
+import { searchSugoiDatabaseAnime } from "@/lib/sugoi-provider";
+import { fetchZenshinMapping, getZenshinBases, resolveZenshinArtwork } from "@/lib/zenshin";
 
 export type AdminAnimeMetadataOption = {
-  source: "mal" | "find_my_anime";
+  source: "mal" | "find_my_anime" | "sugoi_db" | "zenshin_api" | "anilist";
   sourceUrl?: string;
   malId?: number;
   malUrl?: string;
@@ -101,6 +103,17 @@ function toImage(value: unknown) {
   return buildImageCandidates(raw)[0] || raw;
 }
 
+function stripHtml(value: unknown) {
+  const raw = asCleanText(value);
+  if (!raw) return "";
+  return raw
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 function normalizeStatus(value: string) {
   const current = value.toUpperCase();
   if (current === "FINISHED") return "finalizado";
@@ -137,7 +150,7 @@ const CATEGORY_TRANSLATIONS: Record<string, string> = {
   sports: "esportes",
   school: "escolar",
   "slice of life": "vida cotidiana",
-  historical: "historico",
+  historical: "histórico",
   military: "militar",
   music: "musical",
   shounen: "shounen",
@@ -194,7 +207,7 @@ function buildFindMyAnimeDescription(entry: FindMyAnimeEntry) {
   pieces.push(`Status: ${normalizedStatus}`);
 
   if (year > 0) {
-    const seasonal = season && season !== "UNDEFINED" ? `${season.toLowerCase()} ${year}` : String(year);
+    const seasonal = season && season !== "UNDEFINED" ?`${season.toLowerCase()} ${year}` : String(year);
     pieces.push(`Estreia: ${seasonal}`);
   }
 
@@ -228,6 +241,7 @@ function computeMatchScore(query: string, option: AdminAnimeMetadataOption) {
   if (option.bannerImage) score += 10;
   if (typeof option.score === "number") score += Math.max(0, Math.min(option.score, 10));
   if (option.source === "find_my_anime") score += 10;
+  if (option.source === "zenshin_api") score += 14;
   if (option.source === "mal") score += 2;
 
   return score;
@@ -244,7 +258,7 @@ function mapMalOptions(query: string, limit: number): Promise<AdminAnimeMetadata
         sourceUrl: asCleanText(item.url) || undefined,
         malId: item.malId,
         malUrl: asCleanText(item.url) || undefined,
-        matchedTitle: asCleanText(item.title) || "Sem titulo",
+        matchedTitle: asCleanText(item.title) || "Sem título",
         coverImage: coverImage || undefined,
         bannerImage: bannerImage || coverImage || undefined,
         description: asCleanText(item.synopsis) || undefined,
@@ -257,6 +271,31 @@ function mapMalOptions(query: string, limit: number): Promise<AdminAnimeMetadata
       };
     }),
   );
+}
+
+async function mapSugoiDatabaseOptions(
+  query: string,
+  limit: number,
+): Promise<AdminAnimeMetadataOption[]> {
+  const rows = await searchSugoiDatabaseAnime(query, Math.max(limit * 2, 20));
+
+  return rows.map((item) => {
+    const coverImage = toImage(item.coverImage);
+    const bannerImage = toImage(item.bannerImage || item.coverImage);
+
+    return {
+      source: "sugoi_db" as const,
+      sourceUrl: item.malId ?`https://myanimelist.net/anime/${item.malId}` : undefined,
+      malId: item.malId,
+      malUrl: item.malId ?`https://myanimelist.net/anime/${item.malId}` : undefined,
+      matchedTitle: asCleanText(item.title) || "Sem título",
+      coverImage: coverImage || undefined,
+      bannerImage: bannerImage || coverImage || undefined,
+      description: asCleanText(item.synopsis) || undefined,
+      categories: unique([...(item.genres || []), ...(item.themes || []), ...(item.studios || [])]),
+      score: item.score,
+    };
+  });
 }
 
 async function mapFindMyAnimeOptions(query: string, limit: number): Promise<AdminAnimeMetadataOption[]> {
@@ -288,14 +327,14 @@ async function mapFindMyAnimeOptions(query: string, limit: number): Promise<Admi
       return {
         source: "find_my_anime" as const,
         sourceUrl,
-        matchedTitle: asCleanText(entry.title) || "Sem titulo",
+        matchedTitle: asCleanText(entry.title) || "Sem título",
         coverImage: coverImage || undefined,
         bannerImage: bannerImage || coverImage || undefined,
         description: buildFindMyAnimeDescription(entry) || undefined,
         categories,
         score:
           typeof entry.score?.arithmeticMean === "number"
-            ? entry.score.arithmeticMean
+            ?entry.score.arithmeticMean
             : undefined,
       };
     });
@@ -304,17 +343,200 @@ async function mapFindMyAnimeOptions(query: string, limit: number): Promise<Admi
   }
 }
 
+async function mapAniListOptions(
+  query: string,
+  limit: number,
+): Promise<AdminAnimeMetadataOption[]> {
+  const safeQuery = asCleanText(query);
+  if (safeQuery.length < 2) return [];
+
+  try {
+    const response = await fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        query: `
+          query ($search: String, $perPage: Int) {
+            Page(page: 1, perPage: $perPage) {
+              media(search: $search, type: ANIME, isAdult: false, sort: SEARCH_MATCH) {
+                id
+                idMal
+                siteUrl
+                title {
+                  romaji
+                  english
+                  native
+                }
+                description(asHtml: false)
+                genres
+                averageScore
+                status
+                episodes
+                coverImage {
+                  extraLarge
+                  large
+                  medium
+                }
+                bannerImage
+              }
+            }
+          }
+        `,
+        variables: { search: safeQuery, perPage: Math.max(1, Math.min(20, limit * 2)) },
+      }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) return [];
+    const payload = await response.json().catch(() => null);
+    const media = Array.isArray(payload?.data?.Page?.media) ?payload.data.Page.media : [];
+    if (!media.length) return [];
+
+    return media.map((item: any) => {
+      const title =
+        asCleanText(item?.title?.romaji) ||
+        asCleanText(item?.title?.english) ||
+        asCleanText(item?.title?.native) ||
+        "Sem título";
+      const coverImage = toImage(
+        item?.coverImage?.extraLarge || item?.coverImage?.large || item?.coverImage?.medium,
+      );
+      const bannerImage = toImage(item?.bannerImage);
+      const status = normalizeStatus(asCleanText(item?.status));
+      const episodes = Number(item?.episodes || 0);
+      const score = Number(item?.averageScore || 0);
+      const genres = Array.isArray(item?.genres) ?item.genres : [];
+
+      const descriptionParts = [
+        stripHtml(item?.description),
+        status && status !== "indefinido" ?`Status: ${status}` : "",
+        episodes > 0 ?`Episódios: ${episodes}` : "",
+      ].filter(Boolean);
+
+      return {
+        source: "anilist" as const,
+        sourceUrl: asCleanText(item?.siteUrl) || undefined,
+        malId: Number(item?.idMal || 0) || undefined,
+        malUrl: Number(item?.idMal || 0) ?`https://myanimelist.net/anime/${Number(item.idMal)}` : undefined,
+        matchedTitle: title,
+        coverImage: coverImage || undefined,
+        bannerImage: bannerImage || undefined,
+        description: descriptionParts.join(". ") || undefined,
+        categories: unique([...genres, "AniList"]),
+        score: score > 0 ?Number((score / 10).toFixed(1)) : undefined,
+      } satisfies AdminAnimeMetadataOption;
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function mapZenshinOptions(
+  query: string,
+  limit: number,
+  seedOptions: AdminAnimeMetadataOption[],
+): Promise<AdminAnimeMetadataOption[]> {
+  const malCandidates = Array.from(
+    new Set(
+      seedOptions
+        .map((option) => Number(option.malId || 0))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    ),
+  ).slice(0, Math.max(2, Math.min(6, limit)));
+
+  if (!malCandidates.length) return [];
+
+  const zenshinBase = getZenshinBases()[0] || "";
+
+  const rows = await Promise.all(
+    malCandidates.map(async (malId) => {
+      const mapping = await fetchZenshinMapping({ malId });
+      if (!mapping) return null;
+
+      const artwork = await resolveZenshinArtwork(mapping);
+      if (!artwork.coverImage && !artwork.bannerImage && !artwork.episodeImages.length) {
+        return null;
+      }
+
+      const mappingTitle = {
+        main: asCleanText(mapping?.title?.main),
+        en: asCleanText(mapping?.title?.en),
+        ja: asCleanText(mapping?.title?.ja),
+      };
+      const matchedTitle =
+        mappingTitle.main ||
+        mappingTitle.en ||
+        asCleanText(mapping?.mainTitle) ||
+        `Anime ${malId}`;
+
+      const rawMappings = (mapping?.mappings || {}) as Record<string, unknown>;
+      const type = asCleanText(rawMappings.type);
+      const anilistId = Number(rawMappings.anilist_id || 0) || undefined;
+      const tvdbId = Number(rawMappings.tvdb_id || rawMappings.thetvdb_id || 0) || undefined;
+      const startDate = asCleanText(mapping?.date?.startDate);
+      const endDate = asCleanText(mapping?.date?.endDate);
+
+      const descriptionParts = [
+        "Artwork via Zenshin API",
+        startDate ?`Estreia: ${startDate}` : "",
+        endDate ?`Fim: ${endDate}` : "",
+        anilistId ?`AniList: ${anilistId}` : "",
+        tvdbId ?`TVDB: ${tvdbId}` : "",
+      ].filter(Boolean);
+
+      const categories = unique([
+        type || "",
+        "Zenshin",
+        artwork.tmdbBannerImage ?"TMDB Banner" : "",
+        artwork.episodeImages.length > 0 ?"Preview de episódios" : "",
+      ]);
+
+      return {
+        source: "zenshin_api" as const,
+        sourceUrl: zenshinBase ?`${zenshinBase}/mappings?mal_id=${malId}` : undefined,
+        malId,
+        malUrl: `https://myanimelist.net/anime/${malId}`,
+        matchedTitle,
+        coverImage: artwork.coverImage,
+        bannerImage: artwork.bannerImage,
+        description: descriptionParts.join(". "),
+        categories,
+        score: 9.4,
+      } satisfies AdminAnimeMetadataOption;
+    }),
+  );
+
+  return rows.filter(Boolean) as AdminAnimeMetadataOption[];
+}
+
 export async function searchAnimeMetadataOptions(query: string, limit = 12) {
   const normalizedQuery = asCleanText(query);
   const safeLimit = Math.max(1, Math.min(30, Number(limit || 12)));
   if (normalizedQuery.length < 2) return [] as AdminAnimeMetadataOption[];
 
-  const [malOptions, findMyAnimeOptions] = await Promise.all([
+  const [sugoiDbOptions, malOptions, anilistOptions, findMyAnimeOptions] = await Promise.all([
+    mapSugoiDatabaseOptions(normalizedQuery, safeLimit),
     mapMalOptions(normalizedQuery, safeLimit),
+    mapAniListOptions(normalizedQuery, safeLimit),
     mapFindMyAnimeOptions(normalizedQuery, safeLimit),
   ]);
 
-  const merged = [...malOptions, ...findMyAnimeOptions]
+  const zenshinOptions = await mapZenshinOptions(
+    normalizedQuery,
+    safeLimit,
+    [...malOptions, ...sugoiDbOptions],
+  );
+
+  const merged = [
+    ...zenshinOptions,
+    ...sugoiDbOptions,
+    ...anilistOptions,
+    ...malOptions,
+    ...findMyAnimeOptions,
+  ]
     .map((option) => ({
       ...option,
       __matchScore: computeMatchScore(normalizedQuery, option),

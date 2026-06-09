@@ -2,7 +2,7 @@ export type ContentVisibility = "public" | "admin_only";
 
 export function normalizeVisibility(value: unknown): ContentVisibility {
   return String(value || "").trim().toLowerCase() === "public"
-    ? "public"
+    ?"public"
     : "admin_only";
 }
 

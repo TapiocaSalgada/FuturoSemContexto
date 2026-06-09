@@ -86,7 +86,7 @@ function clampNumber(value: number, min: number, max: number) {
 }
 
 function buildMdUrl(path: string, query?: Record<string, MdQueryValue>) {
-  const url = new URL(path.startsWith("http") ? path : `${MANGADEX_API}${path.startsWith("/") ? "" : "/"}${path}`);
+  const url = new URL(path.startsWith("http") ?path : `${MANGADEX_API}${path.startsWith("/") ?"" : "/"}${path}`);
 
   if (!query) return url.toString();
 
@@ -118,7 +118,7 @@ function parseRetryAfterMs(value: string | null) {
   const asDate = Date.parse(value);
   if (Number.isFinite(asDate)) {
     const ms = asDate - Date.now();
-    return ms > 0 ? ms : null;
+    return ms > 0 ?ms : null;
   }
 
   return null;
@@ -353,7 +353,7 @@ function normalizeTranslatedLanguages(language: string) {
     .map((item) => item.trim().toLowerCase())
     .filter(Boolean);
 
-  const fallback = base.length > 0 ? base : ["pt-br"];
+  const fallback = base.length > 0 ?base : ["pt-br"];
   if (fallback.includes("pt-br") && !fallback.includes("en")) {
     fallback.push("en");
   }
@@ -363,7 +363,7 @@ function normalizeTranslatedLanguages(language: string) {
 
 function parseChapterNumber(value: unknown) {
   const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
+  return Number.isFinite(numeric) ?numeric : null;
 }
 
 function createChapterDedupKey(item: any) {
@@ -380,7 +380,7 @@ function createChapterDedupKey(item: any) {
   }
 
   const id = String(item?.id || "").trim();
-  return id ? `id:${id}` : "";
+  return id ?`id:${id}` : "";
 }
 
 function mapChapterItem(item: any, fallbackLanguage: string): MangaDexChapter | null {
@@ -393,10 +393,10 @@ function mapChapterItem(item: any, fallbackLanguage: string): MangaDexChapter | 
   return {
     id,
     chapterNumber: parseChapterNumber(attrs.chapter),
-    volumeNumber: Number.isFinite(Number(attrs.volume)) ? Number(attrs.volume) : null,
+    volumeNumber: Number.isFinite(Number(attrs.volume)) ?Number(attrs.volume) : null,
     title: attrs.title || null,
     language: chapterLanguage || fallbackLanguage,
-    pages: Number.isFinite(Number(attrs.pages)) ? Number(attrs.pages) : 0,
+    pages: Number.isFinite(Number(attrs.pages)) ?Number(attrs.pages) : 0,
     scanlationTeam: extractScanlationTeam(item.relationships),
     publishedAt: attrs.publishAt || attrs.createdAt || null,
     externalUrl: attrs.externalUrl || null,
@@ -468,15 +468,15 @@ async function fetchMangaDexFeedPage(input: {
   );
 
   return {
-    items: Array.isArray(data?.data) ? data.data : [],
-    total: Number.isFinite(Number(data?.total)) ? Number(data?.total) : 0,
+    items: Array.isArray(data?.data) ?data.data : [],
+    total: Number.isFinite(Number(data?.total)) ?Number(data?.total) : 0,
   };
 }
 
 function getLanguageRank(language: string | null, preference: string[]) {
   if (!language) return Number.MAX_SAFE_INTEGER;
   const idx = preference.indexOf(language.toLowerCase());
-  return idx >= 0 ? idx : Number.MAX_SAFE_INTEGER;
+  return idx >= 0 ?idx : Number.MAX_SAFE_INTEGER;
 }
 
 function getProxySecret() {
@@ -687,10 +687,10 @@ export async function getMangaDexAtHomeServer(
   const baseUrl = String(data?.baseUrl || "").replace(/\/+$/, "");
   const hash = String(data?.chapter?.hash || "").trim();
   const fileList = Array.isArray(data?.chapter?.data)
-    ? data.chapter!.data.map((item) => String(item || "").trim()).filter(Boolean)
+    ?data.chapter!.data.map((item) => String(item || "").trim()).filter(Boolean)
     : [];
   const saverFileList = Array.isArray(data?.chapter?.dataSaver)
-    ? data.chapter!.dataSaver.map((item) => String(item || "").trim()).filter(Boolean)
+    ?data.chapter!.dataSaver.map((item) => String(item || "").trim()).filter(Boolean)
     : [];
 
   if (!baseUrl || !hash || fileList.length === 0) {
@@ -907,7 +907,7 @@ export async function fetchChapterPages(
     pagesHQ: atHome.data.map((fileName) =>
       buildMangaDexSourceImageUrl(atHome.baseUrl, "data", atHome.hash, fileName),
     ),
-    pages: (atHome.dataSaver.length > 0 ? atHome.dataSaver : atHome.data).map((fileName) =>
+    pages: (atHome.dataSaver.length > 0 ?atHome.dataSaver : atHome.data).map((fileName) =>
       buildMangaDexSourceImageUrl(atHome.baseUrl, "data-saver", atHome.hash, fileName),
     ),
   };

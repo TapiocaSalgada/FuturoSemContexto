@@ -85,7 +85,7 @@ export function resolveNextPromptWindowSeconds(
   const normalizedSource = String(sourceType || "").trim().toLowerCase() as WatchPlayerSourceKey;
   const sourceValue = config.nextPromptWindowBySource[normalizedSource];
   const rawValue = Number.isFinite(sourceValue)
-    ? sourceValue
+    ?sourceValue
     : config.nextPromptDefaultWindowSeconds;
 
   return Math.max(8, Math.floor(rawValue));

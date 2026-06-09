@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { isBanActive } from "@/lib/ban";
 
 // GET /api/ratings?animeId=xxx
 export async function GET(req: NextRequest) {
@@ -20,8 +21,8 @@ export async function GET(req: NextRequest) {
       _count: { rating: true },
     }),
     session?.user?.email
-      ? prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } }).then((u) =>
-          u ? prisma.animeRating.findUnique({ where: { userId_animeId: { userId: u.id, animeId } } }) : null
+      ?prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } }).then((u) =>
+          u ?prisma.animeRating.findUnique({ where: { userId_animeId: { userId: u.id, animeId } } }) : null
         )
       : Promise.resolve(null),
   ]);
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
   if (userRecord) userRating = (userRecord as any).rating;
 
   return NextResponse.json({
-    average: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : null,
+    average: agg._avg.rating ?Math.round(agg._avg.rating * 10) / 10 : null,
     total: agg._count.rating,
     userRating,
   });
@@ -45,8 +46,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } });
+  const user = await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true, banned: true, banReason: true, bannedAt: true, bannedUntil: true } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   await prisma.animeRating.upsert({
     where: { userId_animeId: { userId: user.id, animeId } },
@@ -79,7 +81,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    average: newAgg._avg.rating ? Math.round(newAgg._avg.rating * 10) / 10 : null,
+    average: newAgg._avg.rating ?Math.round(newAgg._avg.rating * 10) / 10 : null,
     total: newAgg._count.rating,
     userRating: rating,
   });

@@ -43,13 +43,13 @@ function parseBloggerContext(html: string) {
 
 function collectResponseCookies(response: Response) {
   const headersAny = response.headers as Headers & { getSetCookie?: () => string[] };
-  const direct = typeof headersAny.getSetCookie === "function" ? headersAny.getSetCookie() : [];
+  const direct = typeof headersAny.getSetCookie === "function" ?headersAny.getSetCookie() : [];
   const fallback = String(response.headers.get("set-cookie") || "")
     .split(/,(?=[^;]+=[^;]+)/)
     .map((item) => item.trim())
     .filter(Boolean);
 
-  const rawCookies = direct.length > 0 ? direct : fallback;
+  const rawCookies = direct.length > 0 ?direct : fallback;
   if (!rawCookies.length) return "";
 
   const compact = rawCookies
@@ -216,8 +216,8 @@ function normalizeBloggerMediaCandidates(responseText: string) {
     const leftIndex = preferredItags.indexOf(leftItag);
     const rightIndex = preferredItags.indexOf(rightItag);
 
-    const leftScore = leftIndex >= 0 ? leftIndex : preferredItags.length + 1;
-    const rightScore = rightIndex >= 0 ? rightIndex : preferredItags.length + 1;
+    const leftScore = leftIndex >= 0 ?leftIndex : preferredItags.length + 1;
+    const rightScore = rightIndex >= 0 ?rightIndex : preferredItags.length + 1;
     return leftScore - rightScore;
   });
 

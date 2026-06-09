@@ -46,7 +46,7 @@ function resolveSourceUrl(videoUrl: string, requestUrl: string) {
   if (/^https?:\/\//i.test(videoUrl)) return videoUrl;
 
   const origin = new URL(requestUrl).origin;
-  const path = videoUrl.startsWith("/") ? videoUrl : `/${videoUrl}`;
+  const path = videoUrl.startsWith("/") ?videoUrl : `/${videoUrl}`;
   return `${origin}${path}`;
 }
 
@@ -84,6 +84,9 @@ export async function GET(
   }
 
   const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
   const isAdmin = (session?.user as any)?.role === "admin";
 
   const episode = await prisma.episode.findUnique({

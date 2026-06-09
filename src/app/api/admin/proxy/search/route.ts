@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
   const providerRaw = String(searchParams.get("provider") || "kappa").trim().toLowerCase();
   const provider = (ALLOWED_PROVIDERS.includes(providerRaw as ProviderKey)
-    ? providerRaw
+    ?providerRaw
     : "kappa") as ProviderKey;
 
   const allowKappaFallback = provider !== "kappa";

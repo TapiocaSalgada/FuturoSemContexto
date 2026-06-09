@@ -17,6 +17,18 @@ type NotificationInput = {
 };
 
 export async function createNotification(input: NotificationInput) {
+  const recentDuplicate = await prisma.notification.findFirst({
+    where: {
+      userId: input.userId,
+      type: input.type,
+      title: input.title,
+      link: input.link || null,
+      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+    select: { id: true },
+  });
+  if (recentDuplicate) return recentDuplicate;
+
   const notification = await prisma.notification.create({
     data: {
       userId: input.userId,
@@ -50,8 +62,22 @@ export async function createNotificationsForUsers(
   const uniqueUserIds = Array.from(new Set(userIds.filter(Boolean)));
   if (uniqueUserIds.length === 0) return;
 
+  const existing = await prisma.notification.findMany({
+    where: {
+      userId: { in: uniqueUserIds },
+      type: input.type,
+      title: input.title,
+      link: input.link || null,
+      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+    select: { userId: true },
+  });
+  const existingUsers = new Set(existing.map((item) => item.userId));
+  const targetUsers = uniqueUserIds.filter((userId) => !existingUsers.has(userId));
+  if (targetUsers.length === 0) return;
+
   await prisma.notification.createMany({
-    data: uniqueUserIds.map((userId) => ({
+    data: targetUsers.map((userId) => ({
       userId,
       actorId: input.actorId || null,
       type: input.type,
@@ -61,7 +87,7 @@ export async function createNotificationsForUsers(
     })),
   });
 
-  void sendPushToUsers(uniqueUserIds, {
+  void sendPushToUsers(targetUsers, {
     title: input.title,
     body: input.body || null,
     link: input.link || null,

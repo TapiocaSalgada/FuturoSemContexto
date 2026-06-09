@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isBanActive } from "@/lib/ban";
 
 async function getUserFromSession() {
   const session = await getServerSession(authOptions);
@@ -20,6 +21,7 @@ async function getUserFromSession() {
 export async function GET() {
   const user = await getUserFromSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   const folders = await prisma.favoriteFolder.findMany({
     where: { userId: user.id },
@@ -36,12 +38,13 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getUserFromSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   const { name, isPrivate } = await req.json();
   if (!name?.trim()) return NextResponse.json({ error: "Nome da pasta é obrigatório." }, { status: 400 });
 
   const folder = await prisma.favoriteFolder.create({
-    data: { userId: user.id, name: name.trim(), isPrivate: isPrivate ?? false },
+    data: { userId: user.id, name: name.trim(), isPrivate: Boolean(isPrivate) },
   });
   return NextResponse.json(folder);
 }
@@ -49,6 +52,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const user = await getUserFromSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   const { id, name, isPrivate } = await req.json();
   const folder = await prisma.favoriteFolder.findUnique({ where: { id } });
@@ -64,6 +68,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const user = await getUserFromSession();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   const { id } = await req.json();
   const folder = await prisma.favoriteFolder.findUnique({ where: { id } });

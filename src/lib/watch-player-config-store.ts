@@ -23,7 +23,7 @@ function parsePayload(content?: string | null): WatchPlayerConfigPayload {
   if (!content) return {};
   try {
     const parsed = JSON.parse(content);
-    return typeof parsed === "object" && parsed ? parsed : {};
+    return typeof parsed === "object" && parsed ?parsed : {};
   } catch {
     return {};
   }

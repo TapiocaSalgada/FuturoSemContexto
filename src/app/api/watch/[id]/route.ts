@@ -30,14 +30,17 @@ import {
   normalizePlaybackUrl,
   toEmbeddableVideoUrl,
 } from "@/lib/video";
+import { getEmbedUrlForPlayback, isEmbedMoviesProvider } from "@/lib/embedmovies";
 import { isBloggerVideoGatewayUrl, resolveBloggerMediaUrls } from "@/lib/blogger";
 import { isPublicVisibility } from "@/lib/visibility";
 import {
   WATCH_PLAYER_DEFAULT_CONFIG,
 } from "@/lib/watch-player-config";
 import { getWatchPlayerConfigState } from "@/lib/watch-player-config-store";
+import { isBanActive } from "@/lib/ban";
 
 const DEFAULT_SUGOI_BASES = [
+  "https://sugoi-api-chi.vercel.app",
   "https://sugoiapi.vercel.app",
   "https://sugoi-api.vercel.app",
 ];
@@ -55,6 +58,17 @@ function slugify(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+}
+
+function canonicalSourceKind(sourceType: string | null | undefined) {
+  const value = String(sourceType || "").toLowerCase();
+  if (value === "hls" || value === "dash" || value === "mp4") return "direct";
+  if (value === "embed" || value === "iframe" || value === "external") return "embed";
+  return value || "external";
+}
+
+function canonicalEpisodeSlug(episode: { id: string; slug?: string | null; episodeNumber: number; title: string }) {
+  return episode.slug || slugify(episode.title) || `episodio-${episode.episodeNumber || episode.id}`;
 }
 
 function resolveSugoiSlug(value: string) {
@@ -142,7 +156,7 @@ function extractList(payload: any): any[] {
 
 function extractUrl(item: any) {
   const candidates = [
-    typeof item === "string" ? item : "",
+    typeof item === "string" ?item : "",
     item?.episode,
     item?.url,
     item?.link,
@@ -186,7 +200,7 @@ function scoreTitleMatch(query: string, title: string) {
 
 function parseEpisodeNumber(title: string, fallback: number) {
   const clean = title.toLowerCase();
-  const match = clean.match(/(?:episodio|ep|cap(?:itulo)?)\s*[^0-9]{0,3}(\d{1,4})/i);
+  const match = clean.match(/(?:epis[oÃ³]dio|ep|cap(?:[iÃ­]tulo)?)\s*[^0-9]{0,3}(\d{1,4})/i);
   if (match?.[1]) {
     const parsed = Number(match[1]);
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
@@ -281,8 +295,8 @@ async function resolveSugoiSources(slug: string, season: number, episode: number
   const encodedEpisode = encodeURIComponent(String(episode));
 
   const paths = [
-    `/episode/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
     `/api/episode/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
+    `/episode/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
     `/episodes/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
     `/api/episodes/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
     `/episode?slug=${encodedSlug}&season=${encodedSeason}&episode=${encodedEpisode}`,
@@ -373,7 +387,7 @@ async function resolveAtv2EpisodeSource(
     `https://api-playanimes.vercel.app/episodios/${encodeURIComponent(String(videoId))}`,
     12000,
   );
-  const detailList = Array.isArray(details) ? details : [];
+  const detailList = Array.isArray(details) ?details : [];
   const first = detailList[0] || {};
   const links = first?.links || {};
   const videoUrl =
@@ -415,7 +429,7 @@ async function resolveAnfireEpisodeSource(
     if (payload?.episodes && Array.isArray(payload.episodes)) break;
   }
 
-  const episodes = Array.isArray(payload?.episodes) ? payload.episodes : [];
+  const episodes = Array.isArray(payload?.episodes) ?payload.episodes : [];
   if (!episodes.length) return null;
 
   const byNumber = episodes.find((item: any) => Number(item?.episode) === episodeNumber);
@@ -423,7 +437,7 @@ async function resolveAnfireEpisodeSource(
   const target = byNumber || fallback;
   if (!target) return null;
 
-  const streams = Array.isArray(target?.data) ? target.data : [];
+  const streams = Array.isArray(target?.data) ?target.data : [];
   const firstOnline = streams.find((stream: any) => String(stream?.status || "").toUpperCase() === "ONLINE");
   const chosen = firstOnline || streams[0];
   const videoUrl = chosen?.url;
@@ -584,12 +598,19 @@ export async function GET(
   try {
     const session = await getServerSession(authOptions);
     const userEmail = session?.user?.email;
+    if (!userEmail) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const user = userEmail
-      ? await prisma.user.findUnique({
+      ?await prisma.user.findUnique({
           where: { email: userEmail },
           select: {
             id: true,
             isPrivate: true,
+            banned: true,
+            banReason: true,
+            bannedAt: true,
+            bannedUntil: true,
             settings: {
               select: {
                 theme: true,
@@ -614,10 +635,135 @@ export async function GET(
       where: { id: params.id },
       include: {
         episodes: {
+          where: { status: "published" },
           orderBy: [{ season: "asc" }, { number: "asc" }],
+          include: {
+            sources: {
+              where: { isActive: true },
+              orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+            },
+          },
+        },
+        seasons: true,
+      },
+    });
+
+    if (isBanActive(user)) {
+      return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
+    }
+
+    const canonicalEpisode = await prisma.catalogEpisode.findUnique({
+      where: { id: params.id },
+      include: {
+        content: {
+          include: {
+            seasons: true,
+            episodes: {
+              where: { status: { in: ["public", "published"] } },
+              orderBy: [{ seasonId: "asc" }, { episodeNumber: "asc" }],
+            },
+          },
+        },
+        season: true,
+        sources: {
+          where: { isActive: true },
+          orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
         },
       },
     });
+
+    if (canonicalEpisode) {
+      const publicContent = ["public", "published"].includes(String(canonicalEpisode.content.status || "").toLowerCase());
+      const publicEpisode = ["public", "published"].includes(String(canonicalEpisode.status || "").toLowerCase());
+      const publicSeason = !canonicalEpisode.season || ["public", "published"].includes(String(canonicalEpisode.season.status || "").toLowerCase());
+      if (!publicContent || !publicEpisode || !publicSeason) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+
+      const safeSources = canonicalEpisode.sources
+        .map((source) => {
+          const url = normalizePlaybackUrl(source.url || source.storagePath || "");
+          return {
+            label: [source.provider, source.quality, source.language].filter(Boolean).join(" / ") || source.provider,
+            url,
+            type: canonicalSourceKind(source.sourceType),
+            sourceType: source.sourceType,
+            provider: source.provider,
+            quality: source.quality,
+            language: source.language,
+          };
+        })
+        .filter((source) => Boolean(source.url));
+
+      const playlist = canonicalEpisode.content.episodes.map((episode) => ({
+        id: episode.id,
+        title: episode.title,
+        number: episode.episodeNumber,
+        season: canonicalEpisode.content.seasons.find((season) => season.id === episode.seasonId)?.seasonNumber || 1,
+        href: `/assistir/${canonicalEpisode.content.slug}/${canonicalEpisodeSlug(episode)}`,
+      }));
+      const currentIndex = playlist.findIndex((episode) => episode.id === canonicalEpisode.id);
+      const currentSource = safeSources[0];
+      const history = user?.id
+        ? await prisma.watchProgress.findUnique({
+            where: {
+              userId_episodeId: {
+                userId: user.id,
+                episodeId: canonicalEpisode.id,
+              },
+            },
+          }).catch(() => null)
+        : null;
+      const viewerSettings = normalizeSettings({
+        theme: user?.settings?.theme,
+        reducedMotion: user?.settings?.reducedMotion,
+        neonEffects: user?.settings?.neonEffects,
+        showHistory: user?.settings?.showHistory,
+        autoplay: user?.settings?.autoplay,
+        resumePlayback: user?.settings?.resumePlayback,
+        publicProfile: user ? !user.isPrivate : true,
+        allowFollow: user?.settings?.allowFollow,
+        playbackSpeed: user?.settings?.playbackSpeed,
+      });
+      const watchPlayerConfig = await getWatchPlayerConfigState().catch(() => ({
+        ...WATCH_PLAYER_DEFAULT_CONFIG,
+        updatedAt: null,
+      }));
+
+      return NextResponse.json({
+        anime: {
+          id: canonicalEpisode.content.id,
+          title: canonicalEpisode.content.title,
+          slug: canonicalEpisode.content.slug,
+          coverImage: canonicalEpisode.content.posterUrl,
+          bannerImage: canonicalEpisode.content.bannerUrl,
+          mediaType: canonicalEpisode.content.kind,
+        },
+        episode: {
+          id: canonicalEpisode.id,
+          title: canonicalEpisode.title,
+          number: canonicalEpisode.episodeNumber,
+          season: canonicalEpisode.season?.seasonNumber || 1,
+          description: canonicalEpisode.synopsis,
+          durationSec: canonicalEpisode.durationSec,
+        },
+        episodeId: canonicalEpisode.id,
+        videoToPlay: currentSource?.url || "",
+        embedUrl: currentSource?.type === "embed" ? currentSource.url : "",
+        sources: safeSources,
+        epTitle: `Episódio ${canonicalEpisode.episodeNumber} - ${canonicalEpisode.title}`,
+        playlist,
+        nextEpisode: currentIndex >= 0 ? playlist[currentIndex + 1] || null : null,
+        prevEpisode: currentIndex > 0 ? playlist[currentIndex - 1] || null : null,
+        history: viewerSettings.resumePlayback && history
+          ? { progressSec: history.progressSeconds, progressSeconds: history.progressSeconds, completed: history.completed }
+          : null,
+        viewerSettings,
+        watchPlayerConfig,
+        sourceType: currentSource?.type || "",
+        isDirectSource: currentSource?.type === "direct",
+      });
+    }
 
     let episodeToPlay = null as
       | (Awaited<ReturnType<typeof prisma.episode.findUnique>> & {
@@ -654,9 +800,21 @@ export async function GET(
           anime: {
             include: {
               episodes: {
+                where: { status: "published" },
                 orderBy: [{ season: "asc" }, { number: "asc" }],
+                include: {
+                  sources: {
+                    where: { isActive: true },
+                    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+                  },
+                },
               },
+              seasons: true,
             },
+          },
+          sources: {
+            where: { isActive: true },
+            orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
           },
         },
       });
@@ -674,7 +832,22 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const playlist = (animeData.episodes || []).slice().sort((a, b) => {
+    if ((episodeToPlay as any).status === "draft") {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const blockedSeasons = new Set(
+      ((animeData as any).seasons || [])
+        .filter((season: any) => season.status === "draft")
+        .map((season: any) => Number(season.number || 1)),
+    );
+    if (blockedSeasons.has(Number((episodeToPlay as any).season || 1))) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const playlist = (animeData.episodes || [])
+      .filter((episode: any) => !blockedSeasons.has(Number(episode.season || 1)))
+      .slice().sort((a, b) => {
       if (a.season !== b.season) return a.season - b.season;
       return a.number - b.number;
     });
@@ -682,19 +855,37 @@ export async function GET(
       (episode) => episode.id === episodeToPlay?.id,
     );
     const currentEpisode =
-      currentIndex >= 0 ? playlist[currentIndex] : episodeToPlay;
+      currentIndex >= 0 ?playlist[currentIndex] : episodeToPlay;
     const nextEpisode =
-      currentIndex >= 0 ? playlist[currentIndex + 1] || null : null;
+      currentIndex >= 0 ?playlist[currentIndex + 1] || null : null;
     const prevEpisode =
-      currentIndex > 0 ? playlist[currentIndex - 1] || null : null;
+      currentIndex > 0 ?playlist[currentIndex - 1] || null : null;
 
-    let resolvedVideoUrl = normalizePlaybackUrl(currentEpisode?.videoUrl || "");
+    const embedMoviesUrl = getEmbedUrlForPlayback({
+      mediaType: (animeData as any)?.mediaType,
+      externalProvider: (currentEpisode as any)?.externalProvider || (animeData as any)?.externalProvider,
+      externalId: (currentEpisode as any)?.externalId || (animeData as any)?.externalId,
+      externalIdType: (currentEpisode as any)?.externalIdType || (animeData as any)?.externalIdType,
+      season: (currentEpisode as any)?.externalSeason || currentEpisode?.season || 1,
+      episode: (currentEpisode as any)?.externalEpisode || currentEpisode?.number || 1,
+    });
+    const isEmbedMoviesPlayback =
+      Boolean(embedMoviesUrl) ||
+      isEmbedMoviesProvider((currentEpisode as any)?.externalProvider) ||
+      isEmbedMoviesProvider((animeData as any)?.externalProvider);
+
+    const adminEpisodeSources = Array.isArray((currentEpisode as any)?.sources)
+      ?(currentEpisode as any).sources.filter((source: any) => source?.isActive !== false)
+      : [];
+    const preferredAdminSource = adminEpisodeSources[0] || null;
+
+    let resolvedVideoUrl = normalizePlaybackUrl(embedMoviesUrl || preferredAdminSource?.url || currentEpisode?.videoUrl || "");
     let resolvedSourceType: VideoSourceKind = detectVideoSource(
       resolvedVideoUrl,
-      currentEpisode?.sourceType,
+      embedMoviesUrl ? "embedmovies" : preferredAdminSource?.sourceType || currentEpisode?.sourceType,
     );
     const primaryEpisodeSourceUrl = normalizePlaybackUrl(
-      currentEpisode?.videoUrl || "",
+      preferredAdminSource?.url || currentEpisode?.videoUrl || "",
     );
     let allowPrimaryBloggerDirect = true;
     if (primaryEpisodeSourceUrl && isBloggerVideoGatewayUrl(primaryEpisodeSourceUrl)) {
@@ -762,23 +953,32 @@ export async function GET(
     };
 
     if (resolvedVideoUrl) {
-      pushSource("Principal", resolvedVideoUrl, resolvedSourceType);
+      pushSource(embedMoviesUrl ? "EmbedMovies" : preferredAdminSource?.provider || "Principal", resolvedVideoUrl, resolvedSourceType);
+    }
+
+    for (const source of adminEpisodeSources) {
+      pushSource(
+        source.provider || source.quality || "Fonte admin",
+        source.url,
+        source.sourceType,
+      );
     }
 
     const importMeta = parseImportMeta(animeData.description);
     const providerQuery = String(importMeta.query || animeData.title || "").trim();
     const isSugoiContext =
-      importMeta.provider === "sugoi" ||
-      /sugoi/i.test(currentEpisode?.sourceLabel || "");
+      !isEmbedMoviesPlayback &&
+      (importMeta.provider === "sugoi" || /sugoi/i.test(currentEpisode?.sourceLabel || ""));
     const isKappaContext =
-      importMeta.provider === "kappa" ||
-      /kappa/i.test(currentEpisode?.sourceLabel || "");
+      !isEmbedMoviesPlayback &&
+      (importMeta.provider === "kappa" || /kappa/i.test(currentEpisode?.sourceLabel || ""));
     const isBrMirrorContext =
-      ["playanimes", "anisbr", "animefenix"].includes(importMeta.provider) ||
-      /(playanimes|animes?brasil|animefenix|atv2)/i.test(currentEpisode?.sourceLabel || "");
+      !isEmbedMoviesPlayback &&
+      (["playanimes", "anisbr", "animefenix"].includes(importMeta.provider) ||
+        /(playanimes|animes?brasil|animefenix|atv2)/i.test(currentEpisode?.sourceLabel || ""));
     const isAnfireContext =
-      importMeta.provider === "anfire" ||
-      /anfire/i.test(currentEpisode?.sourceLabel || "");
+      !isEmbedMoviesPlayback &&
+      (importMeta.provider === "anfire" || /anfire/i.test(currentEpisode?.sourceLabel || ""));
 
     let triedAtv2 = false;
     let triedAnfire = false;
@@ -858,7 +1058,7 @@ export async function GET(
         pushSource(
           `Sugoi ${source.provider}`,
           source.url,
-          source.isEmbed ? "embed" : undefined,
+          source.isEmbed ?"embed" : undefined,
         );
       }
 
@@ -870,7 +1070,7 @@ export async function GET(
         resolvedVideoUrl = preferredSugoi.url;
         resolvedSourceType = detectVideoSource(
           preferredSugoi.url,
-          preferredSugoi.isEmbed ? "embed" : undefined,
+          preferredSugoi.isEmbed ?"embed" : undefined,
         );
       }
     }
@@ -915,7 +1115,7 @@ export async function GET(
       }
     }
 
-    if (providerQuery && (sources.length < 2 || resolvedSourceType !== "direct")) {
+    if (!isEmbedMoviesPlayback && providerQuery && (sources.length < 2 || resolvedSourceType !== "direct")) {
       if (!triedAtv2) {
         const extraAtv2 = await resolveAtv2EpisodeSource(
           providerQuery,
@@ -960,7 +1160,7 @@ export async function GET(
     }
 
     // Promote source to direct when URL actually responds as media even if provider labeled it as embed.
-    if (resolvedVideoUrl && resolvedSourceType !== "direct") {
+    if (!isEmbedMoviesPlayback && resolvedVideoUrl && resolvedSourceType !== "direct") {
       const maybeDirect = await probeSourceUrl(resolvedVideoUrl, 4200);
       if (maybeDirect) {
         resolvedSourceType = "direct";
@@ -1009,7 +1209,7 @@ export async function GET(
       }
     }
 
-        if (!healthy && providerQuery) {
+        if (!healthy && !isEmbedMoviesPlayback && providerQuery) {
           if (!triedAtv2) {
             const rescueAtv2 = await resolveAtv2EpisodeSource(
               providerQuery,
@@ -1095,7 +1295,7 @@ export async function GET(
       ) ||
       safeSources.find((source) => source.type === "direct");
 
-    if (preferredDirectSource) {
+    if (!isEmbedMoviesPlayback && preferredDirectSource) {
       resolvedVideoUrl = preferredDirectSource.url;
       resolvedSourceType = "direct";
     }
@@ -1137,7 +1337,7 @@ export async function GET(
       safeSources.find((source) => source.type !== "direct") ||
       sources.find((source) => source.type !== "direct");
     const resolvedEmbedUrl = preferredEmbedSource
-      ? toEmbeddableVideoUrl(preferredEmbedSource.url, preferredEmbedSource.type)
+      ?toEmbeddableVideoUrl(preferredEmbedSource.url, preferredEmbedSource.type)
       : toEmbeddableVideoUrl(resolvedVideoUrl, resolvedSourceType);
 
     return NextResponse.json({
@@ -1147,13 +1347,13 @@ export async function GET(
       videoToPlay: resolvedVideoUrl || "",
       embedUrl: resolvedEmbedUrl,
       sources: safeSources,
-      epTitle: `Episódio ${currentEpisode.number} - ${currentEpisode.title}`,
+      epTitle: `EpisÃ³dio ${currentEpisode.number} - ${currentEpisode.title}`,
       playlist,
       nextEpisode,
       prevEpisode,
       history:
         viewerSettings.resumePlayback && resolvedSourceType === "direct"
-          ? history
+          ?history
           : null,
       viewerSettings,
       watchPlayerConfig,

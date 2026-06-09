@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { isSiteAdmin } from "@/lib/admin-access";
 import { searchAnimeMetadataOptions } from "@/lib/anime-metadata";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error nextauth custom role
-  if (!session || session.user?.role !== "admin") {
+  if (!isSiteAdmin(session as any)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.max(1, Math.min(20, Number(req.nextUrl.searchParams.get("limit") || 12)));
 
   if (query.length < 2) {
-    return NextResponse.json({ error: "Query obrigatoria (minimo 2 caracteres)." }, { status: 400 });
+    return NextResponse.json({ error: "Busca obrigatória (mínimo 2 caracteres)." }, { status: 400 });
   }
 
   try {

@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 
+import { authOptions } from "@/lib/auth";
 import {
   isBloggerVideoGatewayUrl,
   resolveBloggerMediaUrls,
 } from "@/lib/blogger";
+import { isBanActive } from "@/lib/ban";
+import prisma from "@/lib/prisma";
 import { normalizePlaybackUrl } from "@/lib/video";
 
 export const runtime = "nodejs";
@@ -151,6 +155,19 @@ async function fetchFirstPlayableSource(
 }
 
 export async function GET(request: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { banned: true, banReason: true, bannedAt: true, bannedUntil: true },
+  });
+  if (isBanActive(user)) {
+    return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
+  }
+
   const requestUrl = new URL(request.url);
   const debug = requestUrl.searchParams.get("debug") === "1";
   const rawSource = String(requestUrl.searchParams.get("src") || "").trim();
@@ -215,7 +232,7 @@ export async function GET(request: Request) {
         error: "A fonte falhou ao carregar o vídeo.",
         status: status || 502,
         ...(debug
-          ? {
+          ?{
               attempts: attempts.map((entry) => ({
                 url: entry.url.slice(0, 240),
                 status: entry.status,

@@ -14,6 +14,12 @@ type SourceItem = {
   raw?: any;
 };
 
+const DEFAULT_SUGOI_BASES = [
+  "https://sugoi-api-chi.vercel.app",
+  "https://sugoiapi.vercel.app",
+  "https://sugoi-api.vercel.app",
+];
+
 function slugify(value: string) {
   return String(value || "")
     .toLowerCase()
@@ -42,6 +48,13 @@ function parseAnimeSlug(value: string) {
   }
 
   return slugify(raw);
+}
+
+function getSugoiBases() {
+  const envBase = process.env.SUGOI_API_BASE?.trim();
+  return [envBase, ...DEFAULT_SUGOI_BASES]
+    .filter((base): base is string => Boolean(base))
+    .map((base) => base.replace(/\/+$/, ""));
 }
 
 async function fetchJson(url: string, timeoutMs = 12000) {
@@ -121,13 +134,87 @@ function normalizeScraperSearch(payload: any): SourceItem[] {
           source: "AnimeFire Scraper",
           raw: {
             ...item,
-            ...(slug ? { slug } : {}),
+            ...(slug ?{ slug } : {}),
             _origin: "anfire-scraper",
           },
         } as SourceItem;
       })
       .filter(Boolean) as SourceItem[],
   );
+}
+
+function mapAnfireProviderPayloadToSource(
+  payload: any,
+  animeSlug: string,
+  animeLink: string,
+): SourceItem[] {
+  const data = payload?.data || payload;
+  if (!data) return [];
+
+  const title = String(
+    data?.anime?.title ||
+      data?.title ||
+      data?.name ||
+      data?.anime_title ||
+      animeSlug ||
+      "",
+  ).trim();
+  if (!title) return [];
+
+  const slug = parseAnimeSlug(
+    data?.anime?.slug || data?.slug || data?.anime_slug || animeSlug || animeLink || title,
+  );
+  const image = String(
+    data?.anime?.image ||
+      data?.anime?.cover ||
+      data?.image ||
+      data?.cover ||
+      data?.poster ||
+      "",
+  ).trim();
+  const url = String(
+    data?.anime?.url || animeLink || (slug ?`https://animefire.plus/animes/${slug}` : ""),
+  ).trim();
+
+  return [
+    {
+      id: slug || slugify(title) || "anfire-provider",
+      title,
+      image,
+      url,
+      slug,
+      source: "AnFire (Sugoi Provider)",
+      raw: {
+        ...data,
+        ...(slug ?{ slug } : {}),
+        _origin: "sugoi-provider-anfire",
+      },
+    },
+  ];
+}
+
+async function fetchWithSugoiAnfireProvider(params: { animeSlug?: string; animeLink?: string }) {
+  const animeLink = String(params.animeLink || "").trim();
+  const animeSlug = parseAnimeSlug(String(params.animeSlug || "").trim());
+  const slug = animeSlug || parseAnimeSlug(animeLink);
+  if (!slug) return [] as SourceItem[];
+
+  const encodedSlug = encodeURIComponent(slug);
+  const paths = [
+    `/api/provider/anfire/search?slug=${encodedSlug}`,
+    `/api/provider/anfire/search?query=${encodedSlug}`,
+  ];
+
+  for (const base of getSugoiBases()) {
+    for (const path of paths) {
+      const payload = await fetchJson(`${base}${path}`, 15000);
+      if (!payload) continue;
+      const mapped = mapAnfireProviderPayloadToSource(payload, slug, animeLink);
+      if (mapped.length > 0) return mapped;
+    }
+  }
+
+  return [] as SourceItem[];
 }
 
 async function searchWithAnimeFireScraper(query: string) {
@@ -162,46 +249,50 @@ async function searchWithAnimeFireScraper(query: string) {
 async function fetchWithAnfirePlayer(params: { animeSlug?: string; animeLink?: string }) {
   const apiBase = process.env.ANFIRE_API_BASE?.trim();
   const apiKey = process.env.ANFIRE_API_KEY?.trim();
-  if (!apiBase || !apiKey) return [] as SourceItem[];
-
   const animeLink = String(params.animeLink || "").trim();
   const animeSlug = parseAnimeSlug(String(params.animeSlug || "").trim());
   if (!animeLink && !animeSlug) return [] as SourceItem[];
 
-  const base = apiBase.replace(/\/+$/, "");
-  const rawQuery = animeLink
-    ? `api_key=${encodeURIComponent(apiKey)}&anime_link=${encodeURIComponent(animeLink)}&update=true`
-    : `api_key=${encodeURIComponent(apiKey)}&anime_slug=${encodeURIComponent(animeSlug)}&update=true`;
+  if (apiBase && apiKey) {
+    const base = apiBase.replace(/\/+$/, "");
+    const rawQuery = animeLink
+      ?`api_key=${encodeURIComponent(apiKey)}&anime_link=${encodeURIComponent(animeLink)}&update=true`
+      : `api_key=${encodeURIComponent(apiKey)}&anime_slug=${encodeURIComponent(animeSlug)}&update=true`;
 
-  const paths = [`/api.php?${rawQuery}`, `/?${rawQuery}`];
+    const paths = [`/api.php?${rawQuery}`, `/?${rawQuery}`];
 
-  let payload: any = null;
-  for (const path of paths) {
-    payload = await fetchJson(`${base}${path}`, 15000);
-    if (payload?.anime_title || payload?.anime_slug) break;
+    let payload: any = null;
+    for (const path of paths) {
+      payload = await fetchJson(`${base}${path}`, 15000);
+      if (payload?.anime_title || payload?.anime_slug) break;
+    }
+
+    const title = String(payload?.anime_title || payload?.title || "").trim();
+    if (title) {
+      const detectedSlug = parseAnimeSlug(payload?.anime_slug || animeSlug || animeLink || title);
+      const url = String(
+        payload?.anime_link || animeLink || (detectedSlug ?`https://animefire.plus/animes/${detectedSlug}` : ""),
+      ).trim();
+
+      return [
+        {
+          id: detectedSlug || slugify(title) || "anfire-player",
+          title,
+          image: String(payload?.anime_image || payload?.image || "").trim(),
+          url,
+          slug: detectedSlug,
+          source: "AnFireAPI Player",
+          raw: {
+            ...(payload || {}),
+            ...(detectedSlug ?{ slug: detectedSlug } : {}),
+            _origin: "anfire-player",
+          },
+        },
+      ];
+    }
   }
 
-  const title = String(payload?.anime_title || payload?.title || "").trim();
-  if (!title) return [] as SourceItem[];
-
-  const detectedSlug = parseAnimeSlug(payload?.anime_slug || animeSlug || animeLink || title);
-  const url = String(payload?.anime_link || animeLink || (detectedSlug ? `https://animefire.plus/animes/${detectedSlug}` : "")).trim();
-
-  return [
-    {
-      id: detectedSlug || slugify(title) || "anfire-player",
-      title,
-      image: String(payload?.anime_image || payload?.image || "").trim(),
-      url,
-      slug: detectedSlug,
-      source: "AnFireAPI Player",
-      raw: {
-        ...(payload || {}),
-        ...(detectedSlug ? { slug: detectedSlug } : {}),
-        _origin: "anfire-player",
-      },
-    },
-  ];
+  return fetchWithSugoiAnfireProvider({ animeSlug, animeLink });
 }
 
 export async function GET(req: NextRequest) {

@@ -3,24 +3,45 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { isUserOnline } from "@/lib/presence";
+import { isBanActive } from "@/lib/ban";
 
-// Update profile: name, bio, avatarUrl, bannerUrl
+function cleanUsername(value: unknown) {
+  const next = String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9_.-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+  return next.length >= 3 ? next : null;
+}
+
+// Update profile: name, username, bio, avatarUrl, bannerUrl
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { name, bio, avatarUrl, bannerUrl, isPrivate } = await req.json();
+  const { name, username, bio, avatarUrl, bannerUrl, isPrivate } = await req.json();
+  const current = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true, banned: true, banReason: true, bannedAt: true, bannedUntil: true },
+  });
+  if (!current) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (isBanActive(current)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
+
   const data: Record<string, unknown> = {};
-  if (name !== undefined) data.name = name;
-  if (bio !== undefined) data.bio = bio;
-  if (avatarUrl !== undefined) data.avatarUrl = avatarUrl;
-  if (bannerUrl !== undefined) data.bannerUrl = bannerUrl;
+  if (name !== undefined) data.name = String(name || "").slice(0, 80);
+  if (username !== undefined) data.username = cleanUsername(username);
+  if (bio !== undefined) data.bio = String(bio || "").slice(0, 500);
+  if (avatarUrl !== undefined) data.avatarUrl = String(avatarUrl || "").slice(0, 500);
+  if (bannerUrl !== undefined) data.bannerUrl = String(bannerUrl || "").slice(0, 500);
   if (isPrivate !== undefined) data.isPrivate = isPrivate;
 
   const user = await prisma.user.update({
     where: { email: session.user.email },
     data,
-    select: { id: true, name: true, email: true, avatarUrl: true, bannerUrl: true, bio: true },
+    select: { id: true, name: true, username: true, email: true, avatarUrl: true, bannerUrl: true, bio: true },
   });
   return NextResponse.json(user);
 }

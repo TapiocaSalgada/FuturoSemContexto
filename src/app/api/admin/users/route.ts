@@ -1,16 +1,29 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createNotification } from "@/lib/notifications";
 import { isUserOnline } from "@/lib/presence";
+import { isOwnerEmail, isSiteAdmin } from "@/lib/admin-access";
+import { isBanActive } from "@/lib/ban";
 
-const OWNER_EMAIL = process.env.OWNER_EMAIL || "relugocruz@gmail.com";
+function parseLimit(value: string | null) {
+  const parsed = Number(value || 80);
+  if (!Number.isFinite(parsed)) return 80;
+  return Math.max(1, Math.min(200, Math.floor(parsed)));
+}
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error role typing
-  if (!session || session.user?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isSiteAdmin(session as any)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { searchParams } = new URL(req.url);
+  const q = String(searchParams.get("q") || "").trim();
+  const status = String(searchParams.get("status") || "all").trim().toLowerCase();
+  const role = String(searchParams.get("role") || "all").trim().toLowerCase();
+  const online = String(searchParams.get("online") || "").trim() === "1";
+  const limit = parseLimit(searchParams.get("limit"));
+  const offset = Math.max(0, Number(searchParams.get("offset") || 0) || 0);
 
   let usersWithOnline: Array<{
     id: string;
@@ -21,6 +34,11 @@ export async function GET() {
     isTimedOut: Date | null;
     bio: string | null;
     bannerUrl: string | null;
+    banned: boolean;
+    banReason: string | null;
+    bannedAt: Date | null;
+    bannedUntil: Date | null;
+    bannedById: string | null;
     lastActiveAt?: Date | null;
     _count: { favorites: number; histories: number };
     onlineNow: boolean;
@@ -28,6 +46,19 @@ export async function GET() {
 
   try {
     const users = await prisma.user.findMany({
+      where: {
+        ...(q
+          ?{
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+        ...(role !== "all" ?{ role } : {}),
+        ...(status === "banned" ?{ banned: true } : {}),
+        ...(status === "active" ?{ banned: false } : {}),
+      },
       select: {
         id: true,
         name: true,
@@ -37,10 +68,17 @@ export async function GET() {
         isTimedOut: true,
         bio: true,
         bannerUrl: true,
+        banned: true,
+        banReason: true,
+        bannedAt: true,
+        bannedUntil: true,
+        bannedById: true,
         lastActiveAt: true,
         _count: { select: { favorites: true, histories: true } },
       },
       orderBy: { name: "asc" },
+      skip: offset,
+      take: limit,
     });
 
     usersWithOnline = users.map((user) => ({
@@ -49,6 +87,19 @@ export async function GET() {
     }));
   } catch {
     const users = await prisma.user.findMany({
+      where: {
+        ...(q
+          ?{
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+        ...(role !== "all" ?{ role } : {}),
+        ...(status === "banned" ?{ banned: true } : {}),
+        ...(status === "active" ?{ banned: false } : {}),
+      },
       select: {
         id: true,
         name: true,
@@ -58,9 +109,16 @@ export async function GET() {
         isTimedOut: true,
         bio: true,
         bannerUrl: true,
+        banned: true,
+        banReason: true,
+        bannedAt: true,
+        bannedUntil: true,
+        bannedById: true,
         _count: { select: { favorites: true, histories: true } },
       },
       orderBy: { name: "asc" },
+      skip: offset,
+      take: limit,
     });
 
     usersWithOnline = users.map((user) => ({
@@ -70,11 +128,16 @@ export async function GET() {
   }
 
   const onlineUsers = usersWithOnline
-    .filter((user) => user.onlineNow)
+    .filter((user) => user.onlineNow && !isBanActive(user))
     .map((user) => ({ id: user.id, name: user.name, avatarUrl: user.avatarUrl || null }));
 
   return NextResponse.json({
-    users: usersWithOnline,
+    users: usersWithOnline
+      .filter((user) => !online || user.onlineNow)
+      .map((user) => ({
+      ...user,
+      banActive: isBanActive(user),
+    })),
     onlineCount: onlineUsers.length,
     onlineUsers,
   });
@@ -82,10 +145,10 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error role typing
-  if (!session || session.user?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isSiteAdmin(session as any)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const requestorEmail = session.user?.email;
+  const requestorEmail = session?.user?.email;
+  const requestorIsOwner = isOwnerEmail(requestorEmail);
   const { id, name, email, role, timeoutUntil, warningMessage } = await req.json();
   if (!id) return NextResponse.json({ error: "User id required" }, { status: 400 });
 
@@ -93,11 +156,11 @@ export async function PATCH(req: NextRequest) {
   if (role !== undefined) {
     const targetUser = await prisma.user.findUnique({ where: { id }, select: { email: true, role: true } });
     // Block demoting the owner
-    if (targetUser?.email === OWNER_EMAIL && role !== "admin") {
+    if (isOwnerEmail(targetUser?.email) && role !== "admin") {
       return NextResponse.json({ error: "O dono do site não pode ser rebaixado." }, { status: 403 });
     }
     // Block non-owners from demoting other admins
-    if (targetUser?.role === "admin" && requestorEmail !== OWNER_EMAIL && role !== "admin") {
+    if (targetUser?.role === "admin" && !requestorIsOwner && role !== "admin") {
       return NextResponse.json({ error: "Apenas o dono pode remover outros admins." }, { status: 403 });
     }
   }
@@ -105,7 +168,7 @@ export async function PATCH(req: NextRequest) {
   // Block editing the owner account unless you ARE the owner
   if (email !== undefined) {
     const targetUser = await prisma.user.findUnique({ where: { id }, select: { email: true } });
-    if (targetUser?.email === OWNER_EMAIL && requestorEmail !== OWNER_EMAIL) {
+    if (isOwnerEmail(targetUser?.email) && !requestorIsOwner) {
       return NextResponse.json({ error: "Não é permitido editar a conta do dono." }, { status: 403 });
     }
   }
@@ -114,16 +177,16 @@ export async function PATCH(req: NextRequest) {
   if (name !== undefined) data.name = name;
   if (email !== undefined) data.email = email;
   if (role !== undefined) data.role = role;
-  if (timeoutUntil !== undefined) data.isTimedOut = timeoutUntil ? new Date(timeoutUntil) : null;
+  if (timeoutUntil !== undefined) data.isTimedOut = timeoutUntil ?new Date(timeoutUntil) : null;
 
   if (warningMessage && typeof warningMessage === "string" && warningMessage.trim()) {
     await createNotification({
       userId: id,
       actorId: null,
       type: "announcement",
-      title: "Aviso da moderacao",
+      title: "Aviso da moderação",
       body: warningMessage.trim(),
-      link: "/settings",
+      link: "/configuracoes",
     });
   }
 
@@ -137,14 +200,13 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error role typing
-  if (!session || session.user?.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isSiteAdmin(session as any)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const requestorEmail = session.user?.email;
+  const requestorEmail = session?.user?.email;
   const { id } = await req.json();
 
   const targetUser = await prisma.user.findUnique({ where: { id }, select: { email: true } });
-  if (targetUser?.email === OWNER_EMAIL) {
+  if (isOwnerEmail(targetUser?.email)) {
     return NextResponse.json({ error: "Não é permitido deletar a conta do dono." }, { status: 403 });
   }
   if (targetUser?.email === requestorEmail) {
@@ -157,3 +219,4 @@ export async function DELETE(req: NextRequest) {
 /**
  * Admin user management endpoint (role changes, moderation actions).
  */
+

@@ -17,7 +17,7 @@ function normalizeDatabaseUrl(rawUrl: string) {
 
   const authorityStart = schemeIndex + 3;
   const pathIndex = value.indexOf("/", authorityStart);
-  const authorityEnd = pathIndex >= 0 ? pathIndex : value.length;
+  const authorityEnd = pathIndex >= 0 ?pathIndex : value.length;
   const authority = value.slice(authorityStart, authorityEnd);
   const atIndex = authority.lastIndexOf("@");
   if (atIndex < 0) return value;
@@ -48,7 +48,7 @@ function withConnectionParams(url: string) {
     }
 
     if (!parsed.searchParams.has("connection_limit")) {
-      parsed.searchParams.set("connection_limit", "1");
+      parsed.searchParams.set("connection_limit", "5");
     }
     if (!parsed.searchParams.has("pool_timeout")) {
       parsed.searchParams.set("pool_timeout", "20");
@@ -61,26 +61,26 @@ function withConnectionParams(url: string) {
     let next = normalized;
     const hasQuery = next.includes("?");
     if (!/([?&])connection_limit=/i.test(next)) {
-      next += `${hasQuery ? "&" : "?"}connection_limit=1`;
+      next += `${hasQuery ?"&" : "?"}connection_limit=5`;
     }
     if (!/([?&])pool_timeout=/i.test(next)) {
-      next += `${next.includes("?") ? "&" : "?"}pool_timeout=20`;
+      next += `${next.includes("?") ?"&" : "?"}pool_timeout=20`;
     }
     if (!/([?&])pgbouncer=/i.test(next)) {
-      next += `${next.includes("?") ? "&" : "?"}pgbouncer=true`;
+      next += `${next.includes("?") ?"&" : "?"}pgbouncer=true`;
     }
     return next;
   }
 }
 
 const datasourceUrl = process.env.DATABASE_URL
-  ? withConnectionParams(process.env.DATABASE_URL)
+  ?withConnectionParams(process.env.DATABASE_URL)
   : undefined;
 
 const prismaClientSingleton = () =>
   new PrismaClient({
     ...(datasourceUrl
-      ? {
+      ?{
           datasources: {
             db: { url: datasourceUrl },
           },

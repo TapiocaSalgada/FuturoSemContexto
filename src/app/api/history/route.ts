@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import { checkAchievements } from "@/lib/checkAchievements";
+import { isBanActive } from "@/lib/ban";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export async function GET(req: Request) {
 
     const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
     if (!user) return jsonError("User not found", 404);
+    if (isBanActive(user)) return jsonError("Conta suspensa.", 403);
 
     if (animeId) {
       const histories = await prisma.watchHistory.findMany({
@@ -113,12 +115,13 @@ export async function POST(req: Request) {
     }
 
     const progressRaw = Number(body?.progressSec ?? 0);
-    const progressSec = Number.isFinite(progressRaw) ? Math.max(0, Math.floor(progressRaw)) : 0;
+    const progressSec = Number.isFinite(progressRaw) ?Math.max(0, Math.floor(progressRaw)) : 0;
     const watched = body?.watched === true;
 
     const userEmail = session.user.email as string;
     const user = await prisma.user.findUnique({ where: { email: userEmail } });
     if (!user) return jsonError("User not found", 404);
+    if (isBanActive(user)) return jsonError("Conta suspensa.", 403);
 
     const episode = await prisma.episode.findUnique({
       where: { id: episodeId },
@@ -126,7 +129,55 @@ export async function POST(req: Request) {
     });
 
     if (!episode) {
-      return jsonError("Episode not found", 404);
+      const canonical = await prisma.catalogEpisode.findUnique({
+        where: { id: episodeId },
+        include: { content: { select: { id: true, status: true } } },
+      }).catch(() => null);
+
+      if (!canonical) {
+        return jsonError("Episode not found", 404);
+      }
+
+      if (!["public", "published"].includes(String(canonical.status || "").toLowerCase())) {
+        return jsonError("Not found", 404);
+      }
+
+      if (!["public", "published"].includes(String(canonical.content.status || "").toLowerCase())) {
+        return jsonError("Not found", 404);
+      }
+
+      const durationRaw = Number(body?.durationSec ?? body?.durationSeconds ?? canonical.durationSec ?? 0);
+      const durationSeconds = Number.isFinite(durationRaw) && durationRaw > 0 ? Math.floor(durationRaw) : null;
+      const completed = watched || (durationSeconds ? progressSec / durationSeconds >= 0.9 : false);
+
+      const progress = await prisma.watchProgress.upsert({
+        where: {
+          userId_episodeId: {
+            userId: user.id,
+            episodeId,
+          },
+        },
+        update: {
+          progressSeconds: progressSec,
+          durationSeconds,
+          completed,
+          lastWatchedAt: new Date(),
+        },
+        create: {
+          userId: user.id,
+          contentId: canonical.content.id,
+          episodeId,
+          progressSeconds: progressSec,
+          durationSeconds,
+          completed,
+        },
+      });
+
+      return NextResponse.json(progress);
+    }
+
+    if (episode.status === "draft") {
+      return jsonError("Not found", 404);
     }
 
     if (String(episode.anime.visibility || "").toLowerCase() !== "public") {
@@ -142,7 +193,7 @@ export async function POST(req: Request) {
       },
       update: {
         progressSec,
-        ...(watched ? { watched: true } : {}),
+        ...(watched ?{ watched: true } : {}),
       },
       create: {
         userId: user.id,
@@ -182,6 +233,7 @@ export async function DELETE(req: Request) {
 
     const user = await prisma.user.findUnique({ where: { email: (session.user as any).email } });
     if (!user) return jsonError("User not found", 404);
+    if (isBanActive(user)) return jsonError("Conta suspensa.", 403);
 
     if (all) {
       const result = await prisma.watchHistory.deleteMany({ where: { userId: user.id } });

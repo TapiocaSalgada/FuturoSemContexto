@@ -31,11 +31,11 @@ function scanDir(dir: string, base: string = ""): FileEntry[] {
 
     if (stat.isDirectory()) {
       // recurse deeply
-      const newBase = base ? `${base}/${item}` : item;
+      const newBase = base ?`${base}/${item}` : item;
       const subEntries = scanDir(full, newBase);
       entries.push(...subEntries);
     } else if (/\.(mp4|mkv|webm|avi|mov|m4v)$/i.test(item)) {
-      const filePath = base ? `${base}/${item}` : item;
+      const filePath = base ?`${base}/${item}` : item;
       entries.push({ name: item, path: filePath, folder: base });
     }
   }

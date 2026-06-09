@@ -18,7 +18,7 @@ function parsePayload(content?: string | null): NavigationPayload {
   if (!content) return {};
   try {
     const parsed = JSON.parse(content);
-    return typeof parsed === "object" && parsed ? parsed : {};
+    return typeof parsed === "object" && parsed ?parsed : {};
   } catch {
     return {};
   }
@@ -41,7 +41,7 @@ export async function getNavigationState(): Promise<NavigationState> {
 
   const payload = parsePayload(row.content);
   return {
-    animeTabEnabled: payload.animeTabEnabled ?? true,
+    animeTabEnabled: Boolean(payload.animeTabEnabled ?? true),
     // Product is anime-only; manga tab stays permanently disabled.
     mangaTabEnabled: false,
     updatedAt: payload.updatedAt || row.createdAt.toISOString(),

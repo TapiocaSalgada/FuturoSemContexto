@@ -1,3 +1,5 @@
+import { searchSugoiDatabaseAnime, slugifySugoi } from "@/lib/sugoi-provider";
+
 export type ProviderKey = "kappa" | "sugoi" | "anisbr" | "anfire" | "animefenix" | "playanimes";
 
 export type ProviderSearchItem = {
@@ -30,7 +32,7 @@ const PROVIDER_LABELS: Record<ProviderKey, string> = {
 };
 
 const PROVIDER_BASES: Record<Exclude<ProviderKey, "kappa">, string[]> = {
-  sugoi: ["https://sugoiapi.vercel.app", "https://sugoi-api.vercel.app"],
+  sugoi: ["https://sugoi-api-chi.vercel.app", "https://sugoiapi.vercel.app", "https://sugoi-api.vercel.app"],
   anisbr: [
     "https://theanimesapi.herokuapp.com",
     "https://api-anime-free.vercel.app/api",
@@ -86,7 +88,7 @@ function getProviderBases(provider: ProviderKey) {
   }
 
   const envKey = PROVIDER_ENV_KEYS[provider];
-  const envBase = envKey ? process.env[envKey]?.trim() : "";
+  const envBase = envKey ?process.env[envKey]?.trim() : "";
   const defaults = PROVIDER_BASES[provider] || [];
 
   return compact([envBase, ...defaults]).map(ensureBase);
@@ -257,7 +259,7 @@ async function searchAtv2Mirror(query: string, source: string) {
   );
   if (!payload) return [] as ProviderSearchItem[];
 
-  const list = Array.isArray(payload) ? payload : [];
+  const list = Array.isArray(payload) ?payload : [];
   return dedupe(
     list
       .map((item: any, index: number) => {
@@ -318,6 +320,25 @@ function dedupe(items: ProviderSearchItem[]) {
 
 async function searchProviderPrimary(provider: ProviderKey, query: string) {
   const label = getProviderLabel(provider);
+
+  if (provider === "sugoi") {
+    const databaseResults = await searchSugoiDatabaseAnime(query, 30);
+    return dedupe(
+      databaseResults.map((item) => ({
+        id: String(item.id || item.malId || slugifySugoi(item.title || "") || item.title),
+        title: item.title,
+        image: item.coverImage || item.bannerImage || "",
+        url: item.malId ?`https://myanimelist.net/anime/${item.malId}` : "",
+        source: label,
+        raw: {
+          ...(item.raw || {}),
+          slug: slugifySugoi(item.title || ""),
+          _origin: "sugoi-database",
+        },
+      })),
+    );
+  }
+
   const bases = getProviderBases(provider);
   const paths = getSearchPaths(provider, query);
 
@@ -411,7 +432,7 @@ function normalizeEpisodes(payload: any): KappaEpisode[] {
       const number = Number(numberRaw);
       return {
         id: String(item?.id || item?.episode_id || item?.episodio_id || `${index + 1}`),
-        number: Number.isFinite(number) ? number : index + 1,
+        number: Number.isFinite(number) ?number : index + 1,
         title: item?.episode_name || item?.title || `Episódio ${numberRaw}`,
         thumbnail: item?.imagem || item?.image || item?.thumb || undefined,
         raw: item,
@@ -444,7 +465,7 @@ function extractVideoUrlFromPayload(payload: any, depth = 0): string | null {
 
   if (typeof payload === "string") {
     const trimmed = payload.trim();
-    return trimmed.startsWith("http") ? trimmed : null;
+    return trimmed.startsWith("http") ?trimmed : null;
   }
 
   if (Array.isArray(payload)) {

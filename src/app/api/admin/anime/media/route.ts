@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const query = String(req.nextUrl.searchParams.get("q") || "").trim();
   const limit = Math.max(1, Math.min(12, Number(req.nextUrl.searchParams.get("limit") || 8)));
   if (query.length < 2) {
-    return NextResponse.json({ error: "Query obrigatoria (minimo 2 caracteres)." }, { status: 400 });
+    return NextResponse.json({ error: "Busca obrigatória (mínimo 2 caracteres)." }, { status: 400 });
   }
 
   try {

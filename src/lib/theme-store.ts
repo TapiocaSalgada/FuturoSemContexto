@@ -10,7 +10,7 @@ type ThemeState = {
 };
 
 export const useThemeStore = create<ThemeState>((set) => ({
-  theme: "futuro-noir",
+  theme: "futuro-classic",
   setTheme: (theme) => {
     const next = normalizeTheme(theme);
     localStorage.setItem("app-theme", next);

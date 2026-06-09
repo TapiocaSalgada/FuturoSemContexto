@@ -117,7 +117,7 @@ function mapAnimeData(item: any): AnimeMediaOption {
       item.images?.webp?.large_image_url ||
       item.images?.jpg?.large_image_url ||
       undefined,
-    synopsis: item.synopsis ? item.synopsis.replace(/\[Written by MAL Rewrite\]/gi, "").trim() : undefined,
+    synopsis: item.synopsis ?item.synopsis.replace(/\[Written by MAL Rewrite\]/gi, "").trim() : undefined,
     score: item.score || undefined,
     scoredBy: item.scored_by || undefined,
     episodes: item.episodes || undefined,
@@ -153,7 +153,7 @@ function mapMangaData(item: any): MangaMediaOption {
       item.images?.webp?.large_image_url ||
       item.images?.jpg?.large_image_url ||
       undefined,
-    synopsis: item.synopsis ? item.synopsis.replace(/\[Written by MAL Rewrite\]/gi, "").trim() : undefined,
+    synopsis: item.synopsis ?item.synopsis.replace(/\[Written by MAL Rewrite\]/gi, "").trim() : undefined,
     score: item.score || undefined,
     scoredBy: item.scored_by || undefined,
     chapters: item.chapters || undefined,

@@ -1,7 +1,12 @@
-﻿import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "./prisma";
 import bcrypt from "bcryptjs";
+import { isBanActive } from "./ban";
+import { decryptSecret } from "./secret-crypto";
+import { recordSecurityEvent } from "./security-events";
+import { verifyTotp } from "./totp";
+import { isAccountTwoFactorEnabled } from "./server-features";
 
 if (!process.env.NEXTAUTH_SECRET) {
   throw new Error("NEXTAUTH_SECRET is required");
@@ -14,7 +19,52 @@ const authUserSelect = {
   password: true,
   avatarUrl: true,
   role: true,
+  banned: true,
+  banReason: true,
+  bannedAt: true,
+  bannedUntil: true,
 } as const;
+
+function normalizeLookup(value: string) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function rankIdentifierMatches<
+  T extends { name: string; email: string },
+>(users: T[], identifier: string): T | null {
+  const normalizedIdentifier = normalizeLookup(identifier);
+  if (!normalizedIdentifier) return null;
+
+  let best: { user: T; score: number } | null = null;
+
+  for (const candidate of users) {
+    const normalizedName = normalizeLookup(candidate.name || "");
+    const normalizedEmail = normalizeLookup(candidate.email || "");
+    const normalizedEmailLocal = normalizedEmail.split("@")[0] || "";
+
+    let score = 0;
+    if (normalizedEmail === normalizedIdentifier) score = Math.max(score, 100);
+    if (normalizedName === normalizedIdentifier) score = Math.max(score, 96);
+    if (normalizedEmailLocal === normalizedIdentifier) score = Math.max(score, 94);
+    if (normalizedName.startsWith(normalizedIdentifier)) score = Math.max(score, 78);
+    if (normalizedEmailLocal.startsWith(normalizedIdentifier)) score = Math.max(score, 74);
+    if (normalizedEmail.startsWith(normalizedIdentifier)) score = Math.max(score, 70);
+    if (normalizedName.includes(normalizedIdentifier)) score = Math.max(score, 58);
+    if (normalizedEmail.includes(normalizedIdentifier)) score = Math.max(score, 50);
+
+    if (score <= 0) continue;
+    if (!best || score > best.score) {
+      best = { user: candidate, score };
+      continue;
+    }
+  }
+
+  return best?.user || null;
+}
 
 function isPoolExhaustedError(error: unknown) {
   const message = String((error as any)?.message || error || "").toLowerCase();
@@ -49,11 +99,16 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "seu@email.com" },
+        identifier: { label: "E-mail ou usuÃ¡rio", type: "text", placeholder: "seu@email.com ou usuÃ¡rio" },
+        email: { label: "E-mail ou usuÃ¡rio", type: "text", placeholder: "seu@email.com ou usuÃ¡rio" },
         password: { label: "Senha", type: "password" },
       },
       async authorize(credentials) {
-        const identifier = String(credentials?.email || "").trim();
+        const identifier = String(
+          (credentials as Record<string, unknown> | null)?.identifier ||
+            credentials?.email ||
+            "",
+        ).trim();
         const providedPassword = String(credentials?.password || "");
 
         if (!identifier || !providedPassword) {
@@ -67,39 +122,70 @@ export const authOptions: NextAuthOptions = {
           password: string | null;
           avatarUrl: string | null;
           role: string;
+          banned: boolean;
+          banReason: string | null;
+          bannedAt: Date | null;
+          bannedUntil: Date | null;
         } | null = null;
 
         try {
-          if (identifier.includes("@")) {
-            user = await withDbRetry(() =>
-              prisma.user.findFirst({
+          user = await withDbRetry(() =>
+            prisma.user.findFirst({
+              where: {
+                email: { equals: identifier, mode: "insensitive" },
+              },
+              select: authUserSelect,
+            }),
+          );
+
+          if (!user) {
+            const exactNameMatches = await withDbRetry(() =>
+              prisma.user.findMany({
                 where: {
-                  email: { equals: identifier, mode: "insensitive" },
+                  name: { equals: identifier, mode: "insensitive" },
                 },
+                take: 5,
                 select: authUserSelect,
               }),
             );
-          } else {
+            if (exactNameMatches.length === 1) {
+              user = exactNameMatches[0];
+            } else if (exactNameMatches.length > 1) {
+              throw new Error("Existe mais de um usuÃ¡rio com esse nome. Use seu e-mail.");
+            }
+          }
+
+          if (!user && !identifier.includes("@")) {
+            const byEmailLocalPart = await withDbRetry(() =>
+              prisma.user.findMany({
+                where: {
+                  email: { startsWith: `${identifier}@`, mode: "insensitive" },
+                },
+                take: 5,
+                select: authUserSelect,
+              }),
+            );
+            if (byEmailLocalPart.length === 1) {
+              user = byEmailLocalPart[0];
+            } else if (byEmailLocalPart.length > 1) {
+              throw new Error("Encontramos varias contas parecidas. Use o e-mail completo.");
+            }
+          }
+
+          if (!user) {
             const candidates = await withDbRetry(() =>
               prisma.user.findMany({
                 where: {
-                  name: { contains: identifier, mode: "insensitive" },
+                  OR: [
+                    { name: { contains: identifier, mode: "insensitive" } },
+                    { email: { contains: identifier, mode: "insensitive" } },
+                  ],
                 },
-                take: 12,
+                take: 20,
                 select: authUserSelect,
               }),
             );
-
-            const normalizedIdentifier = identifier.toLowerCase();
-            user =
-              candidates.find(
-                (candidate) =>
-                  String(candidate.name || "").trim().toLowerCase() === normalizedIdentifier,
-              ) ||
-              candidates.find((candidate) =>
-                String(candidate.name || "").toLowerCase().startsWith(normalizedIdentifier),
-              ) ||
-              null;
+            user = rankIdentifierMatches(candidates, identifier);
           }
         } catch (error) {
           if (isPoolExhaustedError(error)) {
@@ -109,17 +195,37 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (!user) {
-          throw new Error("Usuário não encontrado.");
+          throw new Error("UsuÃ¡rio nÃ£o encontrado.");
         }
 
         if (!user.password) {
-          throw new Error("Sua conta não possui senha. Contate o administrador.");
+          throw new Error("Sua conta nÃ£o possui senha. Contate o administrador.");
+        }
+
+        if (isBanActive(user)) {
+          throw new Error("Conta suspensa. Acesse a tela de suspensÃ£o para mais detalhes.");
         }
 
         const isPasswordValid = await bcrypt.compare(providedPassword, user.password);
         if (!isPasswordValid) {
           throw new Error("Senha incorreta.");
         }
+        if (isAccountTwoFactorEnabled()) {
+          const securitySettings = await prisma.userSecuritySettings.findUnique({
+            where: { userId: user.id },
+            select: { twoFactorEnabled: true, twoFactorSecretEncrypted: true },
+          });
+
+          if (securitySettings?.twoFactorEnabled) {
+            const code = String((credentials as Record<string, unknown> | null)?.totpCode || "").trim();
+            const encryptedSecret = securitySettings.twoFactorSecretEncrypted;
+            if (!encryptedSecret || !verifyTotp(code, decryptSecret(encryptedSecret))) {
+              throw new Error("CÃ³digo de autenticaÃ§Ã£o invÃ¡lido.");
+            }
+          }
+        }
+
+        await recordSecurityEvent(user.id, "login_success").catch(() => {});
 
         return {
           id: user.id,
@@ -127,6 +233,10 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           image: user.avatarUrl,
           role: user.role,
+          banned: user.banned,
+          banReason: user.banReason,
+          bannedAt: user.bannedAt,
+          bannedUntil: user.bannedUntil,
         };
       },
     }),
@@ -134,13 +244,19 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      if (trigger === "update" && session?.image) {
-        token.picture = session.image;
+      if (trigger === "update") {
+        if (session?.image) token.picture = session.image;
+        if (session?.name) token.name = session.name;
       }
 
       if (user) {
         token.id = user.id;
         token.role = (user as any).role;
+        (token as any).banned = Boolean((user as any).banned);
+        (token as any).banReason = (user as any).banReason || null;
+        (token as any).bannedAt = (user as any).bannedAt ?new Date((user as any).bannedAt).toISOString() : null;
+        (token as any).bannedUntil = (user as any).bannedUntil ?new Date((user as any).bannedUntil).toISOString() : null;
+        token.name = user.name || token.name;
         token.picture = (user as any).avatarUrl || user.image || token.picture;
       }
 
@@ -155,13 +271,17 @@ export const authOptions: NextAuthOptions = {
           const dbUser = await withDbRetry(() =>
             prisma.user.findUnique({
               where: { id: token.id as string },
-              select: { role: true, avatarUrl: true },
+              select: { role: true, avatarUrl: true, banned: true, banReason: true, bannedAt: true, bannedUntil: true },
             }),
           );
 
           if (dbUser) {
             token.role = dbUser.role;
             if (dbUser.avatarUrl) token.picture = dbUser.avatarUrl;
+            (token as any).banned = isBanActive(dbUser);
+            (token as any).banReason = dbUser.banReason || null;
+            (token as any).bannedAt = dbUser.bannedAt ?dbUser.bannedAt.toISOString() : null;
+            (token as any).bannedUntil = dbUser.bannedUntil ?dbUser.bannedUntil.toISOString() : null;
           }
           (token as any).nextDbSyncAt = now + 600;
         } catch {
@@ -175,6 +295,11 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.id || token.sub;
         (session.user as any).role = token.role;
+        (session.user as any).banned = Boolean((token as any).banned);
+        (session.user as any).banReason = (token as any).banReason || null;
+        (session.user as any).bannedAt = (token as any).bannedAt || null;
+        (session.user as any).bannedUntil = (token as any).bannedUntil || null;
+        if (token.name) session.user.name = String(token.name);
         session.user.image = (token.picture as string) || session.user.image;
       }
       return session;

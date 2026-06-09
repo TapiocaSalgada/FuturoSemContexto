@@ -84,7 +84,7 @@ function normalizeSearchItems(payload: any) {
   return list
     .map((item: any, index: number) => ({
       id: String(item?.id || item?.anime_id || item?.animeId || item?.slug || `item-${index}`),
-      title: String(item?.title || item?.nome || item?.name || "").trim() || "Titulo indisponivel",
+      title: String(item?.title || item?.nome || item?.name || "").trim() || "Título indisponível",
       image:
         String(item?.img || item?.image || item?.image_url || "").trim() ||
         "https://img.freepik.com/premium-vector/photo-icon-with-picture-landscape-vector-isolated-white-background-eps-10_399089-2810.jpg",
@@ -102,7 +102,7 @@ function normalizeEpisodes(payload: any): EpisodeItem[] {
 
     return {
       id: String(item?.id || item?.episode_id || item?.episodio_id || `ep-${idx}`),
-      number: Number.isFinite(number) && number > 0 ? number : idx + 1,
+      number: Number.isFinite(number) && number > 0 ?number : idx + 1,
       title: String(item?.episode_name || item?.title || `Episódio ${rawNumber}`),
       link: item?.link || item?.url || null,
       thumbnail: item?.imagem || item?.image || null,
@@ -114,7 +114,7 @@ function extractVideoUrl(payload: any, depth = 0): string {
   if (!payload || depth > 3) return "";
 
   if (typeof payload === "string") {
-    return payload.startsWith("http") ? payload : "";
+    return payload.startsWith("http") ?payload : "";
   }
 
   if (Array.isArray(payload)) {
@@ -203,7 +203,7 @@ function normalizeEndpointResponse(endpoint: EndpointName, payload: any) {
   }
 
   const videoUrl = extractVideoUrl(payload);
-  return videoUrl ? { videoUrl } : null;
+  return videoUrl ?{ videoUrl } : null;
 }
 
 export async function GET(req: NextRequest) {
@@ -232,7 +232,7 @@ export async function GET(req: NextRequest) {
   if (paths.length === 0) {
     return NextResponse.json(
       {
-        error: endpoint === "search" ? "Parametro q/keyword obrigatorio." : "Parametro id obrigatorio.",
+        error: endpoint === "search" ?"Parametro q/keyword obrigatorio." : "Parametro id obrigatorio.",
       },
       { status: 400 },
     );
@@ -264,7 +264,7 @@ export async function GET(req: NextRequest) {
 
       errors.push(`formato inválido em ${path}`);
     } catch (error) {
-      errors.push(`falha em ${path}: ${error instanceof Error ? error.message : "erro"}`);
+      errors.push(`falha em ${path}: ${error instanceof Error ?error.message : "erro"}`);
     }
   }
 
@@ -274,6 +274,6 @@ export async function GET(req: NextRequest) {
       error: `Falha ao normalizar resposta de ${endpoint}.`,
       details: errors,
     },
-    { status: notFound ? 404 : 502 },
+    { status: notFound ?404 : 502 },
   );
 }

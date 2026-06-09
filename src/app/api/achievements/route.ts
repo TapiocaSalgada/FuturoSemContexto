@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     where: {
       userId,
       // Only show hidden ones to the owner
-      ...(userId !== currentUserId ? { showOnProfile: true } : {}),
+      ...(userId !== currentUserId ?{ showOnProfile: true } : {}),
     },
     orderBy: { earnedAt: "asc" },
   });

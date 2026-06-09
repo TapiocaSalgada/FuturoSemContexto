@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { isBanActive } from "@/lib/ban";
 import prisma from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
@@ -10,21 +11,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true } });
+  const user = await prisma.user.findUnique({ where: { email: session.user.email }, select: { id: true, banned: true, banReason: true, bannedAt: true, bannedUntil: true } });
   if (!user) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   const body = await req.json();
   const title = String(body?.title || "").trim();
   const description = String(body?.description || "").trim();
-  const animeId = body?.animeId ? String(body.animeId) : null;
-  const episodeId = body?.episodeId ? String(body.episodeId) : null;
-  const pagePath = body?.pagePath ? String(body.pagePath) : null;
-  const sourceUrl = body?.sourceUrl ? String(body.sourceUrl) : null;
+  const animeId = body?.animeId ?String(body.animeId) : null;
+  const episodeId = body?.episodeId ?String(body.episodeId) : null;
+  const pagePath = body?.pagePath ?String(body.pagePath) : null;
+  const sourceUrl = body?.sourceUrl ?String(body.sourceUrl) : null;
 
   if (!title) {
-    return NextResponse.json({ error: "Titulo obrigatorio." }, { status: 400 });
+    return NextResponse.json({ error: "Título obrigatório." }, { status: 400 });
   }
   if (!description || description.length < 8) {
     return NextResponse.json({ error: "Descreva melhor o problema (min. 8 caracteres)." }, { status: 400 });

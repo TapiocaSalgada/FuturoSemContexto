@@ -3,6 +3,7 @@ export type VideoSourceKind =
   | "youtube"
   | "direct"
   | "embed"
+  | "embedmovies"
   | "external";
 
 function decodeLoose(value: string) {
@@ -92,7 +93,7 @@ export function extractNestedMediaUrl(url?: string | null) {
     }
   } catch {
     const fallback = extractFirstHttpUrl(normalized);
-    return fallback ? normalizePlaybackUrl(fallback) : "";
+    return fallback ?normalizePlaybackUrl(fallback) : "";
   }
 
   return "";
@@ -170,7 +171,7 @@ export function detectVideoSource(
       /(?:^|[?&])export=download(?:&|$)/.test(search) ||
       /(?:^|[?&])confirm=/.test(search);
 
-    return isDirectDriveLink ? "direct" : "google_drive";
+    return isDirectDriveLink ?"direct" : "google_drive";
   }
 
   if (normalized.includes("youtube.com") || normalized.includes("youtu.be")) {
@@ -184,6 +185,7 @@ export function detectVideoSource(
 
   if (sourceType === "google_drive") return "google_drive";
   if (sourceType === "youtube") return "youtube";
+  if (sourceType === "embedmovies") return "embedmovies";
 
   // Some providers store video links as `embed` even when they are direct media endpoints.
   const looksLikeDirectFromHostOrPath =
@@ -214,6 +216,8 @@ export function detectVideoSource(
   if (sourceType === "direct") return "direct";
   if (sourceType === "embed") return "embed";
 
+  if (host.includes("cdn-embed.com") || host.includes("myembed.biz")) return "embedmovies";
+
   if (/\/embed\//.test(pathname) || /(?:^|[?&])(embed|player)=/.test(search)) {
     return "embed";
   }
@@ -234,14 +238,18 @@ export function toEmbeddableVideoUrl(
     const directMatch = normalizedUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
     const queryMatch = normalizedUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
     const fileId = directMatch?.[1] || queryMatch?.[1];
-    return fileId ? `https://drive.google.com/file/d/${fileId}/preview` : normalizedUrl;
+    return fileId ?`https://drive.google.com/file/d/${fileId}/preview` : normalizedUrl;
   }
 
   if (source === "youtube") {
     const shortMatch = normalizedUrl.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
     const watchMatch = normalizedUrl.match(/[?&]v=([a-zA-Z0-9_-]+)/);
     const videoId = shortMatch?.[1] || watchMatch?.[1];
-    return videoId ? `https://www.youtube.com/embed/${videoId}?rel=0` : normalizedUrl;
+    return videoId ?`https://www.youtube.com/embed/${videoId}?rel=0` : normalizedUrl;
+  }
+
+  if (source === "embedmovies") {
+    return normalizedUrl;
   }
 
   return normalizedUrl;

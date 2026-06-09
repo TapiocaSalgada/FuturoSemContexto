@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import prisma from "@/lib/prisma";
+import { isBanActive } from "@/lib/ban";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createNotification } from "@/lib/notifications";
@@ -53,7 +54,7 @@ export async function GET(req: NextRequest) {
 
     const session = await getServerSession(authOptions);
     const currentUser = session?.user?.email
-      ? await prisma.user.findUnique({ where: { email: session.user.email } })
+      ?await prisma.user.findUnique({ where: { email: session.user.email } })
       : null;
     const [followersCount, followingCount, friendsCount, existingFollow] = await Promise.all([
       prisma.follows.count({ where: { followingId: userId } }),
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
         },
       }),
       currentUser
-        ? prisma.follows.findUnique({
+        ?prisma.follows.findUnique({
             where: {
               followerId_followingId: {
                 followerId: currentUser.id,
@@ -97,6 +98,7 @@ export async function POST(req: NextRequest) {
 
   const currentUser = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!currentUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (isBanActive(currentUser)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   const { targetId, followingId } = await req.json();
   const resolvedTargetId = targetId || followingId;
@@ -132,7 +134,7 @@ export async function POST(req: NextRequest) {
           type: "follow",
           title: `${currentUser.name} comecou a seguir voce`,
           body: "Seu perfil ganhou um novo seguidor.",
-          link: `/profile/${currentUser.id}`,
+          link: `/perfil/${currentUser.username || currentUser.id}`,
         });
       }
       return NextResponse.json({ following: true });

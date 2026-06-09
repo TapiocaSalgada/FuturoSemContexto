@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { isSiteAdmin } from "@/lib/admin-access";
 import { getNavigationState, setNavigationState } from "@/lib/navigation";
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error nextauth custom role
-  if (!session || session.user?.role !== "admin") return null;
+  if (!isSiteAdmin(session as any)) return null;
   return session;
 }
 

@@ -3,11 +3,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { checkRateLimit, getRequestIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const rateLimit = checkRateLimit(`change-password:${session.user.email}:${getRequestIp(req)}`, 6, 15 * 60 * 1000);
+    if (rateLimit.limited) return rateLimitResponse(rateLimit.retryAfter);
 
     const { currentPassword, newPassword, confirmEmail } = await req.json();
     if (!currentPassword || !newPassword || !confirmEmail) return NextResponse.json({ error: "Dados incompletos." }, { status: 400 });

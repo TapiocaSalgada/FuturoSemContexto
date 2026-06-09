@@ -73,7 +73,7 @@ async function sendBatch(tokens: PushTokenRow[], payload: PushPayload) {
   }
 
   const json = await response.json().catch(() => null);
-  const data = Array.isArray(json?.data) ? json.data : [];
+  const data = Array.isArray(json?.data) ?json.data : [];
   const invalidTokens: string[] = [];
 
   for (let index = 0; index < data.length; index += 1) {

@@ -1,0 +1,5 @@
+export const PUBLIC_ACCOUNT_2FA_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_ACCOUNT_2FA === "true";
+
+export const PUBLIC_PASSWORD_RESET_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_PASSWORD_RESET === "true";

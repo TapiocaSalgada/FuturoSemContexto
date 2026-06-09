@@ -6,9 +6,24 @@ import { authOptions } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 const ALLOWED_EVENTS = new Set([
+  "player_open",
+  "first_frame",
+  "play",
+  "pause",
+  "episode_pause",
+  "episode_resume",
+  "episode_complete",
+  "progress_save",
+  "buffer_start",
+  "buffer_end",
+  "fullscreen_enter",
+  "fullscreen_exit",
+  "player_error",
+  "source_changed",
   "source_failure",
   "source_switch",
   "player_fatal",
+  "orientation_lock_failed",
   "source_manual_switch",
 ]);
 
@@ -24,7 +39,7 @@ function cleanUrl(value: unknown) {
 
   try {
     const parsed = new URL(raw);
-    const pathname = parsed.pathname.length > 300 ? parsed.pathname.slice(0, 300) : parsed.pathname;
+    const pathname = parsed.pathname.length > 300 ?parsed.pathname.slice(0, 300) : parsed.pathname;
     return `${parsed.protocol}//${parsed.hostname}${pathname}`;
   } catch {
     return raw.slice(0, 320);
@@ -87,9 +102,9 @@ export async function POST(req: NextRequest) {
       saveData: Boolean(body?.network?.saveData),
       downlink:
         Number.isFinite(Number(body?.network?.downlink))
-          ? Number(body.network.downlink)
+          ?Number(body.network.downlink)
           : null,
-      rtt: Number.isFinite(Number(body?.network?.rtt)) ? Number(body.network.rtt) : null,
+      rtt: Number.isFinite(Number(body?.network?.rtt)) ?Number(body.network.rtt) : null,
     },
     user: {
       email: session?.user?.email || null,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { isSiteAdmin } from "@/lib/admin-access";
 import { getNavigationState } from "@/lib/navigation";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export async function GET() {
     })),
     getServerSession(authOptions),
   ]);
-  const isAdmin = (session?.user as any)?.role === "admin";
+  const isAdmin = isSiteAdmin(session as any);
 
   return NextResponse.json(
     {

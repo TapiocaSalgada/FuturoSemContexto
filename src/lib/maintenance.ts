@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 
 export const MAINTENANCE_ANNOUNCEMENT_TITLE = "__system:maintenance__";
-export const DEFAULT_MAINTENANCE_MESSAGE = "Estamos em manutencao. Voltamos em breve.";
+export const DEFAULT_MAINTENANCE_MESSAGE = "Estamos em manutenção. Voltamos em breve.";
 
 type MaintenancePayload = {
   enabled?: boolean;
@@ -13,7 +13,7 @@ function parsePayload(content?: string | null): MaintenancePayload {
   if (!content) return {};
   try {
     const parsed = JSON.parse(content);
-    return typeof parsed === "object" && parsed ? parsed : {};
+    return typeof parsed === "object" && parsed ?parsed : {};
   } catch {
     return {};
   }

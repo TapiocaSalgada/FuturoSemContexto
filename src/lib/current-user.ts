@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { isBanActive } from "@/lib/ban";
 import prisma from "@/lib/prisma";
 
 export async function getCurrentUser() {
@@ -14,13 +15,14 @@ export async function getCurrentUser() {
         where: { id: userId },
         include: { settings: true },
       });
-      if (user) return user;
+      if (user) return isBanActive(user) ?null : user;
     }
 
-    return await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       include: { settings: true },
     });
+    return isBanActive(user) ?null : user;
   } catch {
     return null;
   }

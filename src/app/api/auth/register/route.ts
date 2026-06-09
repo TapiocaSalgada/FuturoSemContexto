@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { checkRateLimit, getRequestIp, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   try {
+    const rateLimit = checkRateLimit(`register:${getRequestIp(req)}`, 5, 15 * 60 * 1000);
+    if (rateLimit.limited) return rateLimitResponse(rateLimit.retryAfter);
+
     const body = await req.json();
     const name = String(body?.name || "").trim();
     const email = String(body?.email || "").trim().toLowerCase();
@@ -30,7 +34,7 @@ export async function POST(req: Request) {
 
     // Make the first registered user an Admin
     const usersCount = await prisma.user.count();
-    const role = usersCount === 0 ? "admin" : "user";
+    const role = usersCount === 0 ?"admin" : "user";
 
     const user = await prisma.user.create({
       data: {

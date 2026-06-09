@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
+import { isSiteAdmin } from "@/lib/admin-access";
 import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    // @ts-expect-error role
-    if (!session || session.user?.role !== "admin") {
+    if (!isSiteAdmin(session as any)) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 

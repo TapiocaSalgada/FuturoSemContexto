@@ -1,9 +1,10 @@
 import { normalizeTheme } from "@/lib/theme";
 
 export const DEFAULT_SETTINGS = {
-  theme: "futuro-noir",
+  theme: "futuro-classic",
   reducedMotion: false,
   neonEffects: false,
+  dataSaver: false,
   showHistory: true,
   autoplay: true,
   resumePlayback: true,
@@ -20,6 +21,7 @@ export interface UserSettingsPayload {
   theme: string;
   reducedMotion: boolean;
   neonEffects: boolean;
+  dataSaver: boolean;
   showHistory: boolean;
   autoplay: boolean;
   resumePlayback: boolean;

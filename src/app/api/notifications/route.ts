@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const limitParam = Number(new URL(req.url).searchParams.get("limit") || "20");
-  const take = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 50) : 20;
+  const take = Number.isFinite(limitParam) ?Math.min(Math.max(limitParam, 1), 50) : 20;
 
   let notifications: any[] = [];
   let unreadCount = 0;
@@ -40,13 +40,34 @@ export async function PATCH(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
-  const ids = Array.isArray(body?.ids) ? body.ids.filter(Boolean) : [];
+  const ids = Array.isArray(body?.ids) ?body.ids.filter(Boolean) : [];
 
   await prisma.notification.updateMany({
     where: ids.length
-      ? { userId: user.id, id: { in: ids } }
+      ?{ userId: user.id, id: { in: ids } }
       : { userId: user.id, isRead: false },
     data: { isRead: true },
+  });
+
+  return NextResponse.json({ ok: true });
+}
+
+export async function DELETE(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const ids = Array.isArray(body?.ids) ?body.ids.map(String).filter(Boolean) : [];
+  const clearAll = Boolean(body?.all);
+
+  if (!clearAll && ids.length === 0) {
+    return NextResponse.json({ error: "Notification id required" }, { status: 400 });
+  }
+
+  await prisma.notification.deleteMany({
+    where: clearAll
+      ?{ userId: user.id, type: { not: "ad" } }
+      : { userId: user.id, id: { in: ids }, type: { not: "ad" } },
   });
 
   return NextResponse.json({ ok: true });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import prisma from "@/lib/prisma";
+import { isBanActive } from "@/lib/ban";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createNotification } from "@/lib/notifications";
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   // Check timeout
   if (user.isTimedOut && new Date(user.isTimedOut) > new Date()) {
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   const { animeId, content, parentId } = await req.json();
   const parentComment = parentId
-    ? await prisma.comment.findUnique({
+    ?await prisma.comment.findUnique({
         where: { id: parentId },
         include: {
           user: {
@@ -80,6 +82,7 @@ export async function PATCH(req: NextRequest) {
 
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   const { id, content } = await req.json();
   const comment = await prisma.comment.findUnique({ where: { id } });
@@ -96,6 +99,7 @@ export async function DELETE(req: NextRequest) {
 
   const user = await prisma.user.findUnique({ where: { email: session.user.email } });
   if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (isBanActive(user)) return NextResponse.json({ error: "Conta suspensa." }, { status: 403 });
 
   const { id } = await req.json();
   const comment = await prisma.comment.findUnique({ where: { id } });

@@ -29,13 +29,13 @@ function normalizeSavedAccount(value: unknown): SavedAccount | null {
   return {
     email,
     name,
-    ...(avatar ? { avatar } : {}),
-    ...(role ? { role } : {}),
+    ...(avatar ?{ avatar } : {}),
+    ...(role ?{ role } : {}),
   };
 }
 
 function sanitizeList(list: unknown, max = 8): SavedAccount[] {
-  const raw = Array.isArray(list) ? list : [];
+  const raw = Array.isArray(list) ?list : [];
   const seen = new Set<string>();
   const output: SavedAccount[] = [];
 

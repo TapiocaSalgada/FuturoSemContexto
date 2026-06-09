@@ -2,24 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 
 import { authOptions } from "@/lib/auth";
+import { isSiteAdmin } from "@/lib/admin-access";
 import {
   getKappaEpisodes,
   getKappaEpisodeVideoUrl,
   ProviderKey,
   searchProviderWithFallback,
 } from "@/lib/providers/search";
+import { searchAnimeMetadataOptions } from "@/lib/anime-metadata";
 import prisma from "@/lib/prisma";
 import {
   detectVideoSource,
   extractNestedMediaUrl,
   normalizePlaybackUrl,
 } from "@/lib/video";
+import {
+  extractZenshinEpisodeImages,
+  fetchZenshinMapping,
+  pickEpisodePreviewFromPool,
+} from "@/lib/zenshin";
 
 type SyncCandidate = {
   number: number;
   title: string;
   videoUrl: string;
   sourceLabel: string;
+  thumbnailUrl?: string;
 };
 
 type SyncResult = {
@@ -185,11 +193,60 @@ function parseImportMeta(description?: string | null) {
 
   return {
     provider: validProviders.includes(provider as ProviderKey)
-      ? (provider as ProviderKey)
+      ?(provider as ProviderKey)
       : null,
     externalId: values.externalid || values.external_id || "",
     query: values.query || "",
   };
+}
+
+function asPositiveInt(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  return Math.floor(parsed);
+}
+
+async function resolveZenshinEpisodePreviewData(
+  query: string,
+  externalId?: string,
+  explicitMalId?: number,
+) {
+  const malCandidates: number[] = [];
+
+  const pushCandidate = (value: unknown) => {
+    const parsed = asPositiveInt(value);
+    if (!parsed) return;
+    if (!malCandidates.includes(parsed)) {
+      malCandidates.push(parsed);
+    }
+  };
+
+  pushCandidate(explicitMalId);
+  pushCandidate(externalId);
+
+  if (!malCandidates.length && query.trim().length >= 2) {
+    const metadata = await searchAnimeMetadataOptions(query, 6).catch(() => []);
+    for (const option of metadata) {
+      pushCandidate(option.malId);
+      if (malCandidates.length >= 4) break;
+    }
+  }
+
+  for (const malId of malCandidates) {
+    const mapping = await fetchZenshinMapping({ malId });
+    if (!mapping) continue;
+
+    const extracted = extractZenshinEpisodeImages(mapping);
+    if (!extracted.episodeImages.length) continue;
+
+    return {
+      malId,
+      episodeImagesByNumber: extracted.episodeImagesByNumber,
+      episodeImages: extracted.episodeImages,
+    };
+  }
+
+  return null;
 }
 
 async function fetchJson(url: string, timeoutMs = 12000) {
@@ -252,7 +309,7 @@ async function resolveKappaEpisodes(
 
   const selected =
     (externalId
-      ? searchResults.find((item) => String(item.id) === String(externalId))
+      ?searchResults.find((item) => String(item.id) === String(externalId))
       : null) ||
     [...searchResults].sort(
       (a, b) => scoreTitleMatch(query, b.title) - scoreTitleMatch(query, a.title),
@@ -341,7 +398,7 @@ async function resolveAtv2Episodes(
       `https://api-playanimes.vercel.app/episodios/${encodeURIComponent(String(videoId))}`,
       12000,
     );
-    const detailList = Array.isArray(details) ? details : [];
+    const detailList = Array.isArray(details) ?details : [];
     const first = detailList[0] || {};
     const links = first?.links || {};
     const videoUrl =
@@ -402,7 +459,7 @@ async function resolveAnfireEpisodes(
     if (payload?.episodes && Array.isArray(payload.episodes)) break;
   }
 
-  const episodes = Array.isArray(payload?.episodes) ? payload.episodes : [];
+  const episodes = Array.isArray(payload?.episodes) ?payload.episodes : [];
   if (!episodes.length) {
     return { providerUsed: "anfire", imported: [], failed: 0 };
   }
@@ -421,7 +478,7 @@ async function resolveAnfireEpisodes(
     const key = `${season}:${number}`;
     if (existingKeys.has(key)) continue;
 
-    const streams = Array.isArray(item?.data) ? item.data : [];
+    const streams = Array.isArray(item?.data) ?item.data : [];
     const firstOnline = streams.find((stream: any) => String(stream?.status || "").toUpperCase() === "ONLINE");
     const fallback = streams[0];
     const chosen = firstOnline || fallback;
@@ -449,6 +506,7 @@ async function resolveAnfireEpisodes(
 }
 
 const DEFAULT_SUGOI_BASES = [
+  "https://sugoi-api-chi.vercel.app",
   "https://sugoiapi.vercel.app",
   "https://sugoi-api.vercel.app",
 ];
@@ -481,7 +539,7 @@ function extractSugoiList(payload: any): any[] {
 
 function extractSugoiUrl(item: any) {
   const candidates = [
-    typeof item === "string" ? item : "",
+    typeof item === "string" ?item : "",
     item?.episode,
     item?.url,
     item?.link,
@@ -576,8 +634,8 @@ async function resolveSugoiEpisodeSources(slug: string, season: number, episode:
   const encodedSeason = encodeURIComponent(String(season));
   const encodedEpisode = encodeURIComponent(String(episode));
   const paths = [
-    `/episode/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
     `/api/episode/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
+    `/episode/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
     `/episodes/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
     `/api/episodes/${encodedSlug}/${encodedSeason}/${encodedEpisode}`,
     `/episode?slug=${encodedSlug}&season=${encodedSeason}&episode=${encodedEpisode}`,
@@ -628,7 +686,7 @@ async function resolveSugoiEpisodes(
     const sources = await resolveSugoiEpisodeSources(slug, season, episodeNumber);
     if (!sources.length) {
       misses += 1;
-      if (misses >= (foundAny ? 4 : 9)) break;
+      if (misses >= (foundAny ?4 : 9)) break;
       continue;
     }
 
@@ -756,14 +814,14 @@ async function resolveProviderEpisodes(
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  // @ts-expect-error role
-  if (!session || session.user?.role !== "admin") {
+  if (!isSiteAdmin(session as any)) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
   try {
     const body = await req.json().catch(() => ({}));
     const animeId = String(body?.animeId || "").trim();
+    const mode = String(body?.mode || "preview").trim().toLowerCase() === "confirm" ?"confirm" : "preview";
     if (!animeId) {
       return NextResponse.json({ error: "animeId é obrigatório" }, { status: 400 });
     }
@@ -772,7 +830,7 @@ export async function POST(req: NextRequest) {
       where: { id: animeId },
       include: {
         episodes: {
-          select: { season: true, number: true, videoUrl: true },
+          select: { id: true, season: true, number: true, videoUrl: true, thumbnailUrl: true },
           orderBy: [{ season: "asc" }, { number: "asc" }],
         },
       },
@@ -780,6 +838,17 @@ export async function POST(req: NextRequest) {
 
     if (!anime) {
       return NextResponse.json({ error: "Anime não encontrado" }, { status: 404 });
+    }
+
+    if (String((anime as any).externalProvider || "").toLowerCase() === "embedmovies") {
+      return NextResponse.json({
+        ok: true,
+        preview: true,
+        imported: 0,
+        importedCount: 0,
+        candidates: [],
+        message: "Esta fonte fornece player por temporada/episódio, mas não lista episódios automaticamente. Cadastre ou importe os episódios antes de sincronizar.",
+      });
     }
 
     const descriptionMeta = parseImportMeta(anime.description);
@@ -793,7 +862,7 @@ export async function POST(req: NextRequest) {
         "animefenix",
         "playanimes",
       ] as ProviderKey[]).includes(providerInput)
-        ? providerInput
+        ?providerInput
         : descriptionMeta.provider || "kappa";
 
     const query = String(body?.query || descriptionMeta.query || anime.title || "").trim();
@@ -803,9 +872,9 @@ export async function POST(req: NextRequest) {
 
     const externalId = String(body?.externalId || descriptionMeta.externalId || "").trim();
     const seasonRaw = Number(body?.season || 1);
-    const season = Number.isFinite(seasonRaw) && seasonRaw > 0 ? Math.floor(seasonRaw) : 1;
+    const season = Number.isFinite(seasonRaw) && seasonRaw > 0 ?Math.floor(seasonRaw) : 1;
     const limitRaw = Number(body?.limit || 30);
-    const maxAdds = Math.max(1, Math.min(200, Number.isFinite(limitRaw) ? Math.floor(limitRaw) : 30));
+    const maxAdds = Math.max(1, Math.min(200, Number.isFinite(limitRaw) ?Math.floor(limitRaw) : 30));
 
     const existingKeys = new Set(
       anime.episodes.map((episode) => `${episode.season}:${episode.number}`),
@@ -826,6 +895,54 @@ export async function POST(req: NextRequest) {
     );
 
     const dedupedImported = dedupeImportedEpisodes(resolved.imported);
+    const explicitMalId = asPositiveInt(body?.malId);
+    const zenshinPreview = await resolveZenshinEpisodePreviewData(
+      query,
+      externalId || undefined,
+      explicitMalId || undefined,
+    );
+    const episodeImagesByNumber = zenshinPreview?.episodeImagesByNumber || {};
+    const episodeImagePool = zenshinPreview?.episodeImages || [];
+
+    if (mode !== "confirm") {
+      return NextResponse.json({
+        ok: true,
+        preview: true,
+        animeId: anime.id,
+        animeTitle: anime.title,
+        providerRequested: provider,
+        providerUsed: resolved.providerUsed,
+        imported: 0,
+        importedCount: 0,
+        candidates: dedupedImported,
+        candidateCount: dedupedImported.length,
+        failed: resolved.failed,
+        deduped: Math.max(0, resolved.imported.length - dedupedImported.length),
+        previewSource: zenshinPreview?.malId ?`zenshin:mal:${zenshinPreview.malId}` : null,
+        message: dedupedImported.length
+          ?`Encontramos ${dedupedImported.length} episódio(s) para revisar.`
+          : "Nenhum episódio novo encontrado no momento.",
+      });
+    }
+
+    let thumbnailsPatched = 0;
+    if (episodeImagePool.length > 0) {
+      for (const existingEpisode of anime.episodes) {
+        if (existingEpisode.season !== season) continue;
+        if (String(existingEpisode.thumbnailUrl || "").trim()) continue;
+
+        const thumbnailUrl =
+          episodeImagesByNumber[existingEpisode.number] ||
+          pickEpisodePreviewFromPool(episodeImagePool, existingEpisode.number, anime.id);
+        if (!thumbnailUrl) continue;
+
+        await prisma.episode.update({
+          where: { id: existingEpisode.id },
+          data: { thumbnailUrl },
+        });
+        thumbnailsPatched += 1;
+      }
+    }
 
     if (!dedupedImported.length) {
       return NextResponse.json({
@@ -838,11 +955,14 @@ export async function POST(req: NextRequest) {
         importedCount: 0,
         failed: resolved.failed,
         deduped: resolved.imported.length,
+        thumbnailsPatched,
+        previewSource: zenshinPreview?.malId ?`zenshin:mal:${zenshinPreview.malId}` : null,
         message: "Nenhum episódio novo encontrado no momento.",
       });
     }
 
     let created = 0;
+    let createdWithThumbnail = 0;
     for (const episode of dedupedImported) {
       const key = `${season}:${episode.number}`;
       if (existingKeys.has(key)) continue;
@@ -867,6 +987,12 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      const thumbnailUrl =
+        episode.thumbnailUrl ||
+        episodeImagesByNumber[episode.number] ||
+        pickEpisodePreviewFromPool(episodeImagePool, episode.number, anime.id) ||
+        "";
+
       await prisma.episode.create({
         data: {
           animeId: anime.id,
@@ -876,6 +1002,7 @@ export async function POST(req: NextRequest) {
           videoUrl: finalVideoUrl,
           sourceLabel: episode.sourceLabel,
           sourceType: detectVideoSource(finalVideoUrl),
+          thumbnailUrl: thumbnailUrl || null,
         },
       });
 
@@ -884,6 +1011,9 @@ export async function POST(req: NextRequest) {
         existingSourceUrls.add(sourceKey);
       }
       created += 1;
+      if (thumbnailUrl) {
+        createdWithThumbnail += 1;
+      }
     }
 
     return NextResponse.json({
@@ -897,10 +1027,12 @@ export async function POST(req: NextRequest) {
       importedCount: created,
       failed: resolved.failed,
       deduped: Math.max(0, resolved.imported.length - dedupedImported.length),
+      thumbnailsPatched: thumbnailsPatched + createdWithThumbnail,
+      previewSource: zenshinPreview?.malId ?`zenshin:mal:${zenshinPreview.malId}` : null,
       scanned: dedupedImported.length + resolved.failed,
       message:
         created > 0
-          ? `${created} episódio(s) importado(s) com sucesso.`
+          ?`${created} episódio(s) importado(s) com sucesso.`
           : "Nenhum episódio novo importado.",
     });
   } catch (error) {
@@ -911,3 +1043,5 @@ export async function POST(req: NextRequest) {
 /**
  * Admin anime synchronization endpoint for provider refresh workflows.
  */
+
+
