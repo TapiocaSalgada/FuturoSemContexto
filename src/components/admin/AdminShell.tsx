@@ -1,6 +1,6 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import type { ReactNode } from "react";
-import { Activity, BookOpen, Bug, Database, FileText, Gauge, Import, Layers3, ListVideo, Search, Settings, Shield, Users } from "lucide-react";
+import { Activity, BookOpen, Bug, Database, FileText, Gauge, Import, Layers3, ListVideo, Search, Settings, Shield, Users, ExternalLink, LogOut } from "lucide-react";
 
 import type { AdminActor } from "@/lib/admin/permissions";
 
@@ -38,13 +38,27 @@ export default function AdminShell({ actor, title, subtitle, children, actions }
             })}
           </nav>
         ))}
-        <div className="admin-platform-card"><span className="status-dot" /> <strong>Status da plataforma</strong><small>Operacional</small></div>
+        <div className="admin-platform-card">
+          <span className="status-dot" /> <strong>Status da plataforma</strong><small>Operacional</small>
+        </div>
+        <Link href="/inicio" className="admin-exit-link" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 16px', color: 'var(--muted)', marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '13px', fontWeight: 600 }}>
+          <ExternalLink size={16} /> Voltar para o site
+        </Link>
       </aside>
       <section className="admin-main-v17">
         <header className="admin-topbar-v17">
           <div><h1>{title}</h1>{subtitle ? <p>{subtitle}</p> : null}</div>
           <form className="admin-search-v17" action="/admin/catalogo"><Search aria-hidden size={18} /><input name="q" placeholder="Buscar animes, episódios, usuários..." /></form>
-          <div className="admin-user-v17"><Shield aria-hidden size={18} /><span>{actor.name}</span><small>{actor.role}</small></div>
+          <div className="admin-user-v17" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Shield aria-hidden size={18} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span>{actor.name}</span>
+              <small>{actor.role}</small>
+            </div>
+            <Link href="/api/auth/signout" title="Sair do Admin" style={{ color: 'var(--danger)', marginLeft: '8px' }}>
+              <LogOut size={18} />
+            </Link>
+          </div>
         </header>
         {actions ? <div className="admin-actions-v17">{actions}</div> : null}
         {children}

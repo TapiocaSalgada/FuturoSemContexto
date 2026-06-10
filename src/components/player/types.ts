@@ -1,4 +1,4 @@
-﻿export type WatchSource = {
+export type WatchSource = {
   label?: string;
   url: string;
   type?: string;
@@ -18,7 +18,7 @@ export type WatchPlaylistItem = {
 
 export type WatchPayload = {
   anime?: { id: string; title: string; slug?: string | null; coverImage?: string | null; bannerImage?: string | null };
-  episode?: { id: string; title: string; number: number; season?: number; description?: string | null; durationSec?: number | null };
+  episode?: { id: string; title: string; number: number; season?: number; description?: string | null; durationSec?: number | null; introStartSec?: number | null; introEndSec?: number | null };
   episodeId: string;
   videoToPlay: string;
   embedUrl?: string;

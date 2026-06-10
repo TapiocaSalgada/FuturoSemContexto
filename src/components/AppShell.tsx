@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import ToastContainer from "@/components/Toast";
+import BugReportWidget from "@/components/BugReportWidget";
 
 const desktopNav = [
   { href: "/inicio", label: "Início" },
@@ -115,6 +116,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <ToastContainer />
+      <BugReportWidget />
     </div>
   );
 }

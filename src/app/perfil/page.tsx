@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CalendarDays, Edit3, History, Shield, User } from "lucide-react";
 
@@ -43,18 +43,7 @@ export default async function PerfilPage() {
           <article className="metric-card"><Shield aria-hidden size={22} /><strong>{sessions.length}</strong><span>Sessões recentes</span></article>
         </section>
 
-        <section className="form-panel">
-          <div className="section-heading"><div><h2>Segurança recente</h2><p>Eventos e dispositivos sem expor IP completo.</p></div><Link className="secondary-action" href="/configuracoes">Configurações</Link></div>
-          <div className="settings-list">
-            {sessions.map((session) => (
-              <div className="settings-row" key={session.id}><span><strong>{session.deviceLabel || "Dispositivo"}</strong><small>{session.lastSeenAt.toLocaleString("pt-BR")}</small></span><span>{session.revokedAt ? "Revogada" : "Ativa"}</span></div>
-            ))}
-            {events.map((event) => (
-              <div className="settings-row" key={event.id}><span><strong>{event.type}</strong><small>{event.createdAt.toLocaleString("pt-BR")}</small></span><span>Evento</span></div>
-            ))}
-            {sessions.length + events.length === 0 ? <p className="form-status">Nenhum evento recente.</p> : null}
-          </div>
-        </section>
+
       </main>
     </AppShell>
   );

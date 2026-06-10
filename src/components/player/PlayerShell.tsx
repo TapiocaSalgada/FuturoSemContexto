@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Loader2, Play } from "lucide-react";
 
 import EpisodeDrawer from "@/components/player/EpisodeDrawer";
 import PlayerControls from "@/components/player/PlayerControls";
@@ -23,6 +23,8 @@ export default function PlayerShell({ payload }: { payload: WatchPayload }) {
   const [duration, setDuration] = useState(0);
   const [muted, setMuted] = useState(false);
   const [firstFrameSent, setFirstFrameSent] = useState(false);
+  const [isTheater, setIsTheater] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const emit = usePlaybackAnalytics(payload);
   const { saveProgress } = usePlaybackProgress(videoRef, payload, emit);
   const { toggle } = useFullscreen(wrapRef, () => emit("orientation_lock_failed"));
@@ -41,6 +43,12 @@ export default function PlayerShell({ payload }: { payload: WatchPayload }) {
     const video = videoRef.current;
     if (video && start > 10) video.currentTime = start;
   }, [payload.episodeId, payload.history?.progressSec, payload.history?.progressSeconds]);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
 
   const syncTime = useCallback(() => {
     const video = videoRef.current;
@@ -98,6 +106,22 @@ export default function PlayerShell({ payload }: { payload: WatchPayload }) {
 
   const nextHref = useMemo(() => payload.nextEpisode?.href || (payload.nextEpisode?.id ? `/watch/${payload.nextEpisode.id}` : ""), [payload.nextEpisode]);
 
+  const showSkipIntro = Boolean(
+    payload.episode?.introStartSec !== undefined && 
+    payload.episode?.introEndSec !== undefined && 
+    currentTime >= (payload.episode.introStartSec || 0) && 
+    currentTime < (payload.episode.introEndSec || 0)
+  );
+
+  const handleSkipIntro = useCallback(() => {
+    if (payload.episode?.introEndSec) {
+      seekTo(payload.episode.introEndSec);
+    }
+  }, [payload.episode?.introEndSec, seekTo]);
+
+  const isEnding = duration > 0 && duration - currentTime <= 15;
+  const showNextEpisode = isEnding && Boolean(payload.nextEpisode);
+
   if (!url) {
     return (
       <main className="watch-page">
@@ -108,7 +132,7 @@ export default function PlayerShell({ payload }: { payload: WatchPayload }) {
 
   return (
     <main className="watch-page app-player-page">
-      <section ref={wrapRef} className="player-shell" data-status={status}>
+      <section ref={wrapRef} className="player-shell" data-status={status} data-theater={isTheater}>
         <div className="player-topbar">
           <Link className="player-back" href={payload.anime?.slug ? `/anime/${payload.anime.slug}` : "/inicio"}><ArrowLeft aria-hidden size={22} /> <span>{payload.anime?.title || "Voltar"}</span></Link>
           <div className="source-switcher">
@@ -117,6 +141,20 @@ export default function PlayerShell({ payload }: { payload: WatchPayload }) {
         </div>
 
         <BufferingOverlay status={status} />
+
+        {showNextEpisode && payload.nextEpisode && (
+          <div className="next-episode-overlay">
+            {poster && <img src={poster} alt="Próximo Episódio" />}
+            <div className="next-episode-info">
+              <h4>Próximo</h4>
+              <p>{payload.nextEpisode.title}</p>
+              <div className="next-episode-actions">
+                <button className="btn-cancel" onClick={() => seekTo(duration)}>Ignorar</button>
+                <Link className="btn-play" href={nextHref}><Play size={16} fill="white" /> Assistir Agora</Link>
+              </div>
+            </div>
+          </div>
+        )}
 
         <VideoSurface
           videoRef={videoRef}
@@ -147,6 +185,12 @@ export default function PlayerShell({ payload }: { payload: WatchPayload }) {
             onToggleMute={toggleMute}
             onFullscreen={enterFullscreen}
             onDrawer={() => setDrawerOpen(true)}
+            showSkipIntro={showSkipIntro}
+            onSkipIntro={handleSkipIntro}
+            isTheater={isTheater}
+            onToggleTheater={() => setIsTheater(prev => !prev)}
+            playbackRate={playbackRate}
+            onSpeedChange={setPlaybackRate}
           />
         ) : <div className="player-embed-hint"><span>Embed protegido em sandbox</span><button type="button" onClick={enterFullscreen}>Tela cheia</button></div>}
       </section>

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { RefObject, useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
@@ -29,7 +29,7 @@ export default function VideoSurface({ videoRef, url, direct, poster, title, onR
     if (!video || !direct || !url) return;
 
     setHlsError("");
-    let hls: { destroy: () => void; loadSource: (source: string) => void; attachMedia: (media: HTMLMediaElement) => void; on: (...args: any[]) => void } | null = null;
+    let hls: { destroy: () => void; loadSource: (source: string) => void; attachMedia: (media: HTMLMediaElement) => void; on: (...args: any[]) => void; startLoad: () => void; recoverMediaError: () => void; } | null = null;
     const canPlayNative = video.canPlayType("application/vnd.apple.mpegurl");
 
     if (isHlsUrl(url) && !canPlayNative) {
@@ -42,10 +42,24 @@ export default function VideoSurface({ videoRef, url, direct, poster, title, onR
           hls = new Hls({ enableWorker: true, lowLatencyMode: false });
           hls.loadSource(url);
           hls.attachMedia(video);
-          hls.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean; details?: string }) => {
+          
+          hls.on(Hls.Events.ERROR, (_event: unknown, data: any) => {
             if (data.fatal) {
-              setHlsError(data.details || "Erro fatal no HLS.");
-              onError();
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  console.warn("HLS Network Error, attempting to recover...");
+                  hls?.startLoad();
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  console.warn("HLS Media Error, attempting to recover...");
+                  hls?.recoverMediaError();
+                  break;
+                default:
+                  setHlsError(data.details || "Erro fatal no carregamento do vídeo.");
+                  hls?.destroy();
+                  onError();
+                  break;
+              }
             }
           });
         })
